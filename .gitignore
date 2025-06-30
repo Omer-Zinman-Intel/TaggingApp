@@ -1,0 +1,8 @@
+# Ignore Python's bytecode compilation directory
+__pycache__/
+
+# Ignore all contents of the 'states' folder...
+states/*
+
+# ...but DO NOT ignore the .gitkeep file inside it
+!states/.gitkeep
