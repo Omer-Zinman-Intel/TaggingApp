@@ -53,9 +53,6 @@
                     <button onclick="showModal('addCategoryModal')" class="text-sm font-medium text-purple-600 bg-purple-100 hover:bg-purple-200 px-3 py-1.5 rounded-full transition-colors">
                         + New Category
                     </button>
-                    <button onclick="showModal('addTagModal')" class="text-sm font-medium text-green-600 bg-green-100 hover:bg-green-200 px-3 py-1.5 rounded-full transition-colors">
-                        + New Tag
-                    </button>
                 </div>
                 
                 {% if and_tags %}
@@ -71,7 +68,7 @@
                         {% for tag in and_tags %}
                             <span class="tag-bubble and-tag {% if tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
                                   draggable="true" ondragstart="drag(event)" ondragend="dragEnd(event)" ondrop="drop(event)" data-tag-name="{{ tag }}" data-source-category-id="and_tags">
-                                <div class="flex flex-col" onclick="handleTagClick(event, '{{ tag }}')">
+                                <div class="flex flex-col" onclick="handleTagClick(event, '{{ tag }}')" oncontextmenu="showTagContextMenu(event, '{{ tag }}')">
                                     {% for component in tag.split('&') %}
                                         <span class="and-tag-component">
                                             {{ component }} 
@@ -98,7 +95,7 @@
                             {% if tag.lower() != 'all' %}
                             <span class="tag-bubble {% if '&' in tag.lower() %}and-tag{% elif tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
                                draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}" ondragstart="drag(event)" ondragend="dragEnd(event)" ondrop="drop(event)" data-tag-name="{{ tag }}" data-source-category-id="uncategorized">
-                                <span onclick="handleTagClick(event, '{{ tag }}')">{{ tag }}</span>
+                                <span onclick="handleTagClick(event, '{{ tag }}')" oncontextmenu="showTagContextMenu(event, '{{ tag }}')">{{ tag }}</span>
                                 <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white shadow-lg rounded-md p-1 flex items-center z-20 opacity-0 group-hover/tag:opacity-100 transition-opacity pointer-events-none group-hover/tag:pointer-events-auto">
                                     <button onclick="event.preventDefault(); event.stopPropagation(); showRenameModal('{{ tag }}')" class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -289,35 +286,6 @@
             </button>
         </div>
     </div>
-
-    <div id="addTagModal" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 hidden opacity-0">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
-            <form action="{{ url_for('add_global_tag', filter=request.args.getlist('filter'), state=current_state) }}" method="post" class="w-full">
-                <div class="flex justify-between items-center p-4 border-b">
-                    <h3 class="text-xl font-semibold">Create New Tag</h3>
-                    <button type="button" onclick="hideModal('addTagModal')" class="p-1 rounded-full hover:bg-gray-200">&times;</button>
-                </div>
-                <div class="p-6">
-                    <label for="new_tag_name" class="block text-sm font-medium text-gray-700 mb-1">Tag Name</label>
-                    <input type="text" id="new_tag_name" name="new_tag_name" class="w-full p-2 border border-gray-300 rounded-md">
-
-                    <label for="new_tag_category" class="block text-sm font-medium text-gray-700 mt-4 mb-1">Assign to Category</label>
-                    <select id="new_tag_category" name="target_category_id" class="w-full p-2 border border-gray-300 rounded-md">
-                        <option value="uncategorized" selected>Uncategorized</option>
-                        {% for category in tag_categories %}
-                            {% if category.name.lower() != 'uncategorized' %}
-                            <option value="{{ category.id }}">{{ category.name }}</option>
-                            {% endif %}
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="p-4 bg-gray-50 flex justify-end space-x-3 rounded-b-lg">
-                    <button type="button" onclick="hideModal('addTagModal')" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Create Tag</button>
-                </div>
-            </form>
-        </div>
-    </div>
     
     <div id="editTitleModal" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
@@ -354,7 +322,7 @@
                                  <input type="text" id="editSectionTagsInput" class="flex-grow p-1 outline-none text-sm" autocomplete="off" placeholder="Add a tag...">
                              </div>
                              <input type="hidden" id="editSectionTags" name="tags">
-                             <div id="section-suggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 hidden max-h-40 overflow-y-auto shadow-lg"></div>
+                             <div id="section-suggestions" class="tag-suggestions-dropdown hidden"></div>
                         </div>
                     </div>
                 </div>
@@ -401,7 +369,7 @@
                                  <input type="text" id="editNoteTagsInput" class="flex-grow p-1 outline-none text-sm" autocomplete="off" placeholder="Add a tag...">
                              </div>
                              <input type="hidden" id="editNoteTags" name="tags">
-                             <div id="note-suggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 hidden max-h-40 overflow-y-auto shadow-lg"></div>
+                             <div id="note-suggestions" class="tag-suggestions-dropdown hidden"></div>
                         </div>
                     </div>
                  </div>

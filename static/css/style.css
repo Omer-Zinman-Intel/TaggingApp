@@ -57,6 +57,11 @@
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer; /* Default clickable cursor */
+    transition: all 0.2s ease;
+}
+.tag-bubble:hover {
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 .tag-bubble.dragging { /* Apply on drag start */
     cursor: grabbing !important;
@@ -65,6 +70,12 @@
     background-color: #e9d5ff; /* purple-200 */
     color: #5b21b6; /* purple-800 */
     cursor: default; /* Not draggable/clickable */
+}
+.tag-bubble.inactive-filter:hover {
+    background-color: #bfdbfe; /* blue-200 */
+}
+.tag-bubble.and-tag.inactive-filter:hover {
+    background-color: #fde68a; /* yellow-200 */
 }
 
 /* Active filter tag styling */
@@ -186,4 +197,88 @@
 /* Added transition-delay for tag actions on hover */
 .group-hover\/tag:opacity-100 {
     transition-delay: 150ms; /* Adjust this value as needed */
+}
+
+/* Improved tag suggestions positioning */
+.tag-suggestions-dropdown {
+    position: absolute;
+    z-index: 50;
+    width: 100%;
+    background-color: white;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    margin-top: 0.25rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    max-height: 10rem;
+    overflow-y: auto;
+}
+
+.tag-suggestions-dropdown.dropdown-up {
+    bottom: 100%;
+    top: auto;
+    margin-top: 0;
+    margin-bottom: 0.25rem;
+}
+
+/* Ensure modals have enough space for dropdowns */
+.modal .modal-body {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+}
+
+/* Ensure suggestions are always visible */
+.tag-suggestions-dropdown {
+    max-height: 160px;
+}
+
+/* AND tag input mode styling */
+.tag-input-and-mode {
+    background-color: #fef3c7 !important; /* yellow-100 */
+    border-color: #f59e0b !important; /* yellow-500 */
+    box-shadow: 0 0 0 1px #f59e0b !important;
+}
+
+.tag-input-and-mode::placeholder {
+    color: #d97706 !important; /* yellow-600 */
+    font-style: italic;
+}
+
+/* Enhanced suggestion items for AND tag mode */
+.suggestion-item.and-mode {
+    border-left: 3px solid #f59e0b; /* yellow-500 */
+    background-color: #fffbeb; /* yellow-50 */
+}
+
+.suggestion-item.and-mode:hover {
+    background-color: #fef3c7; /* yellow-100 */
+}
+
+/* Visual separator for AND tag components during typing */
+.and-component-separator {
+    color: #f59e0b; /* yellow-500 */
+    font-weight: bold;
+    padding: 0 0.5rem;
+}
+
+/* Partial component styling for AND tag creation */
+.partial-component {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    padding: 0.25rem 0.75rem;
+    margin-right: 0.5rem;
+    margin-bottom: 0.25rem;
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    background-color: #fef3c7; /* yellow-100 */
+    color: #d97706; /* yellow-600 */
+    border: 2px dashed #f59e0b; /* yellow-500 */
+    opacity: 0.8;
+    transition: all 0.2s ease;
+}
+
+.partial-component:hover {
+    opacity: 1;
+    transform: scale(1.02);
 }

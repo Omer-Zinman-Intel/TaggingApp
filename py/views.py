@@ -141,11 +141,30 @@ def update_section(section_id: str):
     state_name = request.args.get('state')
     section = content_processor.find_item(section_id, "section")
     if section:
-        section["sectionTitle"] = request.form.get("sectionTitle", section["sectionTitle"])
-        new_tags = content_processor.process_tags_string(request.form.get("tags", ""))
-        section["tags"] = new_tags
-        tag_manager.sync_known_tags(new_tags)
-        tag_manager.cleanup_orphan_tags()
+        # Handle section title with proper fallback
+        current_title = section.get("sectionTitle", section.get("title", "Untitled Section"))
+        section["sectionTitle"] = request.form.get("sectionTitle", current_title)
+        
+        new_tags_input = request.form.get("tags", "")
+        
+        # Simple tag processing for sections - no global side effects
+        if new_tags_input.strip():
+            new_tags = [tag.strip() for tag in new_tags_input.split(',') if tag.strip()]
+            # Normalize AND tags
+            normalized_tags = []
+            for tag in new_tags:
+                if '&' in tag:
+                    components = tag_manager.parse_and_tag_components(tag)
+                    normalized_tag = tag_manager.combine_tags_to_and(components)
+                    normalized_tags.append(normalized_tag)
+                else:
+                    normalized_tags.append(tag)
+            section["tags"] = normalized_tags
+        else:
+            section["tags"] = []
+        
+        # Sync known tags to include any new tags
+        tag_manager.sync_known_tags()
         state_manager.save_state(state_name)
     else:
         flash("Section not found.", "error")
@@ -177,12 +196,32 @@ def update_note(section_id: str, note_id: str):
     state_name = request.args.get('state')
     _, note = content_processor.find_section_and_note(section_id, note_id)
     if note:
-        note["noteTitle"] = request.form.get("noteTitle", note["noteTitle"])
-        note["content"] = request.form.get("content", note["content"])
-        new_tags = content_processor.process_tags_string(request.form.get("tags", ""))
-        note["tags"] = new_tags
-        tag_manager.sync_known_tags(new_tags)
-        tag_manager.cleanup_orphan_tags()
+        # Handle note fields with proper fallbacks
+        current_title = note.get("noteTitle", note.get("title", "Untitled Note"))
+        current_content = note.get("content", "")
+        
+        note["noteTitle"] = request.form.get("noteTitle", current_title)
+        note["content"] = request.form.get("content", current_content)
+        new_tags_input = request.form.get("tags", "")
+        
+        # Simple tag processing for notes - no global side effects
+        if new_tags_input.strip():
+            new_tags = [tag.strip() for tag in new_tags_input.split(',') if tag.strip()]
+            # Normalize AND tags
+            normalized_tags = []
+            for tag in new_tags:
+                if '&' in tag:
+                    components = tag_manager.parse_and_tag_components(tag)
+                    normalized_tag = tag_manager.combine_tags_to_and(components)
+                    normalized_tags.append(normalized_tag)
+                else:
+                    normalized_tags.append(tag)
+            note["tags"] = normalized_tags
+        else:
+            note["tags"] = []
+        
+        # Sync known tags to include any new tags
+        tag_manager.sync_known_tags()
         state_manager.save_state(state_name)
     else:
         flash("Note not found.", "error")
@@ -201,14 +240,14 @@ def delete_note(section_id: str, note_id: str):
 
 # --- Tag Management Routes ---
 
-def add_global_tag():
+def create_tag_from_editor():
+    """Create a new tag from the editor and add it to a category"""
     state_name = request.args.get('state')
-    new_tag = request.form.get("new_tag_name", "").strip()
-    target_category_id = request.form.get("target_category_id")
+    new_tag = request.form.get("tag_name", "").strip()
+    target_category_id = request.form.get("category_id", "uncategorized")
 
     if not new_tag:
-        flash("Tag name cannot be empty.", "warning")
-        return redirect(get_redirect_url())
+        return jsonify({"success": False, "message": "Tag name cannot be empty"})
     
     # Normalize new_tag if it's an AND tag format
     if '&' in new_tag:
@@ -216,8 +255,7 @@ def add_global_tag():
         new_tag = tag_manager.combine_tags_to_and(components) # Get canonical name
 
     if new_tag.lower() in [t.lower() for t in tag_manager.get_all_known_tags()]:
-        flash(f"Tag '{new_tag}' already exists.", "info")
-        return redirect(get_redirect_url())
+        return jsonify({"success": True, "message": f"Tag '{new_tag}' already exists", "tag": new_tag})
 
     # Add to known_tags set
     global_state.document_state.setdefault("known_tags", set()).add(new_tag)
@@ -242,9 +280,10 @@ def add_global_tag():
 
     tag_manager.cleanup_orphan_tags()
     state_manager.save_state(state_name)
-    flash(f"Tag '{new_tag}' created and added to '{target_category_obj['name']}'.", "success")
-    return redirect(get_redirect_url())
-
+    
+    # Return updated tag list for the client
+    all_tags = tag_manager.get_all_known_tags()
+    return jsonify({"success": True, "message": f"Tag '{new_tag}' created", "tag": new_tag, "all_tags": list(all_tags)})
 
 def rename_global_tag():
     state_name = request.args.get('state')
@@ -266,20 +305,12 @@ def rename_global_tag():
     elif old_tag.lower() == 'all':
         flash("The 'All' tag cannot be renamed.", "error")
     else:
-        # Update known_tags set
-        global_state.document_state["known_tags"] = {new_tag if t.lower() == old_tag.lower() else t for t in global_state.document_state.get("known_tags", set())}
-        
-        # Update tags in all sections and notes
-        tag_manager.update_content_with_new_tag(old_tag, new_tag)
-
-        # Update tags in categories
-        for category in global_state.document_state.get("tag_categories", []):
-            category["tags"] = [new_tag if t.lower() == old_tag.lower() else t for t in category.get("tags", [])]
-            category["tags"] = sorted(category["tags"], key=str.lower) # Re-sort after rename
-
-        tag_manager.cleanup_orphan_tags() # Reconcile after renaming
+        # Use the smart rename logic that handles AND tag components
+        tag_manager.smart_rename_tag(old_tag, new_tag)
+        tag_manager.cleanup_orphan_tags()
         state_manager.save_state(state_name)
         flash(f"Tag '{old_tag}' renamed to '{new_tag}'.", "success")
+
     return redirect(get_redirect_url())
 
 def delete_global_tag():
@@ -321,54 +352,16 @@ def remove_and_tag_component():
     if not and_tag_name or not component_to_remove:
         return jsonify({"success": False, "message": "Missing tag or component name."})
     
-    original_components = tag_manager.parse_and_tag_components(and_tag_name)
+    # Use the tag_manager function for consistency
+    result = tag_manager.remove_and_tag_component(state_name, and_tag_name, component_to_remove)
     
-    if component_to_remove not in original_components:
-        return jsonify({"success": False, "message": "Component not found in AND tag."})
-
-    remaining_components = [comp for comp in original_components if comp != component_to_remove]
-    
-    old_tag = and_tag_name # The tag we are modifying/removing
-    new_tag = None
-
-    if len(remaining_components) > 1:
-        new_tag = tag_manager.combine_tags_to_and(remaining_components)
-    elif len(remaining_components) == 1:
-        new_tag = remaining_components[0]
-    # If len is 0, new_tag remains None, meaning the AND tag is completely dissolved.
-
-    # 1. Update content (sections/notes)
-    if new_tag:
-        tag_manager.update_content_with_new_tag(old_tag, new_tag)
+    if result['success']:
+        state_manager.save_state(state_name)
+        flash(result['message'], "success")
     else:
-        # If completely dissolved, just remove the old_tag from content
-        for section in global_state.document_state.get("sections", []):
-            section["tags"] = [t for t in section.get("tags", []) if t.lower() != old_tag.lower()]
-            for note in section.get("notes", []):
-                note["tags"] = [t for t in note.get("tags", []) if t.lower() != old_tag.lower()]
-
-    # 2. Update categories (Remove from its current category, if any)
-    for category in global_state.document_state.get("tag_categories", []):
-        if old_tag in category.get('tags', []):
-            category['tags'].remove(old_tag)
-            # Add the new tag to the same category if it's not already there
-            if new_tag and new_tag not in category['tags']:
-                category['tags'].append(new_tag)
-            category['tags'].sort(key=str.lower)
-
-    # 3. Update global known_tags set
-    if old_tag in global_state.document_state.get("known_tags", set()):
-        global_state.document_state["known_tags"].discard(old_tag)
-    if new_tag:
-        global_state.document_state.setdefault("known_tags", set()).add(new_tag)
-    else: # If completely dissolved, ensure the removed component is known
-        global_state.document_state.setdefault("known_tags", set()).add(component_to_remove)
-
-    tag_manager.cleanup_orphan_tags() # Final cleanup
-    state_manager.save_state(state_name)
+        flash(result['message'], "error")
     
-    flash(f"Component '{component_to_remove}' removed from '{and_tag_name}'. Tag is now '{new_tag if new_tag else 'dissolved'}'.", "success")
-    return jsonify({"success": True, "message": "Component removed successfully."})
+    return jsonify(result)
 
 
 def move_tag():
@@ -539,3 +532,40 @@ def delete_category():
     state_manager.save_state(state_name)
     flash(f"Category '{category_to_delete['name']}' deleted and its tags moved to 'Uncategorized'.", "success")
     return redirect(get_redirect_url())
+
+def remove_tag_globally():
+    """Remove a tag from all content globally."""
+    state_name = request.args.get('state')
+    tag_to_remove = request.form.get('tag_name')
+    
+    if not tag_to_remove:
+        return jsonify({"success": False, "message": "Missing tag name."})
+    
+    result = tag_manager.remove_tag_globally(tag_to_remove)
+    
+    if result['success']:
+        state_manager.save_state(state_name)
+        flash(result['message'], "success")
+    else:
+        flash(result['message'], "error")
+    
+    return jsonify(result)
+
+def rename_tag_globally():
+    """Rename a tag in all content globally."""
+    state_name = request.args.get('state')
+    old_tag = request.form.get('old_tag_name')
+    new_tag = request.form.get('new_tag_name')
+    
+    if not old_tag or not new_tag:
+        return jsonify({"success": False, "message": "Missing old or new tag name."})
+    
+    result = tag_manager.rename_tag_globally(old_tag, new_tag)
+    
+    if result['success']:
+        state_manager.save_state(state_name)
+        flash(result['message'], "success")
+    else:
+        flash(result['message'], "error")
+    
+    return jsonify(result)

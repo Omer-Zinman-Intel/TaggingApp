@@ -5,12 +5,8 @@ import { initializeEditors, toggleEditorView, toggleImportEditorView, cleanActiv
 import { createTagInput } from './tags.js';
 import { drag, dragEnd, allowDrop, leaveDrop, drop, isDragging } from './drag_drop.js';
 
-// Read data from the body tag and set as global variables
-const bodyData = document.body.dataset;
-window.ALL_TAGS = JSON.parse(bodyData.allTags || '[]');
-window.CURRENT_STATE = bodyData.currentState || '';
-window.ACTIVE_FILTERS_LOWER = JSON.parse(bodyData.activeFiltersLower || '[]');
-
+// Global variables are set by the script tags in the HTML template
+// No need to read from body dataset since the data is set directly in script tags
 
 // --- Expose functions to the global scope for inline HTML event handlers ---
 window.showModal = showModal;
@@ -97,6 +93,107 @@ window.removeAndTagComponent = async function(event, andTagName, componentToRemo
     }
 };
 
+// Global tag management functions
+window.removeTagGlobally = async function(tagName) {
+    if (!confirm(`Remove tag '${tagName}' from ALL content? This action cannot be undone.`)) {
+        return;
+    }
+    
+    const currentUrl = new URL(window.location.href);
+    const queryParams = new URLSearchParams(currentUrl.search);
+    
+    const formData = new FormData();
+    formData.append('tag_name', tagName);
+    
+    try {
+        const response = await fetch(`/tag/remove_globally?${queryParams.toString()}`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Failed to remove tag: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error removing tag globally:', error);
+        alert('An error occurred while removing the tag.');
+    }
+};
+
+window.renameTagGlobally = async function(oldTagName) {
+    const newTagName = prompt(`Rename tag '${oldTagName}' to:`, oldTagName);
+    if (!newTagName || newTagName === oldTagName) {
+        return;
+    }
+    
+    const currentUrl = new URL(window.location.href);
+    const queryParams = new URLSearchParams(currentUrl.search);
+    
+    const formData = new FormData();
+    formData.append('old_tag_name', oldTagName);
+    formData.append('new_tag_name', newTagName);
+    
+    try {
+        const response = await fetch(`/tag/rename_globally?${queryParams.toString()}`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Failed to rename tag: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error renaming tag globally:', error);
+        alert('An error occurred while renaming the tag.');
+    }
+};
+
+// Context menu functionality
+window.showTagContextMenu = function(event, tagName) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // Create context menu
+    const contextMenu = document.createElement('div');
+    contextMenu.className = 'fixed bg-white shadow-lg border rounded-md py-2 z-50';
+    contextMenu.style.left = event.pageX + 'px';
+    contextMenu.style.top = event.pageY + 'px';
+    
+    // Add menu items
+    const renameItem = document.createElement('div');
+    renameItem.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm';
+    renameItem.textContent = 'Rename tag globally';
+    renameItem.onclick = () => {
+        document.body.removeChild(contextMenu);
+        renameTagGlobally(tagName);
+    };
+    
+    const removeItem = document.createElement('div');
+    removeItem.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm text-red-600';
+    removeItem.textContent = 'Remove tag globally';
+    removeItem.onclick = () => {
+        document.body.removeChild(contextMenu);
+        removeTagGlobally(tagName);
+    };
+    
+    contextMenu.appendChild(renameItem);
+    contextMenu.appendChild(removeItem);
+    document.body.appendChild(contextMenu);
+    
+    // Remove menu when clicking elsewhere
+    const removeMenu = (e) => {
+        if (!contextMenu.contains(e.target)) {
+            document.body.removeChild(contextMenu);
+            document.removeEventListener('click', removeMenu);
+        }
+    };
+    setTimeout(() => document.addEventListener('click', removeMenu), 0);
+};
+
 // --- DOMContentLoaded Setup ---
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize editors and expose their instances globally
@@ -104,11 +201,13 @@ document.addEventListener('DOMContentLoaded', () => {
     window.noteEditorQuill = editors.noteEditorQuill;
     window.importEditorQuill = editors.importEditorQuill;
 
-    // Create and expose tagInputs globally so modals can access them
-    window.tagInputs = {
-        section: createTagInput('editSectionTagsContainer', 'editSectionTagsInput', 'editSectionTags', 'section-suggestions'),
-        note: createTagInput('editNoteTagsContainer', 'editNoteTagsInput', 'editNoteTags', 'note-suggestions')
-    };
+    // Create and expose tagInputs globally with delay to ensure DOM is ready
+    setTimeout(() => {
+        window.tagInputs = {
+            section: createTagInput('editSectionTagsContainer', 'editSectionTagsInput', 'editSectionTags', 'section-suggestions'),
+            note: createTagInput('editNoteTagsContainer', 'editNoteTagsInput', 'editNoteTags', 'note-suggestions')
+        };
+    }, 500); // Give DOM time to fully render
 
     const docxInput = document.getElementById('docx-file-input');
     if (docxInput) {

@@ -104,6 +104,10 @@ def load_state(state_name: str) -> bool:
 
             global_state.document_state.clear()
             global_state.document_state.update(loaded_data)
+            
+        # Sync tags to ensure only actually used tags are available
+        tag_manager.sync_known_tags()
+        
         return True
     except (json.JSONDecodeError, IOError) as e:
         print(f"Warning: Could not load or decode {filepath}. Error: {e}")

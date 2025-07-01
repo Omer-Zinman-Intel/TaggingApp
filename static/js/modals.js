@@ -1,4 +1,4 @@
-// js/modals.js
+import { createTagInput } from './tags.js';
 
 export function showModal(modalId) {
     const modal = document.getElementById(modalId);
@@ -23,7 +23,24 @@ export function showEditSectionModal(sectionId, title, tags) {
     form.action = `/section/update/${sectionId}` + currentUrl.search;
     
     document.getElementById('editSectionTitle').value = title;
-    window.tagInputs['section'].init(tags);
+    
+    // Ensure tag input exists before initializing
+    if (window.tagInputs && window.tagInputs['section']) {
+        window.tagInputs['section'].init(tags);
+    } else {
+        // Recreate tag input if it doesn't exist
+        setTimeout(() => {
+            if (!window.tagInputs) window.tagInputs = {};
+            window.tagInputs['section'] = createTagInput(
+                'editSectionTagsContainer', 
+                'editSectionTagsInput', 
+                'editSectionTags', 
+                'section-suggestions'
+            );
+            window.tagInputs['section'].init(tags);
+        }, 100);
+    }
+    
     showModal('editSectionModal');
 }
 
@@ -41,9 +58,23 @@ export function showEditNoteModal(sectionId, noteId, title, content, tags) {
         window.toggleEditorView('richtext'); // Always start with rich text view
     }
     
+    // Ensure tag input exists before initializing
     if (window.tagInputs && window.tagInputs['note']) {
         window.tagInputs['note'].init(tags);
+    } else {
+        // Recreate tag input if it doesn't exist
+        setTimeout(() => {
+            if (!window.tagInputs) window.tagInputs = {};
+            window.tagInputs['note'] = createTagInput(
+                'editNoteTagsContainer', 
+                'editNoteTagsInput', 
+                'editNoteTags', 
+                'note-suggestions'
+            );
+            window.tagInputs['note'].init(tags);
+        }, 100);
     }
+    
     showModal('editNoteModal');
 }
 
