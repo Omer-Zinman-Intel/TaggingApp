@@ -4,52 +4,75 @@ import copy
 import uuid
 from bs4 import BeautifulSoup
 from typing import List, Dict, Set, Optional, Any
-import py.global_state as global_state # Corrected import statement
+import py.core as core
 
 # --- Content Filtering and Retrieval ---
 
 def get_filtered_sections(active_filters: List[str]) -> List[Dict]:
     """
     Returns a filtered list of sections based on the active filters.
-    - An OR logic is applied: shows content with ANY of the selected tags.
-    - A section is shown if it matches OR if it contains notes that match.
-    - Content tagged with 'All' is always shown.
+    - Supports both singular tags and AND tags
+    - For singular tags: OR logic (shows content with ANY of the selected tags)
+    - For AND tags: shows content that contains ALL components of the AND tag
+    - A section is shown if it matches OR if it contains notes that match
+    - Content tagged with 'All' is always shown
     """
     if not active_filters:
-        return global_state.document_state.get("sections", [])
+        return core.document_state.get("sections", [])
 
-    lower_case_active_filters = {f.lower() for f in active_filters}
     filtered_sections = []
 
-    for section in global_state.document_state.get("sections", []):
+    for section in core.document_state.get("sections", []):
         section_tags = {t.lower() for t in section.get("tags", [])}
         
-        # The 'All' tag on a section makes it and all its notes immune to filtering.
+        # The 'All' tag on a section makes it and all its notes immune to filtering
         if 'all' in section_tags:
             filtered_sections.append(copy.deepcopy(section))
             continue
 
         section_copy = copy.deepcopy(section)
-        section_tags_match = not section_tags.isdisjoint(lower_case_active_filters)
+        section_matches = _matches_filters(section_tags, active_filters)
 
         # Filter notes within the section
         visible_notes = []
         for note in section_copy.get("notes", []):
             note_tags = {t.lower() for t in note.get("tags", [])}
-            if 'all' in note_tags or not note_tags.isdisjoint(lower_case_active_filters):
+            if 'all' in note_tags or _matches_filters(note_tags, active_filters):
                 visible_notes.append(note)
         
         section_copy['notes'] = visible_notes
 
-        # The section should be displayed if the section itself matches or if it has any visible notes.
-        if section_tags_match or visible_notes:
+        # The section should be displayed if the section itself matches or if it has any visible notes
+        if section_matches or visible_notes:
             filtered_sections.append(section_copy)
             
     return filtered_sections
 
+def _matches_filters(content_tags: Set[str], active_filters: List[str]) -> bool:
+    """
+    Check if content tags match any of the active filters.
+    - For singular filters: OR logic (any tag matches)
+    - For AND filters: ALL components must be present in content tags
+    """
+    and_tags = core.document_state.get("and_tags", [])
+    and_tags_lower = {tag.lower() for tag in and_tags}
+    
+    for filter_tag in active_filters:
+        filter_tag_lower = filter_tag.lower()
+        if filter_tag_lower in and_tags_lower:
+            # This is an AND tag - check if ALL components are present
+            components = [comp.strip().lower() for comp in filter_tag.split('&')]
+            if all(comp in content_tags for comp in components):
+                return True
+        else:
+            # This is a singular tag - check if it's present
+            if filter_tag_lower in content_tags:
+                return True
+    return False
+
 def find_item(item_id: str, item_type: str) -> Optional[Dict]:
     """Finds a section or note by its ID."""
-    for section in global_state.document_state.get("sections", []):
+    for section in core.document_state.get("sections", []):
         if item_type == "section" and section["id"] == item_id:
             return section
         if item_type == "note":
@@ -60,7 +83,7 @@ def find_item(item_id: str, item_type: str) -> Optional[Dict]:
 
 def find_section_and_note(section_id: str, note_id: str) -> tuple[Optional[Dict], Optional[Dict]]:
     """A convenience function to find a note and its parent section."""
-    for section in global_state.document_state.get("sections", []):
+    for section in core.document_state.get("sections", []):
         if section["id"] == section_id:
             for note in section.get("notes", []):
                 if note["id"] == note_id:

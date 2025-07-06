@@ -1,12 +1,56 @@
 # app.py
 import os
-from flask import Flask
+import json
+import datetime
+from flask import Flask, request, jsonify
 import py.views as views
-import py.config as config
+import py.core as core
 import py.state_manager as state_manager
 
 app = Flask(__name__)
-app.secret_key = config.SECRET_KEY
+app.secret_key = core.SECRET_KEY
+
+# Create logs directory if it doesn't exist
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+
+# JavaScript error logging endpoint
+@app.route('/log_js_error', methods=['POST'])
+def log_js_error():
+    try:
+        error_data = request.get_json()
+        if error_data:
+            # Create log filename based on date
+            today = datetime.datetime.now().strftime('%Y-%m-%d')
+            log_filename = f'logs/js_errors_{today}.log'
+            
+            # Write error to log file
+            with open(log_filename, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(error_data) + '\n')
+            
+            return jsonify({'status': 'success'})
+        else:
+            return jsonify({'status': 'error', 'message': 'No data received'}), 400
+    except Exception as e:
+        print(f'Error logging JS error: {e}')
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# Minimal robust logging endpoint for browser logs
+@app.route('/log', methods=['POST'])
+def log_client_log():
+    try:
+        log_data = request.get_json()
+        if log_data:
+            today = datetime.datetime.now().strftime('%Y-%m-%d')
+            log_filename = f'logs/client_{today}.log'
+            with open(log_filename, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(log_data) + '\n')
+            return jsonify({'status': 'success'})
+        else:
+            return jsonify({'status': 'error', 'message': 'No data received'}), 400
+    except Exception as e:
+        print(f'Error logging client log: {e}')
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 # Register Jinja2 custom filter
 app.jinja_env.filters['remove_case_insensitive'] = views.remove_case_insensitive_filter
@@ -23,9 +67,12 @@ app.add_url_rule("/section/delete/<section_id>", 'delete_section', views.delete_
 app.add_url_rule("/note/add/<section_id>", 'add_note', views.add_note, methods=["POST"])
 app.add_url_rule("/note/update/<section_id>/<note_id>", 'update_note', views.update_note, methods=["POST"])
 app.add_url_rule("/note/delete/<section_id>/<note_id>", 'delete_note', views.delete_note, methods=["POST"])
-app.add_url_rule("/tags/create", 'create_tag_from_editor', views.create_tag_from_editor, methods=["POST"])
+app.add_url_rule("/tags/add", 'add_global_tag', views.add_global_tag, methods=["POST"])
 app.add_url_rule("/tags/rename", 'rename_global_tag', views.rename_global_tag, methods=["POST"])
 app.add_url_rule("/tags/delete", 'delete_global_tag', views.delete_global_tag, methods=["POST"])
+app.add_url_rule("/and-tags/add", 'add_and_tag', views.add_and_tag, methods=["POST"])
+app.add_url_rule("/and-tags/update", 'update_and_tag', views.update_and_tag, methods=["POST"])
+app.add_url_rule("/and-tags/delete", 'delete_and_tag', views.delete_and_tag, methods=["POST"])
 app.add_url_rule("/category/add", 'add_category', views.add_category, methods=["POST"])
 app.add_url_rule("/category/rename", 'rename_category', views.rename_category, methods=["POST"])
 app.add_url_rule("/category/delete", 'delete_category', views.delete_category, methods=["POST"])

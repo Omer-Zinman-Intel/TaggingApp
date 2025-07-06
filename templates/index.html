@@ -1,3 +1,8 @@
+<!-- 
+This is a Jinja2 HTML template file.
+The {{ template_expressions }} are processed server-side by Flask/Jinja2
+before being sent to the browser as valid HTML/JavaScript.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,7 +10,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ document.documentTitle }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/quill-image-resize-module@3.0.0/image-resize.min.js"></script>
@@ -53,6 +58,9 @@
                     <button onclick="showModal('addCategoryModal')" class="text-sm font-medium text-purple-600 bg-purple-100 hover:bg-purple-200 px-3 py-1.5 rounded-full transition-colors">
                         + New Category
                     </button>
+                    <button onclick="showAddAndTagModal()" class="text-sm font-medium text-orange-600 bg-orange-100 hover:bg-orange-200 px-3 py-1.5 rounded-full transition-colors">
+                        + New AND Tag
+                    </button>
                 </div>
                 
                 {% if and_tags %}
@@ -68,19 +76,33 @@
                         {% for tag in and_tags %}
                             <span class="tag-bubble and-tag {% if tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
                                   draggable="true" ondragstart="drag(event)" ondragend="dragEnd(event)" ondrop="drop(event)" data-tag-name="{{ tag }}" data-source-category-id="and_tags">
-                                <div class="flex flex-col" onclick="handleTagClick(event, '{{ tag }}')" oncontextmenu="showTagContextMenu(event, '{{ tag }}')">
+                                <div class="flex flex-wrap items-center gap-1" onclick='handleTagClick(event, {{ tag|tojson|safe }})' oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }})'>
                                     {% for component in tag.split('&') %}
-                                        <span class="and-tag-component">
-                                            {{ component }} 
-                                            <button onclick="event.preventDefault(); event.stopPropagation(); removeAndTagComponent(event, '{{ tag }}', '{{ component }}')" class="and-component-remove-btn">&times;</button>
+                                        <span class="and-tag-component bg-white bg-opacity-80 px-2 py-1 rounded text-xs border">
+                                            {{ component }}
                                         </span>
                                     {% endfor %}
+                                </div>
+                                <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white shadow-lg rounded-md p-1 flex items-center z-20 opacity-0 group-hover/tag:opacity-100 transition-opacity pointer-events-none group-hover/tag:pointer-events-auto">
+                                    <button onclick="event.preventDefault(); event.stopPropagation(); showEditAndTagModal('{{ tag }}')" class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                    </button>
+                                    <button onclick="event.preventDefault(); event.stopPropagation(); deleteAndTag('{{ tag }}', '{{ url_for('delete_and_tag', filter=request.args.getlist('filter'), state=current_state) }}')" class="p-1 text-gray-600 hover:text-red-600 hover:bg-gray-100 rounded-md">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                    </button>
                                 </div>
                             </span>
                         {% endfor %}
                     </div>
                 </div>
                 {% endif %}
+                
+                <!-- Help text for tag interactions -->
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                    <p class="text-sm text-blue-800">
+                        💡 <strong>Tag Interactions:</strong> Click to filter • Double-click to rename • Hover for more options • Drag to organize
+                    </p>
+                </div>
                 
                 <div class="bg-white p-3 rounded-lg shadow-sm mb-3">
                     <div class="flex justify-between items-center tag-category-header">
@@ -92,15 +114,14 @@
                     <div id="uncategorized-content" class="tag-category-content dropzone flex flex-wrap gap-2 p-2 mt-2"
                          ondragover="allowDrop(event)" ondrop="drop(event)" ondragleave="leaveDrop(event)" data-category-id="uncategorized">
                         {% for tag in uncategorized_tags %}
-                            {% if tag.lower() != 'all' %}
-                            <span class="tag-bubble {% if '&' in tag.lower() %}and-tag{% elif tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
+                            <span class="tag-bubble {% if tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
                                draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}" ondragstart="drag(event)" ondragend="dragEnd(event)" ondrop="drop(event)" data-tag-name="{{ tag }}" data-source-category-id="uncategorized">
-                                <span onclick="handleTagClick(event, '{{ tag }}')" oncontextmenu="showTagContextMenu(event, '{{ tag }}')">{{ tag }}</span>
+                                <span onclick='handleTagClick(event, {{ tag|tojson|safe }})' ondblclick='event.stopPropagation(); showRenameModal({{ tag|tojson|safe }})' oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }})' title="Double-click to rename">{{ tag }}</span>
                                 <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white shadow-lg rounded-md p-1 flex items-center z-20 opacity-0 group-hover/tag:opacity-100 transition-opacity pointer-events-none group-hover/tag:pointer-events-auto">
-                                    <button onclick="event.preventDefault(); event.stopPropagation(); showRenameModal('{{ tag }}')" class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                    <button onclick='console.log("Button clicked for tag:", {{ tag|tojson|safe }}); event.stopPropagation(); showRenameModal({{ tag|tojson|safe }})' class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md" title="Rename tag">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                     </button>
-                                    <form action="{{ url_for('delete_global_tag', filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete the tag \'{{ tag }}\' everywhere?');" class="inline">
+                                    <form action="{{ url_for('delete_global_tag', filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete the tag ' + {{ tag|tojson }} + ' everywhere?');" class="inline">
                                         <input type="hidden" name="tag_to_delete" value="{{ tag }}">
                                         <button type="submit" onclick="event.stopPropagation();" class="p-1 text-gray-600 hover:text-red-600 hover:bg-gray-100 rounded-md">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
@@ -108,7 +129,6 @@
                                     </form>
                                 </div>
                             </span>
-                            {% endif %}
                         {% endfor %}
                         {% if not uncategorized_tags %}
                             <span class="text-sm text-gray-500 italic">No uncategorized tags. Drag tags here to unassign them from categories.</span>
@@ -131,7 +151,7 @@
                                 <form action="{{ url_for('delete_category', state=current_state) }}" method="post" onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete the category \'{{ category.name }}\'? Its tags will be moved to Uncategorized.');" class="inline">
                                     <input type="hidden" name="category_id_to_delete" value="{{ category.id }}">
                                     <button type="submit" class="p-1 text-gray-600 hover:text-red-600 hover:bg-gray-100 rounded-md" title="Delete Category">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                                     </button>
                                 </form>
                             </div>
@@ -139,15 +159,14 @@
                         <div id="category-{{ category.id }}-content" class="tag-category-content dropzone flex flex-wrap gap-2 p-2 mt-2"
                              ondragover="allowDrop(event)" ondrop="drop(event)" ondragleave="leaveDrop(event)" data-category-id="{{ category.id }}">
                             {% for tag in category.tags %}
-                                {% if '&' not in tag %}
-                                <span class="tag-bubble {% if '&' in tag.lower() %}and-tag{% elif tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
+                                <span class="tag-bubble {% if tag in and_tags %}and-tag{% elif tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
                                    draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}" ondragstart="drag(event)" ondragend="dragEnd(event)" ondrop="drop(event)" data-tag-name="{{ tag }}" data-source-category-id="{{ category.id }}">
-                                    <span onclick="handleTagClick(event, '{{ tag }}')">{{ tag }}</span>
+                                    <span onclick='handleTagClick(event, {{ tag|tojson|safe }})' ondblclick='event.stopPropagation(); showRenameModal({{ tag|tojson|safe }})' title="Double-click to rename">{{ tag }}</span>
                                     <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white shadow-lg rounded-md p-1 flex items-center z-20 opacity-0 group-hover/tag:opacity-100 transition-opacity pointer-events-none group-hover/tag:pointer-events-auto">
-                                        <button onclick="event.preventDefault(); event.stopPropagation(); showRenameModal('{{ tag }}')" class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                        <button onclick='console.log("Button clicked for tag:", {{ tag|tojson|safe }}); event.preventDefault(); event.stopPropagation(); showRenameModal({{ tag|tojson|safe }})' class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                         </button>
-                                        <form action="{{ url_for('delete_global_tag', filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete the tag \'{{ tag }}\' everywhere?');" class="inline">
+                                        <form action="{{ url_for('delete_global_tag', filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete the tag ' + {{ tag|tojson }} + ' everywhere?');" class="inline">
                                             <input type="hidden" name="tag_to_delete" value="{{ tag }}">
                                             <button type="submit" onclick="event.stopPropagation();" class="p-1 text-gray-600 hover:text-red-600 hover:bg-gray-100 rounded-md">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
@@ -155,7 +174,6 @@
                                         </form>
                                     </div>
                                 </span>
-                                {% endif %}
                             {% endfor %}
                             {% if not category.tags %}
                                 <span class="text-sm text-gray-500 italic">Drag tags here.</span>
@@ -180,12 +198,12 @@
                 <div class="flex justify-between items-start mb-3">
                     <h2 class="text-xl font-semibold text-gray-800">{{ section.sectionTitle }}</h2>
                     <div class="flex items-center space-x-2 opacity-0 group-hover/section:opacity-100 transition-opacity">
-                        <button onclick="showEditSectionModal('{{ section.id }}', '{{ section.sectionTitle }}', '{{ section.tags|join(', ') }}')" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-gray-200 rounded-full">
+                        <button onclick="showEditSectionModal('{{ section.id }}', '{{ section.sectionTitle }}', '{% for tag in section.tags %}{{ tag }}{% if not loop.last %}, {% endif %}{% endfor %}')" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-gray-200 rounded-full">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                         </button>
                         <form action="{{ url_for('delete_section', section_id=section.id, filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="return confirm('Are you sure you want to delete this section and all its notes?');" class="inline">
                             <button type="submit" class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-gray-200 rounded-full">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                             </button>
                         </form>
                     </div>
@@ -194,24 +212,14 @@
                 {% if section.tags %}
                 <div class="flex flex-wrap mb-4">
                     {% for tag in section.tags %}
-                    <span class="text-xs font-semibold mr-2 mb-1 px-2.5 py-1 rounded-full 
-                        {% if '&' in tag %}
-                            bg-orange-100 text-orange-800
-                        {% elif tag.lower() == 'all' %}
-                            bg-purple-200 text-purple-800
-                        {% else %}
-                            bg-blue-100 text-blue-800
-                        {% endif %}">
-                        {% if '&' in tag %}
-                            <div class="flex flex-col text-center">
-                                {% for component in tag.split('&') %}
-                                    <span class="and-tag-component-inline">{{ component }}</span>
-                                {% endfor %}
-                            </div>
-                        {% else %}
+                        <span class="text-xs font-semibold mr-2 mb-1 px-2.5 py-1 rounded-full 
+                            {% if tag.lower() == 'all' %}
+                                bg-purple-200 text-purple-800
+                            {% else %}
+                                bg-blue-100 text-blue-800
+                            {% endif %}">
                             {{ tag }}
-                        {% endif %}
-                    </span>
+                        </span>
                     {% endfor %}
                 </div>
                 {% endif %}
@@ -222,12 +230,12 @@
                         <div class="flex justify-between items-start">
                             <h3 class="text-lg font-semibold text-gray-700">{{ note.noteTitle }}</h3>
                              <div class="flex items-center space-x-2 opacity-0 group-hover/note:opacity-100 transition-opacity">
-                                <button onclick="showEditNoteModal('{{ section.id }}', '{{ note.id }}', '{{ note.noteTitle }}', `{{ note.content | e }}`, '{{ note.tags|join(', ') }}')" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-gray-200/70 rounded-full">
+                                <button onclick="showEditNoteModal('{{ section.id }}', '{{ note.id }}', '{{ note.noteTitle }}', `{{ note.content | e }}`, '{% for tag in note.tags %}{{ tag }}{% if not loop.last %}, {% endif %}{% endfor %}')" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-gray-200/70 rounded-full">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                 </button>
                                 <form action="{{ url_for('delete_note', section_id=section.id, note_id=note.id, filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="return confirm('Are you sure?');" class="inline">
                                     <button type="submit" class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-gray-200/70 rounded-full">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                                     </button>
                                 </form>
                             </div>
@@ -235,24 +243,14 @@
                         {% if note.tags %}
                         <div class="flex flex-wrap my-2">
                             {% for tag in note.tags %}
-                             <span class="text-xs font-semibold mr-2 mb-1 px-2.5 py-1 rounded-full 
-                                {% if '&' in tag %}
-                                    bg-orange-100 text-orange-800
-                                {% elif tag.lower() == 'all' %}
-                                    bg-purple-200 text-purple-800
-                                {% else %}
-                                    bg-blue-100 text-blue-800
-                                {% endif %}">
-                                {% if '&' in tag %}
-                                    <div class="flex flex-col text-center">
-                                        {% for component in tag.split('&') %}
-                                            <span class="and-tag-component-inline">{{ component }}</span>
-                                        {% endfor %}
-                                    </div>
-                                {% else %}
+                                <span class="text-xs font-semibold mr-2 mb-1 px-2.5 py-1 rounded-full 
+                                    {% if tag.lower() == 'all' %}
+                                        bg-purple-200 text-purple-800
+                                    {% else %}
+                                        bg-blue-100 text-blue-800
+                                    {% endif %}">
                                     {{ tag }}
-                                {% endif %}
-                            </span>
+                                </span>
                             {% endfor %}
                         </div>
                         {% endif %}
@@ -284,6 +282,35 @@
             <button onclick="exportPdf()" class="flex items-center justify-center px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75 transition-all">
                 Save as PDF
             </button>
+        </div>
+    </div>
+
+    <div id="addTagModal" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 hidden opacity-0">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
+            <form action="{{ url_for('add_global_tag', filter=request.args.getlist('filter'), state=current_state) }}" method="post" class="w-full">
+                <div class="flex justify-between items-center p-4 border-b">
+                    <h3 class="text-xl font-semibold">Create New Tag</h3>
+                    <button type="button" onclick="hideModal('addTagModal')" class="p-1 rounded-full hover:bg-gray-200">&times;</button>
+                </div>
+                <div class="p-6">
+                    <label for="new_tag_name" class="block text-sm font-medium text-gray-700 mb-1">Tag Name</label>
+                    <input type="text" id="new_tag_name" name="new_tag_name" class="w-full p-2 border border-gray-300 rounded-md">
+
+                    <label for="new_tag_category" class="block text-sm font-medium text-gray-700 mt-4 mb-1">Assign to Category</label>
+                    <select id="new_tag_category" name="target_category_id" class="w-full p-2 border border-gray-300 rounded-md">
+                        <option value="uncategorized" selected>Uncategorized</option>
+                        {% for category in tag_categories %}
+                            {% if category.name.lower() != 'uncategorized' %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="p-4 bg-gray-50 flex justify-end space-x-3 rounded-b-lg">
+                    <button type="button" onclick="hideModal('addTagModal')" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Create Tag</button>
+                </div>
+            </form>
         </div>
     </div>
     
@@ -318,11 +345,11 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Tags</label>
                         <div class="relative">
-                             <div id="editSectionTagsContainer" class="flex flex-wrap items-center w-full p-1 border border-gray-300 rounded-md bg-white min-h-[42px]">
+                             <div id="editSectionTagsContainer" class="flex flex-wrap items-center w-full p-1 border border-gray-300 rounded-md bg-white min-h-[42px] relative">
                                  <input type="text" id="editSectionTagsInput" class="flex-grow p-1 outline-none text-sm" autocomplete="off" placeholder="Add a tag...">
                              </div>
                              <input type="hidden" id="editSectionTags" name="tags">
-                             <div id="section-suggestions" class="tag-suggestions-dropdown hidden"></div>
+                             <div id="section-suggestions" class="tag-suggestions absolute left-0 z-10 w-full bg-white border border-gray-300 rounded-md hidden shadow-lg"></div>
                         </div>
                     </div>
                 </div>
@@ -365,11 +392,11 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Tags</label>
                         <div class="relative">
-                            <div id="editNoteTagsContainer" class="flex flex-wrap items-center w-full p-1 border border-gray-300 rounded-md bg-white min-h-[42px]">
+                            <div id="editNoteTagsContainer" class="flex flex-wrap items-center w-full p-1 border border-gray-300 rounded-md bg-white min-h-[42px] relative">
                                  <input type="text" id="editNoteTagsInput" class="flex-grow p-1 outline-none text-sm" autocomplete="off" placeholder="Add a tag...">
                              </div>
                              <input type="hidden" id="editNoteTags" name="tags">
-                             <div id="note-suggestions" class="tag-suggestions-dropdown hidden"></div>
+                             <div id="note-suggestions" class="tag-suggestions absolute left-0 z-10 w-full bg-white border border-gray-300 rounded-md hidden shadow-lg"></div>
                         </div>
                     </div>
                  </div>
@@ -395,6 +422,72 @@
                 <div class="p-4 bg-gray-50 flex justify-end space-x-3 rounded-b-lg">
                     <button type="button" onclick="hideModal('renameTagModal')" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Rename</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="editAndTagModal" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 hidden opacity-0">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
+            <form id="editAndTagForm" action="{{ url_for('update_and_tag', filter=request.args.getlist('filter'), state=current_state) }}" method="post" class="w-full" onsubmit="console.log('Form submitted'); return updateAndTagFromComponents()">
+                <div class="flex justify-between items-center p-4 border-b">
+                    <h3 class="text-xl font-semibold">Edit AND Tag</h3>
+                    <button type="button" onclick="hideModal('editAndTagModal')" class="p-1 rounded-full hover:bg-gray-200">&times;</button>
+                </div>
+                <div class="p-6 space-y-4">
+                    <input type="hidden" id="editAndTagOldTag" name="old_tag">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-3">Edit components for <strong id="oldAndTagName"></strong>:</label>
+                        <div id="andTagComponentsContainer" class="space-y-3">
+                            <!-- Dynamic component inputs will be added here -->
+                        </div>
+                        <button type="button" onclick="addAndTagComponent()" class="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                            Add Component
+                        </button>
+                    </div>
+                    
+                    <input type="hidden" id="editAndTagNewTag" name="new_tag">
+                </div>
+                <div class="p-4 bg-gray-50 flex justify-end space-x-3 rounded-b-lg">
+                    <button type="button" onclick="hideModal('editAndTagModal')" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="addAndTagModal" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 hidden opacity-0">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
+            <form action="{{ url_for('add_and_tag', filter=request.args.getlist('filter'), state=current_state) }}" method="post" class="w-full">
+                <div class="flex justify-between items-center p-4 border-b">
+                    <h3 class="text-xl font-semibold">Create AND Tag</h3>
+                    <button type="button" onclick="hideModal('addAndTagModal')" class="p-1 rounded-full hover:bg-gray-200">&times;</button>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-3">Enter tag components (will match content that has ALL of these tags):</label>
+                        <div id="newAndTagComponentsContainer" class="space-y-3">
+                            <!-- Dynamic component inputs will be added here -->
+                        </div>
+                        <button type="button" onclick="addNewAndTagComponent()" class="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                            Add Component
+                        </button>
+                    </div>
+                    
+                    <!-- AND Tag Preview -->
+                    <div id="andTagPreview" class="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-md hidden">
+                        <label class="block text-sm font-medium text-orange-800 mb-2">Preview:</label>
+                        <div id="andTagPreviewText" class="text-orange-700 font-mono text-sm"></div>
+                        <div id="andTagPreviewHelp" class="text-xs text-orange-600 mt-1">This will show content tagged with ALL of the above components</div>
+                    </div>
+                    
+                    <input type="hidden" id="newAndTagComponents" name="and_tag_components">
+                </div>
+                <div class="p-4 bg-gray-50 flex justify-end space-x-3 rounded-b-lg">
+                    <button type="button" onclick="hideModal('addAndTagModal')" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
+                    <button type="submit" onclick="return createAndTagFromComponents()" class="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700">Create AND Tag</button>
                 </div>
             </form>
         </div>
@@ -522,11 +615,960 @@
 
 <script>
     // Expose global variables from Flask to the window object for your JS modules
+    // Note: This script must remain inline as it contains server-side template variables
     window.ALL_TAGS = JSON.parse('{{ all_tags | tojson | safe }}');
     window.CURRENT_STATE = '{{ current_state | safe }}';
     window.ACTIVE_FILTERS_LOWER = JSON.parse('{{ active_filters_lower | tojson | safe }}');
+    
+    console.log('Global variables set:', {
+        ALL_TAGS: window.ALL_TAGS?.length || 0,
+        CURRENT_STATE: window.CURRENT_STATE,
+        ACTIVE_FILTERS_LOWER: window.ACTIVE_FILTERS_LOWER?.length || 0,
+        Quill: typeof Quill !== 'undefined'
+    });
+    
+    // Initialize modal system immediately
+    window.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM Content Loaded - Setting up modals');
+        
+        // Ensure basic modal functions exist immediately
+        if (!window.showModal) {
+            window.showModal = function(modalId) {
+                try {
+                    console.log('Fallback showModal called for:', modalId);
+                    const modal = document.getElementById(modalId);
+                    if (modal) {
+                        modal.classList.remove('hidden', 'opacity-0');
+                        // Focus first input if available
+                        setTimeout(() => {
+                            const firstInput = modal.querySelector('input[type="text"], textarea');
+                            if (firstInput) {
+                                firstInput.focus();
+                            }
+                        }, 100);
+                    } else {
+                        console.error('Modal not found:', modalId);
+                    }
+                } catch (error) {
+                    if (window.logModalError) {
+                        window.logModalError('showModal', modalId, error);
+                    }
+                }
+            };
+        }
+        
+        if (!window.hideModal) {
+            window.hideModal = function(modalId) {
+                try {
+                    console.log('Fallback hideModal called for:', modalId);
+                    const modal = document.getElementById(modalId);
+                    if (modal) {
+                        modal.classList.add('opacity-0');
+                        setTimeout(() => modal.classList.add('hidden'), 250);
+                    } else {
+                        console.error('Modal not found for hiding:', modalId);
+                    }
+                } catch (error) {
+                    if (window.logModalError) {
+                        window.logModalError('hideModal', modalId, error);
+                    }
+                }
+            };
+        }
+        
+        // Add comprehensive fallback functions for complex modals
+        if (!window.showEditSectionModal) {
+            window.showEditSectionModal = function(sectionId, title, tags) {
+                try {
+                    console.log('Fallback showEditSectionModal called');
+                    const form = document.getElementById('editSectionForm');
+                    if (form) {
+                        const currentUrl = new URL(window.location.href);
+                        form.action = `/section/update/${sectionId}` + currentUrl.search;
+                    }
+                    
+                    const titleInput = document.getElementById('editSectionTitle');
+                    if (titleInput) {
+                        titleInput.value = title || '';
+                    }
+                    
+                    const tagsInput = document.getElementById('editSectionTags');
+                    if (tagsInput) {
+                        tagsInput.value = tags || '';
+                    }
+                    
+                    window.showModal('editSectionModal');
+                } catch (error) {
+                    if (window.logModalError) {
+                        window.logModalError('showEditSectionModal', 'editSectionModal', error);
+                    }
+                }
+            };
+        }
+        
+        if (!window.showEditNoteModal) {
+            window.showEditNoteModal = function(sectionId, noteId, title, content, tags) {
+                try {
+                    console.log('Fallback showEditNoteModal called');
+                    const form = document.getElementById('editNoteForm');
+                    if (form) {
+                        const currentUrl = new URL(window.location.href);
+                        form.action = `/note/update/${sectionId}/${noteId}` + currentUrl.search;
+                    }
+                    
+                    const titleInput = document.getElementById('editNoteTitle');
+                    if (titleInput) {
+                        titleInput.value = title || '';
+                    }
+                    
+                    const contentInput = document.getElementById('editNoteContent');
+                    if (contentInput) {
+                        contentInput.value = content || '';
+                    }
+                    
+                    const tagsInput = document.getElementById('editNoteTags');
+                    if (tagsInput) {
+                        tagsInput.value = tags || '';
+                    }
+                    
+                    window.showModal('editNoteModal');
+                } catch (error) {
+                    if (window.logModalError) {
+                        window.logModalError('showEditNoteModal', 'editNoteModal', error);
+                    }
+                }
+            };
+        }
+        
+        if (!window.showImportModal) {
+            window.showImportModal = function() {
+                try {
+                    console.log('Fallback showImportModal called');
+                    window.showModal('importModal');
+                } catch (error) {
+                    if (window.logModalError) {
+                        window.logModalError('showImportModal', 'importModal', error);
+                    }
+                }
+            };
+        }
+        
+        if (!window.showRenameModal) {
+            window.showRenameModal = function(tag) {
+                try {
+                    console.log('Fallback showRenameModal called for tag:', tag);
+                    const form = document.querySelector('#renameTagModal form');
+                    if (form) {
+                        const currentUrl = new URL(window.location.href);
+                        form.action = `/tags/rename` + currentUrl.search;
+                    }
+                    
+                    const oldTagInput = document.getElementById('renameOldTag');
+                    const oldTagText = document.getElementById('oldTagName');
+                    const newTagInput = document.getElementById('renameNewTag');
+                    
+                    if (oldTagInput) oldTagInput.value = tag;
+                    if (oldTagText) oldTagText.textContent = tag;
+                    if (newTagInput) {
+                        newTagInput.value = tag;
+                        setTimeout(() => {
+                            newTagInput.focus();
+                            newTagInput.select();
+                        }, 100);
+                    }
+                    
+                    window.showModal('renameTagModal');
+                } catch (error) {
+                    if (window.logModalError) {
+                        window.logModalError('showRenameModal', 'renameTagModal', error);
+                    }
+                }
+            };
+        }
+        
+        if (!window.showRenameStateModal) {
+            window.showRenameStateModal = function(stateName) {
+                try {
+                    console.log('Fallback showRenameStateModal called');
+                    document.getElementById('renameOldStateName').value = stateName;
+                    document.getElementById('oldStateName').textContent = stateName;
+                    document.getElementById('renameNewStateName').value = stateName;
+                    window.showModal('renameStateModal');
+                    setTimeout(() => {
+                        const input = document.getElementById('renameNewStateName');
+                        if (input) {
+                            input.focus();
+                            input.select();
+                        }
+                    }, 100);
+                } catch (error) {
+                    if (window.logModalError) {
+                        window.logModalError('showRenameStateModal', 'renameStateModal', error);
+                    }
+                }
+            };
+        }
+        
+        if (!window.showRenameCategoryModal) {
+            window.showRenameCategoryModal = function(categoryId, categoryName) {
+                try {
+                    console.log('Fallback showRenameCategoryModal called');
+                    document.getElementById('renameOldCategoryId').value = categoryId;
+                    document.getElementById('oldCategoryName').textContent = categoryName;
+                    document.getElementById('renameNewCategoryName').value = categoryName;
+                    window.showModal('renameCategoryModal');
+                    setTimeout(() => {
+                        const input = document.getElementById('renameNewCategoryName');
+                        if (input) {
+                            input.focus();
+                            input.select();
+                        }
+                    }, 100);
+                } catch (error) {
+                    if (window.logModalError) {
+                        window.logModalError('showRenameCategoryModal', 'renameCategoryModal', error);
+                    }
+                }
+            };
+        }
+        
+        if (!window.showEditAndTagModal) {
+            window.showEditAndTagModal = function(tag) {
+                try {
+                    console.log('Fallback showEditAndTagModal called, delegating to main function');
+                    // Call the main function defined above
+                    showEditAndTagModal(tag);
+                } catch (error) {
+                    if (window.logModalError) {
+                        window.logModalError('showEditAndTagModal', 'editAndTagModal', error);
+                    }
+                }
+            };
+        }
+        
+        // Add event listeners for modal backdrop clicks
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    const modalId = this.id;
+                    if (window.hideModal) {
+                        window.hideModal(modalId);
+                    }
+                }
+            });
+        });
+        
+        // Add escape key handler for all modals
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const visibleModal = document.querySelector('.modal:not(.hidden)');
+                if (visibleModal && window.hideModal) {
+                    window.hideModal(visibleModal.id);
+                }
+            }
+        });
+        
+        console.log('Modal system initialized with fallbacks');
+    });
 </script>
-<script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+<!-- Load JavaScript modules -->
+<script src="{{ url_for('static', filename='js/logger.js') }}"></script>
+<script src="{{ url_for('static', filename='js/core.js') }}"></script>
+<script src="{{ url_for('static', filename='js/tag-input-global.js') }}"></script>
+<script src="{{ url_for('static', filename='js/drag_drop.js') }}"></script>
+<script src="{{ url_for('static', filename='js/editors.js') }}"></script>
+<script src="{{ url_for('static', filename='js/modals.js') }}"></script>
+
+<!-- Comprehensive Action Tracking -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Track all button clicks
+    document.addEventListener('click', function(event) {
+        const element = event.target;
+        
+        if (element.tagName === 'BUTTON' || element.type === 'submit') {
+            const buttonData = {
+                id: element.id,
+                className: element.className,
+                textContent: element.textContent?.trim(),
+                type: element.type,
+                formAction: element.form?.action,
+                onclick: element.getAttribute('onclick')
+            };
+            
+            window.appLogger?.buttonClick('BUTTON_CLICKED', buttonData);
+        }
+        
+        // Track link clicks
+        if (element.tagName === 'A') {
+            window.appLogger?.buttonClick('LINK_CLICKED', {
+                href: element.href,
+                textContent: element.textContent?.trim(),
+                id: element.id,
+                className: element.className
+            });
+        }
+        
+        // Track select changes
+        if (element.tagName === 'SELECT') {
+            window.appLogger?.action('SELECT_CHANGED', {
+                id: element.id,
+                value: element.value,
+                selectedText: element.options[element.selectedIndex]?.text
+            });
+        }
+    });
+    
+    // Track form submissions
+    document.addEventListener('submit', function(event) {
+        const form = event.target;
+        const formData = new FormData(form);
+        const data = {};
+        for (let [key, value] of formData.entries()) {
+            data[key] = value;
+        }
+        
+        window.appLogger?.action('FORM_SUBMITTED', {
+            formId: form.id,
+            action: form.action,
+            method: form.method,
+            data: data
+        });
+    });
+    
+    // Track input changes
+    document.addEventListener('change', function(event) {
+        const element = event.target;
+        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+            window.appLogger?.action('INPUT_CHANGED', {
+                id: element.id,
+                name: element.name,
+                type: element.type,
+                value: element.type === 'password' ? '[HIDDEN]' : element.value?.substring(0, 100) // Truncate long values
+            });
+        }
+    });
+    
+    // Track modal dialog interactions
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                const element = mutation.target;
+                if (element.classList.contains('modal')) {
+                    const isVisible = !element.classList.contains('hidden') && !element.classList.contains('opacity-0');
+                    window.appLogger?.action('MODAL_VISIBILITY_CHANGED', {
+                        modalId: element.id,
+                        visible: isVisible,
+                        classList: Array.from(element.classList)
+                    });
+                }
+            }
+        });
+    });
+    
+    // Observe all modal elements
+   
+    document.querySelectorAll('.modal').forEach(modal => {
+        observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
+    });
+    
+    // Log page initialization complete
+    window.appLogger?.action('PAGE_INITIALIZED', {
+        url: window.location.href,
+        title: document.title,
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight
+        }
+    });
+});
+
+// AND Tag Component Management Functions
+let andTagComponentCount = 0;
+
+function showAddAndTagModal() {
+    // Clear previous components and reset counter
+    const container = document.getElementById('newAndTagComponentsContainer');
+    container.innerHTML = '';
+    andTagComponentCount = 0;
+    
+    // Clear any previous tag input references
+    Object.keys(window.tagInputs || {}).forEach(key => {
+        if (key.startsWith('andTagInput_')) {
+            delete window.tagInputs[key];
+        }
+    });
+    
+    // Hide preview initially
+    document.getElementById('andTagPreview').classList.add('hidden');
+    
+    // Add initial two components
+    addNewAndTagComponent();
+    addNewAndTagComponent();
+    
+    window.showModal('addAndTagModal');
+    window.appLogger?.action('MODAL_OPENED', {
+        modalId: 'addAndTagModal',
+        context: 'create_and_tag'
+    });
+}
+
+function addNewAndTagComponent() {
+    const container = document.getElementById('newAndTagComponentsContainer');
+    andTagComponentCount++;
+    
+    const componentDiv = document.createElement('div');
+    componentDiv.className = 'flex items-center space-x-2';
+    componentDiv.id = `andTagComponent_${andTagComponentCount}`;
+    
+    const inputId = `andTagInput_${andTagComponentCount}`;
+    const containerId = `andTagInputContainer_${andTagComponentCount}`;
+    const suggestionsId = `andTagSuggestions_${andTagComponentCount}`;
+    
+    componentDiv.innerHTML = `
+        <div class="flex-1 relative">
+            <div id="${containerId}" class="flex flex-wrap items-center w-full p-1 border border-gray-300 rounded-md bg-white min-h-[42px] relative">
+                <input type="text" 
+                       id="${inputId}"
+                       placeholder="Enter tag component (e.g., Python, Database, API)"
+                       class="flex-grow p-1 outline-none text-sm"
+                       autocomplete="off"
+                       data-single-tag="true">
+            </div>
+            <div id="${suggestionsId}" class="tag-suggestions absolute left-0 z-10 w-full bg-white border border-gray-300 rounded-md hidden shadow-lg"></div>
+        </div>
+        <button type="button" 
+                onclick="removeAndTagComponent('andTagComponent_${andTagComponentCount}')"
+                class="px-2 py-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
+                title="Remove component">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+    `;
+    
+    container.appendChild(componentDiv);
+    
+    // Initialize the tag input system for this component with single tag limit
+    const newInput = document.getElementById(inputId);
+    if (newInput && window.createTagInput) {
+        // Create a hidden input for the tag system
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.id = `${inputId}_hidden`;
+        componentDiv.appendChild(hiddenInput);
+        
+        // Initialize the tag input system
+        const tagInput = window.createTagInput(containerId, inputId, `${inputId}_hidden`, suggestionsId);
+        
+        // Modify the tag input to only allow one tag
+        const originalAddTag = tagInput.addTag;
+        tagInput.addTag = function(tag) {
+            // Clear existing tags first to ensure only one tag
+            this.tags = [];
+            originalAddTag.call(this, tag);
+            // Hide input after adding a tag but don't disable it
+            newInput.style.display = 'none';
+            // Keep the input value for form submission
+            newInput.value = tag;
+        };
+        
+        // Modify the removeTag function to show input again
+        const originalRemoveTag = tagInput.removeTag;
+        tagInput.removeTag = function(tag) {
+            originalRemoveTag.call(this, tag);
+            // Show input again when tag is removed
+            newInput.style.display = 'block';
+            newInput.value = '';
+            newInput.focus();
+        };
+        
+        tagInput.init([]);
+        
+        // Store reference for later use
+        window.tagInputs[inputId] = tagInput;
+        
+        // Add event listener to update preview when tags change
+        const originalRender = tagInput.render;
+        tagInput.render = function() {
+            originalRender.call(this);
+            // Update preview after any tag changes
+            setTimeout(() => updateAndTagPreview(), 10);
+        };
+        
+        console.log(`[NEW AND TAG] Initialized single-tag input for component ${andTagComponentCount}`);
+    }
+    
+    // Focus the new input
+    if (newInput) {
+        newInput.focus();
+    }
+    
+    // Update preview
+    updateAndTagPreview();
+    
+    window.appLogger?.action('AND_TAG_COMPONENT_ADDED', {
+        componentId: `andTagComponent_${andTagComponentCount}`,
+        totalComponents: container.children.length
+    });
+}
+
+function removeAndTagComponent(componentId) {
+    const component = document.getElementById(componentId);
+    if (component) {
+        const container = document.getElementById('newAndTagComponentsContainer');
+        
+        // Don't allow removing if only 2 components remain
+        if (container.children.length <= 2) {
+            alert('AND tags must have at least 2 components.');
+            return;
+        }
+        
+        // Clean up tag input reference
+        const input = component.querySelector('[id^="andTagInput_"]');
+        if (input && window.tagInputs[input.id]) {
+            delete window.tagInputs[input.id];
+        }
+        
+        component.remove();
+        
+        // Update preview after removal
+        updateAndTagPreview();
+        
+        window.appLogger?.action('AND_TAG_COMPONENT_REMOVED', {
+            componentId: componentId,
+            remainingComponents: container.children.length
+        });
+    }
+}
+
+// ...existing code...
+
+function updateAndTagPreview() {
+    const container = document.getElementById('newAndTagComponentsContainer');
+    const components = [];
+    const duplicates = [];
+    
+    // Get all component values from the tag input system
+    container.querySelectorAll('[id^="andTagInput_"]').forEach(input => {
+        const inputId = input.id;
+        const tagInput = window.tagInputs[inputId];
+        
+        let value = '';
+        if (tagInput && tagInput.tags && tagInput.tags.length > 0) {
+            // Use the first tag from the tag input system
+            value = tagInput.tags[0];
+        } else {
+            // Fallback to direct input value
+            value = input.value.trim();
+        }
+        
+        if (value) {
+            const lowerValue = value.toLowerCase();
+            if (components.some(comp => comp.toLowerCase() === lowerValue)) {
+                duplicates.push(value);
+                // Add visual indicator for duplicate
+                input.parentElement.parentElement.classList.add('border-red-500');
+            } else {
+                components.push(value);
+                // Remove visual indicator
+                input.parentElement.parentElement.classList.remove('border-red-500');
+            }
+        } else {
+            // Remove visual indicator for empty inputs
+            input.parentElement.parentElement.classList.remove('border-red-500');
+        }
+    });
+    
+    const previewDiv = document.getElementById('andTagPreview');
+    const previewText = document.getElementById('andTagPreviewText');
+    const previewHelp = document.getElementById('andTagPreviewHelp');
+    
+    if (components.length >= 2 && duplicates.length === 0) {
+        previewDiv.classList.remove('hidden');
+        previewDiv.className = 'mt-4 p-3 bg-orange-50 border border-orange-200 rounded-md';
+        previewText.textContent = components.join(' & ');
+        previewText.className = 'text-orange-700 font-mono text-sm';
+        previewHelp.textContent = 'This will show content tagged with ALL of the above components';
+        previewHelp.className = 'text-xs text-orange-600 mt-1';
+    } else if (duplicates.length > 0) {
+        previewDiv.classList.remove('hidden');
+        previewDiv.className = 'mt-4 p-3 bg-red-50 border border-red-200 rounded-md';
+        previewText.textContent = 'Please remove duplicate components: ' + duplicates.join(', ');
+        previewText.className = 'text-red-700 font-mono text-sm';
+        previewHelp.textContent = 'Each component must be unique';
+        previewHelp.className = 'text-xs text-red-600 mt-1';
+    } else {
+        previewDiv.classList.add('hidden');
+        previewText.textContent = '';
+    }
+}
+
+function createAndTagFromComponents() {
+    const container = document.getElementById('newAndTagComponentsContainer');
+    const components = [];
+    
+    // Get all component values from the tag input system
+    container.querySelectorAll('[id^="andTagInput_"]').forEach(input => {
+        const inputId = input.id;
+        const tagInput = window.tagInputs[inputId];
+        
+        if (tagInput && tagInput.tags && tagInput.tags.length > 0) {
+            // Use the first tag from the tag input system
+            const tag = tagInput.tags[0];
+            if (tag && tag.trim()) {
+                components.push(tag.trim());
+            }
+        } else {
+            // Fallback to direct input value
+            const value = input.value.trim();
+            if (value) {
+                components.push(value);
+            }
+        }
+    });
+    
+    // Validate components
+    if (components.length < 2) {
+        alert('Please enter at least 2 tag components.');
+        return false;
+    }
+    
+    // Check for duplicates
+    const uniqueComponents = [...new Set(components.map(c => c.toLowerCase()))];
+    if (uniqueComponents.length !== components.length) {
+        alert('Please remove duplicate components.');
+        return false;
+    }
+    
+    // Check if AND tag already exists
+    const andTagString = components.join(' & ');
+    const existingAndTags = {{ and_tags | tojson | safe }};
+    if (existingAndTags.includes(andTagString)) {
+        alert('An AND tag with these components already exists.');
+        return false;
+    }
+    
+    // Set the hidden input value
+    document.getElementById('newAndTagComponents').value = components.join(', ');
+    
+    window.appLogger?.action('AND_TAG_CREATED', {
+        components: components,
+        componentCount: components.length,
+        andTagPreview: components.join('&')
+    });
+    
+    return true; // Allow form submission
+}
+
+// AND Tag Edit Functions
+let editAndTagComponentCount = 0;
+
+function showEditAndTagModal(tag) {
+    try {
+        // Decode HTML entities if present
+        const decodedTag = tag.replace(/&amp;/g, '&');
+        
+        // Reset component counter
+        editAndTagComponentCount = 0;
+        
+        // Clear any previous tag input references for edit modal
+        Object.keys(window.tagInputs || {}).forEach(key => {
+            if (key.startsWith('editAndTagInput_')) {
+                delete window.tagInputs[key];
+            }
+        });
+        
+        // Set the old tag values
+        document.getElementById('editAndTagOldTag').value = decodedTag;
+        document.getElementById('oldAndTagName').textContent = decodedTag;
+        
+        // Clear the components container
+        const container = document.getElementById('andTagComponentsContainer');
+        container.innerHTML = '';
+        
+        // Parse existing components from the tag
+        const components = decodedTag.split('&').map(comp => comp.trim());
+        
+        // Add input fields for each existing component
+        components.forEach(component => {
+            addAndTagComponent(component);
+        });
+        
+        // Show the modal
+        window.showModal('editAndTagModal');
+        
+        window.appLogger?.action('MODAL_OPENED', {
+            modalId: 'editAndTagModal',
+            context: 'edit_and_tag',
+            originalTag: decodedTag
+        });
+    } catch (error) {
+        console.error('Error showing edit AND tag modal:', error);
+        if (window.logModalError) {
+            window.logModalError('showEditAndTagModal', 'editAndTagModal', error);
+        }
+    }
+}
+
+function addAndTagComponent(initialValue = '') {
+    const container = document.getElementById('andTagComponentsContainer');
+    editAndTagComponentCount++;
+    
+    const componentDiv = document.createElement('div');
+    componentDiv.className = 'flex items-center space-x-2';
+    componentDiv.id = `editAndTagComponent_${editAndTagComponentCount}`;
+    
+    const inputId = `editAndTagInput_${editAndTagComponentCount}`;
+    const containerId = `editAndTagInputContainer_${editAndTagComponentCount}`;
+    const suggestionsId = `editAndTagSuggestions_${editAndTagComponentCount}`;
+    
+    componentDiv.innerHTML = `
+        <div class="flex-1 relative">
+            <div id="${containerId}" class="flex flex-wrap items-center w-full p-1 border border-gray-300 rounded-md bg-white min-h-[42px] relative">
+                <input type="text" 
+                       id="${inputId}"
+                       value="${initialValue}"
+                       placeholder="Enter tag component (e.g., Python, Database, API)"
+                       class="flex-grow p-1 outline-none text-sm"
+                       autocomplete="off"
+                       data-single-tag="true">
+            </div>
+            <div id="${suggestionsId}" class="tag-suggestions absolute left-0 z-10 w-full bg-white border border-gray-300 rounded-md hidden shadow-lg"></div>
+        </div>
+        <button type="button" 
+                onclick="removeEditAndTagComponent('editAndTagComponent_${editAndTagComponentCount}')"
+                class="px-2 py-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
+                title="Remove component">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+    `;
+    
+    container.appendChild(componentDiv);
+    
+    // Initialize the tag input system for this component with single tag limit
+    const newInput = document.getElementById(inputId);
+    if (newInput && window.createTagInput) {
+        // Create a hidden input for the tag system
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.id = `${inputId}_hidden`;
+        componentDiv.appendChild(hiddenInput);
+        
+        // Initialize the tag input system
+        const tagInput = window.createTagInput(containerId, inputId, `${inputId}_hidden`, suggestionsId);
+        
+        // Modify the tag input to only allow one tag
+        const originalAddTag = tagInput.addTag;
+        tagInput.addTag = function(tag) {
+            // Clear existing tags first to ensure only one tag
+            this.tags = [];
+            originalAddTag.call(this, tag);
+            // Hide input after adding a tag but don't disable it
+            newInput.style.display = 'none';
+            // Keep the input value for form submission
+            newInput.value = tag;
+        };
+        
+        // Modify the removeTag function to show input again
+        const originalRemoveTag = tagInput.removeTag;
+        tagInput.removeTag = function(tag) {
+            originalRemoveTag.call(this, tag);
+            // Show input again when tag is removed
+            newInput.style.display = 'block';
+            newInput.value = '';
+            newInput.focus();
+        };
+        
+        // Set initial value if provided
+        if (initialValue) {
+            tagInput.init([initialValue]);
+            // Hide input since we have a tag
+            newInput.style.display = 'none';
+            newInput.value = initialValue;
+        } else {
+            tagInput.init([]);
+        }
+        
+        // Store reference for later use
+        window.tagInputs[inputId] = tagInput;
+        
+        console.log(`[EDIT AND TAG] Initialized single-tag input for component ${editAndTagComponentCount}`);
+    }
+    
+    // Focus if this is a new empty component
+    if (!initialValue && newInput) {
+        newInput.focus();
+    }
+    
+    window.appLogger?.action('EDIT_AND_TAG_COMPONENT_ADDED', {
+        componentId: `editAndTagComponent_${editAndTagComponentCount}`,
+        totalComponents: container.children.length,
+        initialValue: initialValue
+    });
+}
+
+function removeEditAndTagComponent(componentId) {
+    const component = document.getElementById(componentId);
+    if (component) {
+        const container = document.getElementById('andTagComponentsContainer');
+        
+        // Don't allow removing if only 2 components remain
+        if (container.children.length <= 2) {
+            alert('AND tags must have at least 2 components.');
+            return;
+        }
+        
+        // Clean up tag input reference
+        const input = component.querySelector('[id^="editAndTagInput_"]');
+        if (input && window.tagInputs[input.id]) {
+            delete window.tagInputs[input.id];
+        }
+        
+        component.remove();
+        
+        window.appLogger?.action('EDIT_AND_TAG_COMPONENT_REMOVED', {
+            componentId: componentId,
+            remainingComponents: container.children.length
+        });
+    }
+}
+
+function updateAndTagFromComponents() {
+    console.log('[DEBUG] updateAndTagFromComponents called');
+    
+    const container = document.getElementById('andTagComponentsContainer');
+    const components = [];
+    
+    console.log('[DEBUG] Container found:', !!container);
+    console.log('[DEBUG] Container children count:', container?.children?.length);
+    
+    // Get all component values - try multiple approaches
+    const componentDivs = container.querySelectorAll('[id^="editAndTagComponent_"]');
+    console.log('[DEBUG] Found component divs:', componentDivs.length);
+    
+    componentDivs.forEach(div => {
+        const input = div.querySelector('[id^="editAndTagInput_"]');
+        const hiddenInput = div.querySelector('[id$="_hidden"]');
+        
+        console.log('[DEBUG] Processing component div:', {
+            divId: div.id,
+            inputId: input?.id,
+            inputValue: input?.value,
+            hiddenInputId: hiddenInput?.id,
+            hiddenInputValue: hiddenInput?.value
+        });
+        
+        // Try to get value from multiple sources
+        let componentValue = '';
+        
+        // First try the tag input system
+        if (input) {
+            const tagInput = window.tagInputs[input.id];
+            if (tagInput && tagInput.tags && tagInput.tags.length > 0) {
+                componentValue = tagInput.tags[0].trim();
+                console.log('[DEBUG] Got value from tag system:', componentValue);
+            }
+        }
+        
+        // Fallback to hidden input
+        if (!componentValue && hiddenInput && hiddenInput.value) {
+            componentValue = hiddenInput.value.trim();
+            console.log('[DEBUG] Got value from hidden input:', componentValue);
+        }
+        
+        // Final fallback to direct input value
+        if (!componentValue && input && input.value) {
+            componentValue = input.value.trim();
+            console.log('[DEBUG] Got value from direct input:', componentValue);
+        }
+        
+        if (componentValue) {
+            components.push(componentValue);
+        }
+    });
+    
+    console.log('[DEBUG] Final components:', components);
+    
+    // Validate components
+    if (components.length < 2) {
+        console.log('[DEBUG] Validation failed: less than 2 components');
+        alert('Please enter at least 2 tag components.');
+        return false;
+    }
+    
+    // Check for duplicates
+    const uniqueComponents = [...new Set(components.map(c => c.toLowerCase()))];
+    if (uniqueComponents.length !== components.length) {
+        console.log('[DEBUG] Validation failed: duplicate components');
+        alert('Please remove duplicate components.');
+        return false;
+    }
+    
+    // Check if new AND tag already exists (excluding the current one being edited)
+    const oldTag = document.getElementById('editAndTagOldTag').value;
+    const newAndTagString = components.join(' & ');
+    const existingAndTags = {{ and_tags | tojson | safe }};
+    
+    console.log('[DEBUG] Tag comparison:', {
+        oldTag,
+        newAndTagString,
+        existingAndTags
+    });
+    
+    if (newAndTagString !== oldTag && existingAndTags.includes(newAndTagString)) {
+        console.log('[DEBUG] Validation failed: AND tag already exists');
+        alert('An AND tag with these components already exists.');
+        return false;
+    }
+    
+    // Set the hidden input value
+    document.getElementById('editAndTagNewTag').value = components.join(', ');
+    
+    console.log('[DEBUG] Validation passed, form should submit');
+    console.log('[DEBUG] Hidden input value set to:', document.getElementById('editAndTagNewTag').value);
+    
+    window.appLogger?.action('AND_TAG_UPDATED', {
+        oldTag: oldTag,
+        newComponents: components,
+        componentCount: components.length,
+        newAndTag: newAndTagString
+    });
+    
+    return true; // Allow form submission
+}
+
+function deleteAndTag(tagName, deleteUrl) {
+    console.log('deleteAndTag called for:', tagName);
+    
+    if (confirm(`Are you sure you want to delete the AND tag '${tagName}'?`)) {
+        console.log('User confirmed deletion, submitting form...');
+        
+        // Create and submit a form programmatically
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = deleteUrl;
+        
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'and_tag_to_delete';
+        input.value = tagName;
+        
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+    } else {
+        console.log('User cancelled deletion');
+    }
+}
+</script>
 
 </body>
 </html>

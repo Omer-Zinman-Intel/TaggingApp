@@ -1,173 +1,76 @@
-// js/editors.js
 
-// Declare Quill instances globally within this module
+// Minimal editors.js for Quill note and import editors
 let noteEditorQuill;
 let importEditorQuill;
 
-// Toolbar options for Quill editors
-const FULL_TOOLBAR_OPTIONS = [
-    [{ 'header': [1, 2, 3, 4, 5, 6, false] }], [{ 'font': [] }],
-    [{ 'color': [] }, { 'background': [] }], ['bold', 'italic', 'underline', 'strike'],
-    [{ 'align': [] }], ['blockquote', 'code-block'],
-    [{ 'list': 'ordered'}, { 'list': 'bullet' }], [{ 'script': 'sub'}, { 'script': 'super' }],
-    [{ 'indent': '-1'}, { 'indent': '+1' }], ['link', 'image', 'video'], ['clean']
+const TOOLBAR_OPTIONS = [
+    [{ 'header': [1, 2, 3, false] }],
+    ['bold', 'italic', 'underline'],
+    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    ['link', 'image'],
+    ['clean']
 ];
 
-// Function to initialize Quill editors and return their instances
-export function initializeEditors() {
-    // Initialize note editor
+function initializeEditors() {
     if (document.getElementById('quill-editor')) {
         noteEditorQuill = new Quill('#quill-editor', {
             theme: 'snow',
-            modules: { toolbar: { container: FULL_TOOLBAR_OPTIONS } }
+            modules: { toolbar: TOOLBAR_OPTIONS }
         });
-        noteEditorQuill.on('text-change', () => { 
-            document.getElementById('editNoteContent').value = noteEditorQuill.root.innerHTML; 
+        noteEditorQuill.on('text-change', () => {
+            document.getElementById('editNoteContent').value = noteEditorQuill.root.innerHTML;
         });
-        addQuillTooltips('#editNoteModal');
     }
-
-    // Initialize import editor
     if (document.getElementById('import-editor')) {
         importEditorQuill = new Quill('#import-editor', {
             theme: 'snow',
             placeholder: 'Paste your content here or import a .docx file...',
-            modules: { toolbar: { container: FULL_TOOLBAR_OPTIONS } }
+            modules: { toolbar: TOOLBAR_OPTIONS }
         });
-        addQuillTooltips('#importModal');
-    }
-
-    return { noteEditorQuill, importEditorQuill };
-}
-
-export function toggleEditorView(view) {
-    const views = {
-        richtext: document.getElementById('quill-editor-container'),
-        html: document.getElementById('html-editor'),
-        preview: document.getElementById('quill-preview-container')
-    };
-    const contentHolder = document.getElementById('editNoteContent');
-    const activeBtn = document.querySelector('#editor-toggle-buttons .toggle-btn.active');
-    const currentView = activeBtn ? activeBtn.dataset.view : 'richtext';
-
-    // Sync content from the currently active view before switching
-    if (currentView === 'html') {
-        contentHolder.value = views.html.value;
-    } else if (noteEditorQuill) { 
-        contentHolder.value = noteEditorQuill.root.innerHTML;
-    }
-    
-    Object.values(views).forEach(el => el.classList.add('hidden'));
-    document.querySelectorAll('#editor-toggle-buttons .toggle-btn').forEach(btn => btn.classList.remove('active'));
-
-    const targetBtn = document.querySelector(`#editor-toggle-buttons .toggle-btn[onclick*="'${view}'"]`);
-    views[view].classList.remove('hidden');
-    if(targetBtn) {
-        targetBtn.classList.add('active');
-        targetBtn.dataset.view = view;
-    }
-
-    // Populate the new view with the synced content
-    if (view === 'richtext' && noteEditorQuill) noteEditorQuill.root.innerHTML = contentHolder.value;
-    if (view === 'html') views.html.value = contentHolder.value;
-    if (view === 'preview') views.preview.innerHTML = contentHolder.value;
-}
-
-export function toggleImportEditorView(view) {
-    const views = {
-        richtext: document.getElementById('import-editor-container'),
-        html: document.getElementById('html-import-editor')
-    };
-    const contentHolder = document.getElementById('import_html_content');
-    const activeBtn = document.querySelector('#import-editor-toggle-buttons .toggle-btn.active');
-    const currentView = activeBtn ? activeBtn.dataset.view : 'richtext';
-
-    // Sync content from the currently active view before switching
-    if (currentView === 'html') {
-        contentHolder.value = views.html.value;
-    } else if (importEditorQuill) {
-        contentHolder.value = importEditorQuill.root.innerHTML;
-    }
-
-    Object.values(views).forEach(el => el.classList.add('hidden'));
-    document.querySelectorAll('#import-editor-toggle-buttons .toggle-btn').forEach(btn => btn.classList.remove('active'));
-    
-    const targetBtn = document.querySelector(`#import-editor-toggle-buttons .toggle-btn[onclick*="'${view}'"]`);
-    views[view].classList.remove('hidden');
-    if (targetBtn) {
-        targetBtn.classList.add('active');
-        targetBtn.dataset.view = view;
-    }
-    
-    if (view === 'richtext' && importEditorQuill) importEditorQuill.root.innerHTML = contentHolder.value;
-    if (view === 'html') views.html.value = contentHolder.value;
-}
-
-export function addQuillTooltips(scopeSelector) {
-    document.querySelectorAll(`${scopeSelector} .ql-toolbar button, ${scopeSelector} .ql-toolbar .ql-picker-label`).forEach(el => {
-        const tooltips = { 'bold': 'Bold', 'italic': 'Italic', 'underline': 'Underline', 'strike': 'Strikethrough', 'blockquote': 'Blockquote', 'code-block': 'Code Block', 'header': 'Heading', 'font': 'Font', 'color': 'Font Color', 'background': 'Highlight Color', 'align': 'Text Alignment', 'list': 'List', 'script': 'Sub/Superscript', 'indent': 'Indent', 'link': 'Insert Link', 'image': 'Insert Image', 'video': 'Insert Video', 'clean': 'Remove Formatting' };
-            for(const key in tooltips){
-                if(el.classList.contains(`ql-${key}`) || (el.parentElement && el.parentElement.classList.contains(`ql-${key}`))) {
-                    el.setAttribute('title', tooltips[key]);
-                }
-            }
+        importEditorQuill.on('text-change', () => {
+            document.getElementById('import_html_content').value = importEditorQuill.root.innerHTML;
         });
     }
-
-export function cleanHtmlClientSide(htmlStr) {
-    if (!htmlStr || !htmlStr.trim()) return "";
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlStr, 'text/html');
-    const body = doc.body;
-    if (!body) return htmlStr;
-    
-    let consecutiveBlanks = 0;
-    const children = Array.from(body.children);
-
-    for (const el of children) {
-        const isBlank = el.nodeName === 'P' && (!el.textContent.trim() && !el.querySelector('img'));
-        if (isBlank) {
-            consecutiveBlanks++;
-            if (consecutiveBlanks > 1) {
-                el.remove();
-            }
-        } else {
-            consecutiveBlanks = 0;
-        }
-    }
-    
-    const updatedChildren = Array.from(body.children);
-    for (let i = updatedChildren.length - 1; i >= 0; i--) {
-        const el = updatedChildren[i];
-        if (el.nodeName === 'P' && (!el.textContent.trim() && !el.querySelector('img'))) {
-            el.remove();
-        } else {
-            break;
-        }
-    }
-    return body.innerHTML;
+    window.noteEditorQuill = noteEditorQuill;
+    window.importEditorQuill = importEditorQuill;
 }
 
-export function cleanActiveEditorContent(editorType) {
-    let editor;
-    let htmlEditor;
+function toggleImportEditorView(view) {
+    const rich = document.getElementById('import-editor-container');
+    const html = document.getElementById('html-import-editor');
+    if (view === 'richtext') {
+        rich.classList.remove('hidden');
+        html.classList.add('hidden');
+        if (importEditorQuill && html.value) importEditorQuill.root.innerHTML = html.value;
+    } else {
+        html.classList.remove('hidden');
+        rich.classList.add('hidden');
+        if (importEditorQuill) html.value = importEditorQuill.root.innerHTML;
+    }
+}
 
+function cleanActiveEditorContent(editorType) {
+    let editor, htmlEditor;
     if (editorType === 'note') {
         editor = noteEditorQuill;
         htmlEditor = document.getElementById('html-editor');
-    } else { // 'import'
+    } else {
         editor = importEditorQuill;
         htmlEditor = document.getElementById('html-import-editor');
     }
-
     if (!editor) return;
-
-    const currentHtml = editor.root.innerHTML;
-    const cleanedHtml = cleanHtmlClientSide(currentHtml);
-    
-    editor.root.innerHTML = cleanedHtml;
-    
-    if (htmlEditor) {
-        htmlEditor.value = cleanedHtml;
-    }
+    const cleaned = (editor.root.innerHTML || '').replace(/(<p>\s*<\/p>)+/g, '<p></p>');
+    editor.root.innerHTML = cleaned;
+    if (htmlEditor) htmlEditor.value = cleaned;
 }
+
+window.initializeEditors = initializeEditors;
+window.toggleImportEditorView = toggleImportEditorView;
+window.cleanActiveEditorContent = cleanActiveEditorContent;
+
+// Make all editor functions globally accessible
+window.initializeEditors = initializeEditors;
+window.toggleEditorView = toggleEditorView;
+window.toggleImportEditorView = toggleImportEditorView;
+window.addQuillTooltips = addQuillTooltips;
+window.cleanActiveEditorContent = cleanActiveEditorContent;

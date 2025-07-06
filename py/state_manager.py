@@ -4,15 +4,14 @@ import json
 import copy
 import uuid
 import re 
-import py.config as config # Corrected import statement
-import py.global_state as global_state
+import py.core as core
 import py.tag_manager as tag_manager # To call get_all_categorized_tags and cleanup_orphan_tags during state load
 
 # --- State Management Functions ---
 
 def get_available_states() -> list[str]:
     """Returns a sorted list of available state filenames (e.g., 'State_One.json')."""
-    return sorted([f for f in os.listdir(config.STATES_DIR) if f.endswith('.json')])
+    return sorted([f for f in os.listdir(core.STATES_DIR) if f.endswith('.json')])
 
 def get_state_name_from_filename(filename: str) -> str:
     """Converts a filename ('My_State.json') to a state name ('My_State')."""
@@ -28,7 +27,7 @@ def get_filename_from_state_name(state_name: str) -> str:
 
 def save_state(state_name: str) -> None:
     """
-    Saves the current in-memory global_state.document_state to its JSON file atomically.
+    Saves the current in-memory core.document_state to its JSON file atomically.
     It writes to a temporary file first and then replaces the original to prevent
     data corruption in case of an error during writing.
     """
@@ -37,11 +36,11 @@ def save_state(state_name: str) -> None:
         return
 
     filename = get_filename_from_state_name(state_name)
-    filepath = os.path.join(config.STATES_DIR, filename)
+    filepath = os.path.join(core.STATES_DIR, filename)
     temp_filepath = filepath + ".tmp"
 
     # Create a serializable copy of the state, converting the 'known_tags' set to a list.
-    state_to_save = copy.deepcopy(global_state.document_state)
+    state_to_save = copy.deepcopy(core.document_state)
     if 'known_tags' in state_to_save and isinstance(state_to_save['known_tags'], set):
         state_to_save['known_tags'] = sorted(list(state_to_save['known_tags']))
     
@@ -67,7 +66,7 @@ def load_state(state_name: str) -> bool:
     Loads a specific state from a JSON file into the global `document_state`.
     Returns True on success, False on failure (e.g., file not found, corrupt JSON).
     """
-    filepath = os.path.join(config.STATES_DIR, get_filename_from_state_name(state_name))
+    filepath = os.path.join(core.STATES_DIR, get_filename_from_state_name(state_name))
 
     if not os.path.exists(filepath):
         return False
@@ -102,8 +101,8 @@ def load_state(state_name: str) -> bool:
             for category in loaded_data.get('tag_categories', []):
                 category['tags'] = list(dict.fromkeys(category.get('tags', [])))
 
-            global_state.document_state.clear()
-            global_state.document_state.update(loaded_data)
+            core.document_state.clear()
+            core.document_state.update(loaded_data)
             
         # Sync tags to ensure only actually used tags are available
         tag_manager.sync_known_tags()
@@ -115,8 +114,8 @@ def load_state(state_name: str) -> bool:
 
 def create_default_state(state_name: str) -> None:
     """Creates and saves a new, blank state file with a default structure."""
-    global_state.document_state.clear()
-    global_state.document_state.update({
+    core.document_state.clear()
+    core.document_state.update({
         "documentTitle": state_name,
         "sections": [],
         "known_tags": {"All"},  # 'All' is a special reserved tag.

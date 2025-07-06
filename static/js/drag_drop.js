@@ -1,9 +1,9 @@
 // js/drag_drop.js
 
-export let draggedTagInfo = {}; // Stores { tagName, sourceCategoryId }
-export let isDragging = false; // Flag to indicate if a drag operation is in progress
+let draggedTagInfo = {}; // Stores { tagName, sourceCategoryId }
+let isDragging = false; // Flag to indicate if a drag operation is in progress
 
-export function drag(event) {
+function drag(event) {
     const tagElement = event.target;
     
     // Prevent dragging of 'All' tag or any tag without a data-tag-name
@@ -25,7 +25,7 @@ export function drag(event) {
     tagElement.classList.add('opacity-50', 'dragging');
 }
 
-export function dragEnd(event) {
+function dragEnd(event) {
     // Reset the dragging flag
     isDragging = false;
     // Remove dragging classes from the dragged element
@@ -33,19 +33,19 @@ export function dragEnd(event) {
 }
 
 
-export function allowDrop(event) {
+function allowDrop(event) {
     event.preventDefault(); // Necessary to allow dropping
     // Add a visual cue to the dropzone
     event.currentTarget.classList.add('drag-over');
 }
 
-export function leaveDrop(event) {
+function leaveDrop(event) {
     // Remove visual cue from the dropzone
     event.currentTarget.classList.remove('drag-over');
     // The dragged element's opacity and 'dragging' class are handled by dragEnd
 }
 
-export async function drop(event) {
+async function drop(event) {
     event.preventDefault();
     event.stopPropagation(); // Stop the event from bubbling up to parent dropzones
     event.currentTarget.classList.remove('drag-over'); // Remove visual cue
@@ -92,3 +92,12 @@ export async function drop(event) {
         alert('An error occurred while moving the tag.');
     }
 }
+
+// Make all drag and drop functions globally accessible
+window.drag = drag;
+window.dragEnd = dragEnd;
+window.allowDrop = allowDrop;
+window.leaveDrop = leaveDrop;
+window.drop = drop;
+window.isDragging = isDragging;
+window.draggedTagInfo = draggedTagInfo;

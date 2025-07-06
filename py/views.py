@@ -3,7 +3,7 @@ import uuid
 import os
 from typing import Optional, Dict
 from flask import render_template, request, redirect, url_for, flash, jsonify, current_app
-import py.global_state as global_state
+import py.core as core
 import py.state_manager as state_manager
 import py.tag_manager as tag_manager
 import py.content_processor as content_processor
@@ -52,7 +52,7 @@ def index():
     
     return render_template(
         "index.html",
-        document=global_state.document_state,
+        document=core.document_state,
         sections=sections_to_display,
         all_tags=tag_manager.get_all_known_tags(),
         and_tags=tag_manager.get_and_tags(),
@@ -60,7 +60,7 @@ def index():
         active_filters_lower=list(active_filters_lower), # Pass this for client-side Jinja2 logic
         available_states=[state_manager.get_state_name_from_filename(f) for f in available_state_files],
         current_state=current_state_name,
-        tag_categories=global_state.document_state.get("tag_categories", []), # Pass categories
+        tag_categories=core.document_state.get("tag_categories", []), # Pass categories
         uncategorized_tags=tag_manager.get_uncategorized_tags() # Pass uncategorized tags
     )
 
@@ -95,7 +95,7 @@ def rename_state():
 
     if os.path.exists(old_filepath):
         state_manager.load_state(old_name)
-        global_state.document_state["documentTitle"] = new_name
+        core.document_state["documentTitle"] = new_name
         state_manager.save_state(new_name)
         os.remove(old_filepath)
         flash(f"State '{old_name}' renamed to '{new_name}'.", "success")
@@ -126,14 +126,14 @@ def delete_state():
 
 def update_title():
     state_name = request.args.get('state')
-    global_state.document_state["documentTitle"] = request.form.get("documentTitle", "Untitled")
+    core.document_state["documentTitle"] = request.form.get("documentTitle", "Untitled")
     state_manager.save_state(state_name)
     return redirect(get_redirect_url())
 
 def add_section():
     state_name = request.args.get('state')
     new_section = {"id": str(uuid.uuid4()), "sectionTitle": "New Section", "tags": [], "notes": []}
-    global_state.document_state.setdefault("sections", []).append(new_section)
+    core.document_state.setdefault("sections", []).append(new_section)
     state_manager.save_state(state_name)
     return redirect(get_redirect_url())
 
@@ -141,30 +141,21 @@ def update_section(section_id: str):
     state_name = request.args.get('state')
     section = content_processor.find_item(section_id, "section")
     if section:
-        # Handle section title with proper fallback
-        current_title = section.get("sectionTitle", section.get("title", "Untitled Section"))
-        section["sectionTitle"] = request.form.get("sectionTitle", current_title)
-        
+        old_tags = section.get("tags", [])
+        section["sectionTitle"] = request.form.get("sectionTitle", section["sectionTitle"])
         new_tags_input = request.form.get("tags", "")
         
-        # Simple tag processing for sections - no global side effects
+        # Process tags as individual singular tags
         if new_tags_input.strip():
             new_tags = [tag.strip() for tag in new_tags_input.split(',') if tag.strip()]
-            # Normalize AND tags
-            normalized_tags = []
-            for tag in new_tags:
-                if '&' in tag:
-                    components = tag_manager.parse_and_tag_components(tag)
-                    normalized_tag = tag_manager.combine_tags_to_and(components)
-                    normalized_tags.append(normalized_tag)
-                else:
-                    normalized_tags.append(tag)
-            section["tags"] = normalized_tags
         else:
-            section["tags"] = []
+            new_tags = []
         
-        # Sync known tags to include any new tags
-        tag_manager.sync_known_tags()
+        # Handle intelligent tag editing for cleanup
+        tag_manager.handle_smart_tag_update(old_tags, new_tags, exclude_section_id=section_id)
+        
+        section["tags"] = new_tags
+        tag_manager.sync_known_tags()  # No parameters needed - syncs from actual usage
         state_manager.save_state(state_name)
     else:
         flash("Section not found.", "error")
@@ -172,9 +163,9 @@ def update_section(section_id: str):
 
 def delete_section(section_id: str):
     state_name = request.args.get('state')
-    original_count = len(global_state.document_state.get("sections", []))
-    global_state.document_state["sections"] = [s for s in global_state.document_state.get("sections", []) if s["id"] != section_id]
-    if len(global_state.document_state["sections"]) < original_count:
+    original_count = len(core.document_state.get("sections", []))
+    core.document_state["sections"] = [s for s in core.document_state.get("sections", []) if s["id"] != section_id]
+    if len(core.document_state["sections"]) < original_count:
         tag_manager.cleanup_orphan_tags()
         state_manager.save_state(state_name)
     else:
@@ -196,32 +187,22 @@ def update_note(section_id: str, note_id: str):
     state_name = request.args.get('state')
     _, note = content_processor.find_section_and_note(section_id, note_id)
     if note:
-        # Handle note fields with proper fallbacks
-        current_title = note.get("noteTitle", note.get("title", "Untitled Note"))
-        current_content = note.get("content", "")
-        
-        note["noteTitle"] = request.form.get("noteTitle", current_title)
-        note["content"] = request.form.get("content", current_content)
+        old_tags = note.get("tags", [])
+        note["noteTitle"] = request.form.get("noteTitle", note["noteTitle"])
+        note["content"] = request.form.get("content", note["content"])
         new_tags_input = request.form.get("tags", "")
         
-        # Simple tag processing for notes - no global side effects
+        # Process tags as individual singular tags
         if new_tags_input.strip():
             new_tags = [tag.strip() for tag in new_tags_input.split(',') if tag.strip()]
-            # Normalize AND tags
-            normalized_tags = []
-            for tag in new_tags:
-                if '&' in tag:
-                    components = tag_manager.parse_and_tag_components(tag)
-                    normalized_tag = tag_manager.combine_tags_to_and(components)
-                    normalized_tags.append(normalized_tag)
-                else:
-                    normalized_tags.append(tag)
-            note["tags"] = normalized_tags
         else:
-            note["tags"] = []
+            new_tags = []
         
-        # Sync known tags to include any new tags
-        tag_manager.sync_known_tags()
+        # Handle intelligent tag editing for cleanup
+        tag_manager.handle_smart_tag_update(old_tags, new_tags, exclude_note_id=note_id)
+        
+        note["tags"] = new_tags
+        tag_manager.sync_known_tags()  # No parameters needed - syncs from actual usage
         state_manager.save_state(state_name)
     else:
         flash("Note not found.", "error")
@@ -240,38 +221,37 @@ def delete_note(section_id: str, note_id: str):
 
 # --- Tag Management Routes ---
 
-def create_tag_from_editor():
-    """Create a new tag from the editor and add it to a category"""
+def add_global_tag():
     state_name = request.args.get('state')
-    new_tag = request.form.get("tag_name", "").strip()
-    target_category_id = request.form.get("category_id", "uncategorized")
+    new_tag = request.form.get("new_tag_name", "").strip()
+    target_category_id = request.form.get("target_category_id")
 
     if not new_tag:
-        return jsonify({"success": False, "message": "Tag name cannot be empty"})
+        flash("Tag name cannot be empty.", "warning")
+        return redirect(get_redirect_url())
     
-    # Normalize new_tag if it's an AND tag format
-    if '&' in new_tag:
-        components = tag_manager.parse_and_tag_components(new_tag)
-        new_tag = tag_manager.combine_tags_to_and(components) # Get canonical name
+    # Don't treat tags with '&' as AND tags unless they're specifically created as AND tags
+    # This allows regular tags like "tr & co" to be created normally
 
     if new_tag.lower() in [t.lower() for t in tag_manager.get_all_known_tags()]:
-        return jsonify({"success": True, "message": f"Tag '{new_tag}' already exists", "tag": new_tag})
+        flash(f"Tag '{new_tag}' already exists.", "info")
+        return redirect(get_redirect_url())
 
     # Add to known_tags set
-    global_state.document_state.setdefault("known_tags", set()).add(new_tag)
+    core.document_state.setdefault("known_tags", set()).add(new_tag)
 
     # Add to the specified category or 'Uncategorized' by default
     target_category_obj = find_category(target_category_id)
     if not target_category_obj:
         # Fallback to 'Uncategorized' if target_category_id is invalid or not provided
-        for cat in global_state.document_state.get("tag_categories", []):
+        for cat in core.document_state.get("tag_categories", []):
             if cat['name'].lower() == 'uncategorized':
                 target_category_obj = cat
                 break
         if not target_category_obj: # Create 'Uncategorized' if it somehow doesn't exist
             new_uncat_id = str(uuid.uuid4())
             new_uncat = {"id": new_uncat_id, "name": "Uncategorized", "tags": []}
-            global_state.document_state["tag_categories"].insert(0, new_uncat)
+            core.document_state["tag_categories"].insert(0, new_uncat)
             target_category_obj = new_uncat
 
     if new_tag not in target_category_obj.get("tags", []):
@@ -280,10 +260,9 @@ def create_tag_from_editor():
 
     tag_manager.cleanup_orphan_tags()
     state_manager.save_state(state_name)
-    
-    # Return updated tag list for the client
-    all_tags = tag_manager.get_all_known_tags()
-    return jsonify({"success": True, "message": f"Tag '{new_tag}' created", "tag": new_tag, "all_tags": list(all_tags)})
+    flash(f"Tag '{new_tag}' created and added to '{target_category_obj['name']}'.", "success")
+    return redirect(get_redirect_url())
+
 
 def rename_global_tag():
     state_name = request.args.get('state')
@@ -293,23 +272,39 @@ def rename_global_tag():
     if not all([old_tag, new_tag]) or old_tag.lower() == new_tag.lower():
         return redirect(get_redirect_url())
     
-    # Normalize new_tag if it's an AND tag format
-    if '&' in new_tag:
-        components = tag_manager.parse_and_tag_components(new_tag)
-        new_tag = tag_manager.combine_tags_to_and(components)
-
+    # Check if this is a manually created AND tag - only then redirect to AND tag update
+    manual_and_tags = core.document_state.get("and_tags", [])
+    if old_tag in manual_and_tags:
+        # This is a manually created AND tag - use the AND tag update logic
+        return update_and_tag()
+    
+    # Handle singular tag renaming
     # Check if new tag name already exists (case-insensitively) excluding the old tag itself
     existing_tags_lower = {t.lower() for t in tag_manager.get_all_known_tags() if t.lower() != old_tag.lower()}
     if new_tag.lower() in existing_tags_lower:
         flash(f"Tag '{new_tag}' already exists.", "error")
+        return redirect(get_redirect_url())
     elif old_tag.lower() == 'all':
         flash("The 'All' tag cannot be renamed.", "error")
+        return redirect(get_redirect_url())
     else:
-        # Use the smart rename logic that handles AND tag components
+        # Use the smart rename logic for singular tags
         tag_manager.smart_rename_tag(old_tag, new_tag)
         tag_manager.cleanup_orphan_tags()
         state_manager.save_state(state_name)
         flash(f"Tag '{old_tag}' renamed to '{new_tag}'.", "success")
+        
+        # Update active filters if the renamed tag is currently being filtered
+        active_filters = request.args.getlist('filter')
+        updated_filters = []
+        for filter_tag in active_filters:
+            if filter_tag.lower() == old_tag.lower():
+                updated_filters.append(new_tag)
+            else:
+                updated_filters.append(filter_tag)
+        
+        # Build redirect URL with updated filters
+        return redirect(url_for('index', state=state_name, filter=updated_filters))
 
     return redirect(get_redirect_url())
 
@@ -323,26 +318,38 @@ def delete_global_tag():
         flash("The 'All' tag cannot be deleted.", "error")
         return redirect(get_redirect_url())
 
+    # Check if this is a manually created AND tag - only then use AND tag deletion
+    manual_and_tags = core.document_state.get("and_tags", [])
+    if tag_to_delete in manual_and_tags:
+        return delete_and_tag()
+
+    # Handle singular tag deletion
     lower_tag = tag_to_delete.lower()
     
     # Remove from known_tags
-    global_state.document_state["known_tags"].discard(tag_to_delete)
+    core.document_state["known_tags"].discard(tag_to_delete)
     
     # Remove from all content
-    for section in global_state.document_state.get("sections", []):
+    for section in core.document_state.get("sections", []):
         section["tags"] = [t for t in section.get("tags", []) if t.lower() != lower_tag]
         for note in section.get("notes", []):
             note["tags"] = [t for t in note.get("tags", []) if t.lower() != lower_tag]
     
     # Remove from all categories
-    for category in global_state.document_state.get("tag_categories", []):
+    for category in core.document_state.get("tag_categories", []):
         category["tags"] = [t for t in category.get("tags", []) if t.lower() != lower_tag]
         category["tags"] = sorted(category["tags"], key=str.lower) # Re-sort after deletion
 
     tag_manager.cleanup_orphan_tags() # Reconcile after deletion
     state_manager.save_state(state_name)
     flash(f"Tag '{tag_to_delete}' deleted everywhere.", "success")
-    return redirect(get_redirect_url())
+    
+    # Update active filters if the deleted tag is currently being filtered
+    active_filters = request.args.getlist('filter')
+    updated_filters = [filter_tag for filter_tag in active_filters if filter_tag.lower() != tag_to_delete.lower()]
+    
+    # Build redirect URL with updated filters (remove the deleted tag from filters)
+    return redirect(url_for('index', state=state_name, filter=updated_filters))
 
 def remove_and_tag_component():
     state_name = request.args.get('state')
@@ -385,7 +392,7 @@ def move_tag():
         new_and_tag_name = tag_manager.combine_tags_to_and(all_components)
 
         # Add the new AND tag to known_tags but do not remove the old ones
-        global_state.document_state.setdefault("known_tags", set()).add(new_and_tag_name)
+        core.document_state.setdefault("known_tags", set()).add(new_and_tag_name)
         
         flash(f"New AND tag '{new_and_tag_name}' created.", "success")
 
@@ -426,14 +433,14 @@ def import_html():
 
     if new_sections:
         if import_mode == 'overwrite':
-            global_state.document_state['sections'] = new_sections
-            global_state.document_state['known_tags'] = new_tags.union({'All'})
+            core.document_state['sections'] = new_sections
+            core.document_state['known_tags'] = new_tags.union({'All'})
             # Overwrite categories, ensure 'Uncategorized' has all tags
-            global_state.document_state['tag_categories'] = [{"id": str(uuid.uuid4()), "name": "Uncategorized", "tags": sorted(list(new_tags.union({'All'})))}]
+            core.document_state['tag_categories'] = [{"id": str(uuid.uuid4()), "name": "Uncategorized", "tags": sorted(list(new_tags.union({'All'})))}]
             flash("Content imported, overwriting previous data.", "success")
         else: # aggregate mode
-            global_state.document_state.setdefault('sections', []).extend(new_sections)
-            global_state.document_state.setdefault('known_tags', set()).update(new_tags)
+            core.document_state.setdefault('sections', []).extend(new_sections)
+            core.document_state.setdefault('known_tags', set()).update(new_tags)
             # Add new tags to uncategorized if they are not in any category
             tag_manager.sync_known_tags(list(new_tags))
             flash("Content appended to the end of the document.", "success")
@@ -448,12 +455,12 @@ def find_category(category_id: str) -> Optional[Dict]:
     """Finds a category by its ID."""
     # Special case for uncategorized
     if category_id == 'uncategorized' or category_id == 'and_tags':
-        for category in global_state.document_state.get("tag_categories", []):
+        for category in core.document_state.get("tag_categories", []):
             if category.get("name", "").lower() == 'uncategorized':
                 return category
         return None
         
-    for category in global_state.document_state.get("tag_categories", []):
+    for category in core.document_state.get("tag_categories", []):
         if category.get("id") == category_id:
             return category
     return None
@@ -463,11 +470,11 @@ def add_category():
     category_name = request.form.get("category_name", "").strip()
     if not category_name:
         flash("Category name cannot be empty.", "warning")
-    elif any(c['name'].lower() == category_name.lower() for c in global_state.document_state.get("tag_categories", [])):
+    elif any(c['name'].lower() == category_name.lower() for c in core.document_state.get("tag_categories", [])):
         flash(f"Category '{category_name}' already exists.", "info")
     else:
         new_category = {"id": str(uuid.uuid4()), "name": category_name, "tags": []}
-        global_state.document_state.setdefault("tag_categories", []).append(new_category)
+        core.document_state.setdefault("tag_categories", []).append(new_category)
         state_manager.save_state(state_name)
         flash(f"Category '{category_name}' created.", "success")
     return redirect(get_redirect_url())
@@ -482,7 +489,7 @@ def rename_category():
         flash("Category not found.", "error")
     elif not new_name:
         flash("New category name cannot be empty.", "warning")
-    elif any(c['name'].lower() == new_name.lower() and c['id'] != category_id for c in global_state.document_state.get("tag_categories", [])):
+    elif any(c['name'].lower() == new_name.lower() and c['id'] != category_id for c in core.document_state.get("tag_categories", [])):
         flash(f"A category named '{new_name}' already exists.", "error")
     elif category['name'].lower() == 'uncategorized' and new_name.lower() != 'uncategorized':
         flash("The 'Uncategorized' category cannot be renamed.", "error")
@@ -508,7 +515,7 @@ def delete_category():
 
     # Find the "Uncategorized" category to move tags to
     uncategorized_category = None
-    for cat in global_state.document_state["tag_categories"]:
+    for cat in core.document_state["tag_categories"]:
         if cat['name'].lower() == 'uncategorized':
             uncategorized_category = cat
             break
@@ -517,7 +524,7 @@ def delete_category():
         # This should ideally not happen if 'Uncategorized' is always present
         new_uncategorized_id = str(uuid.uuid4())
         uncategorized_category = {"id": new_uncategorized_id, "name": "Uncategorized", "tags": []}
-        global_state.document_state["tag_categories"].insert(0, uncategorized_category) # Add at the beginning
+        core.document_state["tag_categories"].insert(0, uncategorized_category) # Add at the beginning
 
     # Move tags from the deleted category to "Uncategorized"
     if category_to_delete.get('tags'):
@@ -525,7 +532,7 @@ def delete_category():
         uncategorized_category['tags'] = sorted(list(dict.fromkeys(uncategorized_category['tags'])), key=str.lower) # Deduplicate and sort
 
     # Remove the category from the list
-    global_state.document_state["tag_categories"] = [c for c in global_state.document_state.get("tag_categories", []) if c["id"] != category_id]
+    core.document_state["tag_categories"] = [c for c in core.document_state.get("tag_categories", []) if c["id"] != category_id]
     
     # Cleanup tags and save
     tag_manager.cleanup_orphan_tags() # Ensure known_tags is consistent
@@ -569,3 +576,112 @@ def rename_tag_globally():
         flash(result['message'], "error")
     
     return jsonify(result)
+
+# --- AND Tag Management Routes ---
+
+def add_and_tag():
+    """Create a new AND tag manually"""
+    state_name = request.args.get('state')
+    and_tag_components = request.form.get("and_tag_components", "").strip()
+    
+    if not and_tag_components:
+        flash("AND tag components cannot be empty.", "error")
+        return redirect(get_redirect_url())
+    
+    # Parse components and create AND tag
+    components = [comp.strip() for comp in and_tag_components.split(',') if comp.strip()]
+    if len(components) < 2:
+        flash("AND tag must have at least 2 components.", "error")
+        return redirect(get_redirect_url())
+    
+    # Create the AND tag using the standard format
+    and_tag = tag_manager.combine_tags_to_and(components)
+    
+    # Check if it already exists
+    existing_and_tags = tag_manager.get_and_tags()
+    if and_tag in existing_and_tags:
+        flash(f"AND tag '{and_tag}' already exists.", "error")
+        return redirect(get_redirect_url())
+    
+    # Add the AND tag
+    if tag_manager.add_and_tag(and_tag):
+        state_manager.save_state(state_name)
+        flash(f"AND tag '{and_tag}' created successfully.", "success")
+    else:
+        flash("Failed to create AND tag.", "error")
+    
+    return redirect(get_redirect_url())
+
+def update_and_tag():
+    """Update an existing AND tag"""
+    state_name = request.args.get('state')
+    old_tag = request.form.get("old_tag")
+    new_tag_components = request.form.get("new_tag", "").strip()
+    
+    if not old_tag or not new_tag_components:
+        flash("Missing tag information.", "error")
+        return redirect(get_redirect_url())
+    
+    # Parse components and create new AND tag
+    if ',' in new_tag_components:
+        # Components separated by comma
+        components = [comp.strip() for comp in new_tag_components.split(',') if comp.strip()]
+    else:
+        # Assume it's already formatted as an AND tag
+        components = tag_manager.parse_and_tag_components(new_tag_components)
+    
+    if len(components) < 2:
+        flash("AND tag must have at least 2 components.", "error")
+        return redirect(get_redirect_url())
+    
+    new_tag = tag_manager.combine_tags_to_and(components)
+    
+    # Check if new tag already exists (excluding the old one)
+    existing_and_tags = [tag for tag in tag_manager.get_and_tags() if tag != old_tag]
+    if new_tag in existing_and_tags:
+        flash(f"AND tag '{new_tag}' already exists.", "error")
+        return redirect(get_redirect_url())
+    
+    # Update the AND tag
+    if tag_manager.update_and_tag(old_tag, new_tag):
+        state_manager.save_state(state_name)
+        flash(f"AND tag updated from '{old_tag}' to '{new_tag}'.", "success")
+        
+        # Update active filters if the renamed AND tag is currently being filtered
+        active_filters = request.args.getlist('filter')
+        updated_filters = []
+        for filter_tag in active_filters:
+            if filter_tag.lower() == old_tag.lower():
+                updated_filters.append(new_tag)
+            else:
+                updated_filters.append(filter_tag)
+        
+        # Build redirect URL with updated filters
+        return redirect(url_for('index', state=state_name, filter=updated_filters))
+    else:
+        flash("Failed to update AND tag.", "error")
+    
+    return redirect(get_redirect_url())
+
+def delete_and_tag():
+    """Delete an AND tag"""
+    state_name = request.args.get('state')
+    and_tag = request.form.get("and_tag_to_delete")
+    
+    if not and_tag:
+        flash("Missing AND tag to delete.", "error")
+        return redirect(get_redirect_url())
+    
+    if tag_manager.remove_and_tag(and_tag):
+        state_manager.save_state(state_name)
+        flash(f"AND tag '{and_tag}' deleted successfully.", "success")
+        
+        # Update active filters if the deleted AND tag is currently being filtered
+        active_filters = request.args.getlist('filter')
+        updated_filters = [filter_tag for filter_tag in active_filters if filter_tag.lower() != and_tag.lower()]
+        
+        # Build redirect URL with updated filters (remove the deleted AND tag from filters)
+        return redirect(url_for('index', state=state_name, filter=updated_filters))
+    else:
+        flash("Failed to delete AND tag.", "error")
+        return redirect(get_redirect_url())

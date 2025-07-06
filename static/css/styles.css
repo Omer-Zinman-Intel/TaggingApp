@@ -1,0 +1,397 @@
+/* ================================
+   TaggingApp - Consolidated Styles
+   ================================ */
+
+/* =============
+   MODAL STYLES
+   ============= */
+.modal {
+    transition: opacity 0.25s ease;
+}
+
+.modal.hidden {
+    display: none !important;
+}
+
+.modal:not(.hidden) {
+    display: flex !important;
+}
+
+.modal.opacity-0 {
+    opacity: 0;
+}
+
+.modal:not(.opacity-0) {
+    opacity: 1;
+}
+
+.modal-container {
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-body {
+    overflow-y: auto;
+}
+
+/* =============
+   EDITOR STYLES
+   ============= */
+.ql-editor {
+    min-height: 200px;
+}
+
+#quill-editor-container .ql-editor,
+#html-editor,
+#import-editor-container .ql-editor,
+#html-import-editor {
+    height: 45vh;
+    overflow-y: auto;
+}
+
+.toggle-btn.active {
+    background-color: #2563eb;
+    color: white;
+}
+
+.file-input-button {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background-color: #4b5563;
+    color: white;
+    border-radius: 0.375rem;
+    transition: background-color 0.2s;
+}
+
+.file-input-button:hover {
+    background-color: #374151;
+}
+
+/* ===================
+   QUILL EDITOR ALIGNMENT
+   =================== */
+.ql-editor p {
+    margin-bottom: 0.75em;
+    clear: none;
+}
+
+.ql-editor img {
+    max-width: 100%;
+    vertical-align: bottom;
+}
+
+.ql-editor .ql-align-left {
+    text-align: left;
+}
+
+.ql-editor .ql-align-center {
+    text-align: center;
+}
+
+.ql-editor .ql-align-right {
+    text-align: right;
+}
+
+.ql-editor .ql-align-justify {
+    text-align: justify;
+}
+
+.ql-editor img.ql-align-left {
+    float: left !important;
+    margin-right: 1em !important;
+    margin-bottom: 0.5em !important;
+    margin-left: 0 !important;
+    display: inline !important;
+}
+
+.ql-editor img.ql-align-center {
+    display: block !important;
+    float: none !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+
+.ql-editor img.ql-align-right {
+    float: right !important;
+    margin-left: 1em !important;
+    margin-bottom: 0.5em !important;
+    margin-right: 0 !important;
+    display: inline !important;
+}
+
+.ql-editor img.quill-image-selected {
+    outline: 2px solid #2563eb !important;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2) !important;
+}
+
+/* =============
+   PROSE STYLES
+   ============= */
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 { 
+    margin-top: 1.25em; 
+    margin-bottom: 0.5em; 
+    font-weight: 600; 
+}
+
+.prose p { 
+    margin-top: 0.75em; 
+    margin-bottom: 0.75em; 
+}
+
+.prose ul, .prose ol { 
+    margin-top: 0.75em; 
+    margin-bottom: 0.75em; 
+    padding-left: 1.5em; 
+}
+
+.prose ul { 
+    list-style-type: disc; 
+}
+
+.prose ol { 
+    list-style-type: decimal; 
+}
+
+.prose code { 
+    background-color: #e5e7eb; 
+    padding: 0.2em 0.4em; 
+    margin: 0; 
+    font-size: 85%; 
+    border-radius: 3px; 
+}
+
+.prose pre { 
+    background-color: #e5e7eb; 
+    padding: 1em; 
+    border-radius: 6px; 
+    overflow-x: auto; 
+}
+
+.prose img {
+    max-width: 100%;
+}
+
+.prose .ql-align-center {
+    text-align: center;
+}
+
+.prose .ql-align-right {
+    text-align: right;
+}
+
+.prose .ql-align-justify {
+    text-align: justify;
+}
+
+.prose img.ql-align-center {
+    margin-left: auto !important;
+    margin-right: auto !important;
+    display: block !important;
+    float: none !important;
+}
+
+.prose img.ql-align-right {
+    float: right !important;
+    margin-left: 1em !important;
+    margin-bottom: 0.5em !important;
+    margin-right: 0 !important;
+    display: inline !important;
+}
+
+.prose img.ql-align-left {
+    float: left !important;
+    margin-right: 1em !important;
+    margin-bottom: 0.5em !important;
+    margin-left: 0 !important;
+    display: inline !important;
+}
+
+/* =============
+   TAG STYLES
+   ============= */
+.tag-bubble {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    padding: 0.25rem 0.75rem;
+    margin-right: 0.5rem;
+    margin-bottom: 0.25rem;
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.tag-bubble:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px 0 rgba(0,0,0,0.1);
+}
+
+.tag-bubble.dragging {
+    cursor: grabbing !important;
+}
+
+.tag-bubble-all {
+    background-color: #e9d5ff;
+    color: #5b21b6;
+    cursor: default;
+}
+
+.tag-bubble.active-filter {
+    background-color: #2563eb;
+    color: white;
+    box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);
+}
+
+.tag-bubble.inactive-filter {
+    background-color: #dbeafe;
+    color: #1e40af;
+    cursor: grab;
+}
+
+.and-tag.inactive-filter {
+    background-color: #fed7aa;
+    color: #9a3412;
+}
+
+.and-tag.active-filter {
+    background-color: #f97316;
+    color: white;
+}
+
+.and-tag-component {
+    display: inline-block;
+    padding: 0.1rem 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1;
+}
+
+.tag-remove-btn {
+    margin-left: 0.5rem;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 9999px;
+    background-color: rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.tag-remove-btn:hover {
+    background-color: rgba(0,0,0,0.2);
+}
+
+.group-hover\/tag:opacity-100 {
+    transition-delay: 150ms;
+}
+
+/* ===================
+   TAG SUGGESTIONS
+   =================== */
+.tag-suggestions {
+    position: fixed; /* Changed to fixed for viewport-relative positioning */
+    min-width: 200px;
+    z-index: 10000;
+    background-color: white;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    visibility: hidden; /* Initially hidden, will be shown by JS */
+    /* Remove max-height and overflow constraints to allow full content display */
+}
+
+.tag-suggestions.hidden {
+    display: none;
+}
+
+#editSectionTagsContainer, #editNoteTagsContainer {
+    position: relative;
+}
+
+.suggestion-item {
+    cursor: pointer;
+    padding: 0.75rem 1rem;
+    user-select: none;
+    border-bottom: 1px solid #f3f4f6;
+    transition: background-color 0.15s ease;
+    font-size: 0.875rem;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background-color: #f3f4f6;
+}
+
+/* Responsive design for small viewports */
+@media (max-height: 600px) {
+    .tag-suggestions {
+        max-height: 25vh !important;
+        overflow-y: auto !important;
+    }
+    
+    .suggestion-item {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-height: 400px) {
+    .tag-suggestions {
+        max-height: 20vh !important;
+        overflow-y: auto !important;
+    }
+    
+    .suggestion-item {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.75rem;
+    }
+}
+
+@media (max-width: 600px) {
+    .tag-suggestions {
+        min-width: 150px;
+        max-width: calc(100vw - 20px) !important;
+        left: 10px !important;
+        right: 10px !important;
+        width: auto !important;
+    }
+    
+    .suggestion-item {
+        padding: 0.6rem 0.8rem;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 400px) {
+    .tag-suggestions {
+        min-width: 120px;
+        border-radius: 4px;
+    }
+    
+    .suggestion-item {
+        padding: 0.5rem 0.6rem;
+        font-size: 0.75rem;
+    }
+}
+
+/* ===================
+   DRAG AND DROP
+   =================== */
+.dropzone {
+    border: 1px dashed transparent;
+    transition: border-color 0.2s ease-in-out;
+}
+
+.dropzone.drag-over {
+    border-color: #2563eb;
+    background-color: #eff6ff;
+}

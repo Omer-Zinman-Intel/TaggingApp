@@ -6,3 +6,44 @@ states/*
 
 # ...but DO NOT ignore the .gitkeep file inside it
 !states/.gitkeep
+
+# Ignore the 'logs' folder
+logs/
+
+# Ignore the .venv folder
+.venv/
+
+# ignore the .vscode folder
+.vscode/
+
+# Ignore test and debug files
+*test*.js
+*test*.html
+*debug*.js
+*diagnostic*.js
+*positioning-test*.js
+*-test.js
+*-debug.js
+*-diagnostic.js
+logger.py
+comprehensive_test.js
+final_tag_test.js
+simple_tag_test.js
+test_functionality.html
+test_tag_functionality.js
+
+# Ignore backup and temporary files
+*.bak
+*.tmp
+*.temp
+*~
+.DS_Store
+Thumbs.db
+
+# Ignore duplicate documentation files
+CONSOLIDATION_SUMMARY.md
+LOGGING_IMPLEMENTATION.md
+TAG_INPUT_POSITIONING_IMPROVEMENTS.md
+*_SUMMARY.md
+*_IMPLEMENTATION.md
+*_IMPROVEMENTS.md
