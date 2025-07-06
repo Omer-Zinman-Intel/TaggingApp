@@ -106,18 +106,37 @@ def rename_state():
 
 def delete_state():
     state_to_delete = request.form.get("state_to_delete")
+    print(f"[DEBUG] Delete state called with: {state_to_delete}")
+    
     if not state_to_delete:
+        print("[DEBUG] No state_to_delete provided")
         return redirect(url_for('index'))
     
-    if len(state_manager.get_available_states()) <= 1:
+    available_states = state_manager.get_available_states()
+    print(f"[DEBUG] Available states: {available_states}")
+    
+    if len(available_states) <= 1:
+        print("[DEBUG] Cannot delete - only one state remaining")
         flash("Cannot delete the last remaining state.", "error")
         return redirect(url_for('index', state=state_to_delete))
 
-    filepath = os.path.join('states', state_manager.get_filename_from_state_name(state_to_delete))
+    filename = state_manager.get_filename_from_state_name(state_to_delete)
+    print(f"[DEBUG] Filename from state name: {filename}")
+    
+    filepath = os.path.join('states', filename)
+    print(f"[DEBUG] Full filepath: {filepath}")
+    print(f"[DEBUG] File exists: {os.path.exists(filepath)}")
+    
     if os.path.exists(filepath):
-        os.remove(filepath)
-        flash(f"State '{state_to_delete}' deleted.", "success")
+        try:
+            os.remove(filepath)
+            print(f"[DEBUG] Successfully deleted file: {filepath}")
+            flash(f"State '{state_to_delete}' deleted.", "success")
+        except Exception as e:
+            print(f"[DEBUG] Error deleting file: {e}")
+            flash(f"Error deleting state '{state_to_delete}': {str(e)}", "error")
     else:
+        print(f"[DEBUG] File not found: {filepath}")
         flash(f"State '{state_to_delete}' not found.", "error")
 
     return redirect(url_for('index'))

@@ -1153,8 +1153,10 @@ function updateAndTagPreview() {
     const components = [];
     const duplicates = [];
     
-    // Get all component values from the tag input system
-    container.querySelectorAll('[id^="andTagInput_"]').forEach(input => {
+    console.log('[DEBUG] Updating AND tag preview');
+    
+    // Get all component values from the tag input system - exclude hidden inputs
+    container.querySelectorAll('[id^="andTagInput_"]:not([id$="_hidden"])').forEach(input => {
         const inputId = input.id;
         const tagInput = window.tagInputs[inputId];
         
@@ -1167,12 +1169,15 @@ function updateAndTagPreview() {
             value = input.value.trim();
         }
         
+        console.log(`[DEBUG] Preview - Input ${inputId}: value="${value}", tagInput.tags=${tagInput?.tags || 'N/A'}`);
+        
         if (value) {
             const lowerValue = value.toLowerCase();
             if (components.some(comp => comp.toLowerCase() === lowerValue)) {
                 duplicates.push(value);
                 // Add visual indicator for duplicate
                 input.parentElement.parentElement.classList.add('border-red-500');
+                console.log(`[DEBUG] Preview - Duplicate detected: ${value}`);
             } else {
                 components.push(value);
                 // Remove visual indicator
@@ -1183,6 +1188,9 @@ function updateAndTagPreview() {
             input.parentElement.parentElement.classList.remove('border-red-500');
         }
     });
+    
+    console.log('[DEBUG] Preview - Components:', components);
+    console.log('[DEBUG] Preview - Duplicates:', duplicates);
     
     const previewDiv = document.getElementById('andTagPreview');
     const previewText = document.getElementById('andTagPreviewText');
@@ -1212,25 +1220,39 @@ function createAndTagFromComponents() {
     const container = document.getElementById('newAndTagComponentsContainer');
     const components = [];
     
-    // Get all component values from the tag input system
-    container.querySelectorAll('[id^="andTagInput_"]').forEach(input => {
+    console.log('[DEBUG] Starting component collection for AND tag creation');
+    
+    // Get all component values from the tag input system - exclude hidden inputs
+    container.querySelectorAll('[id^="andTagInput_"]:not([id$="_hidden"])').forEach(input => {
         const inputId = input.id;
         const tagInput = window.tagInputs[inputId];
+        
+        let collectedValue = '';
+        let source = '';
         
         if (tagInput && tagInput.tags && tagInput.tags.length > 0) {
             // Use the first tag from the tag input system
             const tag = tagInput.tags[0];
             if (tag && tag.trim()) {
-                components.push(tag.trim());
+                collectedValue = tag.trim();
+                source = 'tagInput.tags[0]';
+                components.push(collectedValue);
             }
         } else {
             // Fallback to direct input value
             const value = input.value.trim();
             if (value) {
+                collectedValue = value;
+                source = 'input.value';
                 components.push(value);
             }
         }
+        
+        console.log(`[DEBUG] Input ${inputId}: value="${collectedValue}", source="${source}", tagInput.tags=${tagInput?.tags || 'N/A'}`);
     });
+    
+    console.log('[DEBUG] Final components array:', components);
+    console.log('[DEBUG] Components lowercase:', components.map(c => c.toLowerCase()));
     
     // Validate components
     if (components.length < 2) {
@@ -1240,6 +1262,9 @@ function createAndTagFromComponents() {
     
     // Check for duplicates
     const uniqueComponents = [...new Set(components.map(c => c.toLowerCase()))];
+    console.log('[DEBUG] Unique components:', uniqueComponents);
+    console.log('[DEBUG] Has duplicates?', uniqueComponents.length !== components.length);
+    
     if (uniqueComponents.length !== components.length) {
         alert('Please remove duplicate components.');
         return false;

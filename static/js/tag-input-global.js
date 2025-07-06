@@ -202,16 +202,17 @@
                 item.style.backgroundColor = isNew ? '#f8fafc' : '';
             });
             
-            // Click handling - use multiple event types for reliability
+            // Click handling - use mousedown to prevent blur from hiding suggestions
             const handleClick = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 console.log(`[TAG INPUT] Suggestion clicked:`, tag);
                 addTag(tag);
+                hideSuggestions();
             };
             
+            // Use mousedown to fire before blur event hides suggestions
             item.addEventListener('mousedown', handleClick);
-            item.addEventListener('click', handleClick);
             
             return item;
         }
