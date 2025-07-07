@@ -12,8 +12,238 @@ before being sent to the browser as valid HTML/JavaScript.
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <style>
+        /* Hide image resize toolbar */
+        .ql-editor img + div[style*="position: absolute"] {
+            display: none !important;
+        }
+        /* Style resize handles */
+        .ql-editor img[style*="cursor"] {
+            cursor: pointer;
+        }
+        /* Hide any image toolbar that appears */
+        div[style*="position: absolute"][style*="top: -12px"] {
+            display: none !important;
+        }
+        /* Ensure editor containers have proper clipping */
+        .ql-container {
+            overflow: hidden;
+            position: relative;
+        }
+        .ql-editor {
+            overflow-y: auto;
+            position: relative;
+        }
+    </style>
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/quill-image-resize-module@3.0.0/image-resize.min.js"></script>
+    <script>
+        // Custom image resize implementation
+        function makeImageResizable(quillInstance) {
+            const quill = quillInstance;
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: absolute;
+                display: none;
+                z-index: 1000;
+                box-sizing: border-box;
+                pointer-events: none;
+                border: 2px dashed #444;
+            `;
+            
+            const handles = [];
+            for (let i = 0; i < 4; i++) {
+                const handle = document.createElement('div');
+                handle.style.cssText = `
+                    position: absolute;
+                    width: 8px;
+                    height: 8px;
+                    background: white;
+                    border: 1px solid #333;
+                    cursor: ${i % 2 === 0 ? 'nw-resize' : 'ne-resize'};
+                    pointer-events: auto;
+                `;
+                overlay.appendChild(handle);
+                handles.push(handle);
+            }
+            
+            // Append overlay to the quill editor container instead of body
+            quill.root.parentNode.appendChild(overlay);
+            
+            let selectedImg = null;
+            let isResizing = false;
+            let startX, startY, startWidth, startHeight;
+            
+            function positionOverlay(img) {
+                const imgRect = img.getBoundingClientRect();
+                const editorRect = quill.root.getBoundingClientRect();
+                const containerRect = quill.root.parentNode.getBoundingClientRect();
+                
+                // Calculate position relative to the editor container
+                const relativeLeft = imgRect.left - containerRect.left + quill.root.parentNode.scrollLeft;
+                const relativeTop = imgRect.top - containerRect.top + quill.root.parentNode.scrollTop;
+                
+                // Calculate visible boundaries
+                const editorLeft = editorRect.left - containerRect.left;
+                const editorTop = editorRect.top - containerRect.top;
+                const editorRight = editorLeft + editorRect.width;
+                const editorBottom = editorTop + editorRect.height;
+                
+                // Overlay boundaries
+                const overlayLeft = relativeLeft - 2;
+                const overlayTop = relativeTop - 2;
+                const overlayRight = overlayLeft + imgRect.width + 4;
+                const overlayBottom = overlayTop + imgRect.height + 4;
+                
+                // Clip overlay to editor viewport
+                const clippedLeft = Math.max(overlayLeft, editorLeft);
+                const clippedTop = Math.max(overlayTop, editorTop);
+                const clippedRight = Math.min(overlayRight, editorRight);
+                const clippedBottom = Math.min(overlayBottom, editorBottom);
+                
+                // Only show overlay if there's a visible area
+                if (clippedLeft < clippedRight && clippedTop < clippedBottom) {
+                    overlay.style.display = 'block';
+                    overlay.style.left = clippedLeft + 'px';
+                    overlay.style.top = clippedTop + 'px';
+                    overlay.style.width = (clippedRight - clippedLeft) + 'px';
+                    overlay.style.height = (clippedBottom - clippedTop) + 'px';
+                    
+                    // Dynamically set border visibility based on clipping
+                    overlay.style.borderTopStyle = (overlayTop >= editorTop) ? 'dashed' : 'none';
+                    overlay.style.borderBottomStyle = (overlayBottom <= editorBottom) ? 'dashed' : 'none';
+                    overlay.style.borderLeftStyle = (overlayLeft >= editorLeft) ? 'dashed' : 'none';
+                    overlay.style.borderRightStyle = (overlayRight <= editorRight) ? 'dashed' : 'none';
+                    
+                    // Position handles only if they're within the visible area
+                    const handlePositions = [
+                        { left: overlayLeft - clippedLeft - 4, top: overlayTop - clippedTop - 4 }, // top-left
+                        { right: clippedRight - overlayRight - 4, top: overlayTop - clippedTop - 4 }, // top-right
+                        { right: clippedRight - overlayRight - 4, bottom: clippedBottom - overlayBottom - 4 }, // bottom-right
+                        { left: overlayLeft - clippedLeft - 4, bottom: clippedBottom - overlayBottom - 4 } // bottom-left
+                    ];
+                    
+                    handles.forEach((handle, index) => {
+                        const pos = handlePositions[index];
+                        
+                        // Check if handle would be visible
+                        const handleVisible = 
+                            (pos.left !== undefined ? pos.left >= -4 && pos.left <= (clippedRight - clippedLeft) : true) &&
+                            (pos.right !== undefined ? pos.right >= -4 && pos.right <= (clippedRight - clippedLeft) : true) &&
+                            (pos.top !== undefined ? pos.top >= -4 && pos.top <= (clippedBottom - clippedTop) : true) &&
+                            (pos.bottom !== undefined ? pos.bottom >= -4 && pos.bottom <= (clippedBottom - clippedTop) : true);
+                        
+                        if (handleVisible) {
+                            handle.style.display = 'block';
+                            handle.style.left = pos.left !== undefined ? pos.left + 'px' : 'auto';
+                            handle.style.right = pos.right !== undefined ? pos.right + 'px' : 'auto';
+                            handle.style.top = pos.top !== undefined ? pos.top + 'px' : 'auto';
+                            handle.style.bottom = pos.bottom !== undefined ? pos.bottom + 'px' : 'auto';
+                        } else {
+                            handle.style.display = 'none';
+                        }
+                    });
+                } else {
+                    overlay.style.display = 'none';
+                }
+            }
+            
+            function hideOverlay() {
+                overlay.style.display = 'none';
+                selectedImg = null;
+            }
+            
+            // Update overlay position on scroll
+            function updateOverlayPosition() {
+                if (selectedImg && overlay.style.display === 'block') {
+                    positionOverlay(selectedImg);
+                }
+            }
+            
+            // Listen for scroll events on the editor container and window
+            quill.root.addEventListener('scroll', updateOverlayPosition);
+            window.addEventListener('scroll', updateOverlayPosition);
+            
+            // Click handler for images
+            quill.root.addEventListener('click', function(e) {
+                if (e.target.tagName === 'IMG') {
+                    selectedImg = e.target;
+                    positionOverlay(selectedImg);
+                } else {
+                    hideOverlay();
+                }
+            });
+            
+            // Handle resize
+            handles.forEach((handle, index) => {
+                handle.addEventListener('mousedown', function(e) {
+                    if (!selectedImg) return;
+                    
+                    isResizing = true;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    startWidth = selectedImg.width || selectedImg.offsetWidth;
+                    startHeight = selectedImg.height || selectedImg.offsetHeight;
+                    
+                    e.preventDefault();
+                });
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!isResizing || !selectedImg) return;
+                
+                const deltaX = e.clientX - startX;
+                const deltaY = e.clientY - startY;
+                
+                // Calculate new dimensions (maintain aspect ratio)
+                const ratio = startHeight / startWidth;
+                let newWidth = startWidth + deltaX;
+                let newHeight = newWidth * ratio;
+                
+                if (newWidth > 50) { // Minimum width
+                    selectedImg.style.width = newWidth + 'px';
+                    selectedImg.style.height = newHeight + 'px';
+                    
+                    // Set actual width and height attributes for proper saving
+                    selectedImg.setAttribute('width', Math.round(newWidth));
+                    selectedImg.setAttribute('height', Math.round(newHeight));
+                    
+                    positionOverlay(selectedImg);
+                    
+                    // Trigger Quill content update to ensure changes are saved
+                    if (quill) {
+                        quill.root.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                }
+            });
+            
+            document.addEventListener('mouseup', function() {
+                if (isResizing && selectedImg && quill) {
+                    // Force Quill to update its content
+                    const content = quill.root.innerHTML;
+                    quill.root.innerHTML = content;
+                    
+                    // Trigger text-change event to update hidden fields
+                    quill.emitter.emit('text-change');
+                }
+                isResizing = false;
+            });
+            
+            // Hide overlay when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!quill.root.contains(e.target) && !overlay.contains(e.target)) {
+                    hideOverlay();
+                }
+            });
+        }
+        
+        // Make it available globally
+        window.makeImageResizable = makeImageResizable;
+    </script>
+    <script>
+        // Debug script to check if modules are loading
+        console.log('Quill loaded:', typeof Quill);
+        console.log('Custom resize function:', typeof window.makeImageResizable);
+    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 </head>
