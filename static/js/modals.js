@@ -241,41 +241,31 @@ function showEditNoteModal(sectionId, noteId, title, content, tags) {
         }
         contentInput.value = content || ''; // Hidden textarea value
         
-        if (window.noteEditorQuill) {
-            window.noteEditorQuill.root.innerHTML = content || '';
+        if (window.noteEditor) {
+            window.noteEditor.setContent(content || '');
             if (window.toggleEditorView) {
                 window.toggleEditorView('richtext'); // Always start with rich text view
             }
+        } else if (window.noteEditorQuill) {
+            // Fallback to old system for backward compatibility
+            window.noteEditorQuill.root.innerHTML = content || '';
+            if (window.toggleEditorView) {
+                window.toggleEditorView('richtext');
+            }
         } else {
-            console.warn('noteEditorQuill not available, attempting to initialize');
+            console.warn('Note editor not available, attempting to initialize');
             // Try to initialize the editor after modal is shown
             setTimeout(() => {
-                if (typeof Quill !== 'undefined' && document.getElementById('quill-editor')) {
-                    console.log('Initializing Quill editor for note modal');
-                    window.noteEditorQuill = new Quill('#quill-editor', {
-                        theme: 'snow',
-                        modules: { 
-                            toolbar: [
-                                [{ 'header': [1, 2, 3, 4, 5, 6, false] }], [{ 'font': [] }],
-                                [{ 'color': [] }, { 'background': [] }], ['bold', 'italic', 'underline', 'strike'],
-                                [{ 'align': [] }], ['blockquote', 'code-block'],
-                                [{ 'list': 'ordered'}, { 'list': 'bullet' }], [{ 'script': 'sub'}, { 'script': 'super' }],
-                                [{ 'indent': '-1'}, { 'indent': '+1' }], ['link', 'image', 'video'], ['clean']
-                            ]
+                if (typeof window.initializeEditors === 'function') {
+                    window.initializeEditors();
+                    if (window.noteEditor) {
+                        window.noteEditor.setContent(content || '');
+                        if (window.toggleEditorView) {
+                            window.toggleEditorView('richtext');
                         }
-                    });
-                    window.noteEditorQuill.on('text-change', () => { 
-                        const contentInput = document.getElementById('editNoteContent');
-                        if (contentInput) {
-                            contentInput.value = window.noteEditorQuill.root.innerHTML; 
-                        }
-                    });
-                    window.noteEditorQuill.root.innerHTML = content || '';
-                    if (window.toggleEditorView) {
-                        window.toggleEditorView('richtext');
                     }
                 } else {
-                    console.error('Cannot initialize Quill editor: Quill not available or element not found');
+                    console.error('Cannot initialize editors: initializeEditors function not available');
                 }
             }, 300);
         }

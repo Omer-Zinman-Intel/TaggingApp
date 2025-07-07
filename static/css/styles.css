@@ -42,6 +42,36 @@
     min-height: 200px;
 }
 
+/* Font size styles */
+.ql-size-small {
+    font-size: 0.75em;
+}
+
+.ql-size-large {
+    font-size: 1.5em;
+}
+
+.ql-size-huge {
+    font-size: 2.5em;
+}
+
+/* Code block styling */
+.ql-editor pre.ql-syntax {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    color: #495057;
+    overflow: visible;
+    padding: 1em;
+    margin: 1em 0;
+}
+
+/* Video responsive styling */
+.ql-editor .ql-video {
+    max-width: 100%;
+    height: auto;
+}
+
 #quill-editor-container .ql-editor,
 #html-editor,
 #import-editor-container .ql-editor,
@@ -395,3 +425,91 @@
     border-color: #2563eb;
     background-color: #eff6ff;
 }
+
+/* ===================
+   TOOLBAR TOOLTIPS
+   =================== */
+/* Ensure tooltips work on Quill toolbar elements */
+.ql-toolbar button[title],
+.ql-toolbar .ql-picker-label[title] {
+    /* Ensure tooltips are not blocked */
+    position: relative;
+    z-index: 1;
+}
+
+/* Make sure no other styles are preventing tooltips */
+.ql-toolbar button,
+.ql-toolbar .ql-picker-label {
+    /* Allow tooltips to show */
+    pointer-events: auto !important;
+}
+
+/* ===================
+   COMPACT TOOLBAR STYLES
+   =================== */
+.ql-toolbar-compact {
+    padding: 8px 12px !important;
+    border-bottom: 1px solid #ccc;
+}
+
+.ql-toolbar-compact .ql-formats {
+    margin-right: 8px !important;
+}
+
+.ql-toolbar-compact .ql-formats:last-child {
+    margin-right: 0 !important;
+}
+
+.ql-toolbar-compact button {
+    width: 28px !important;
+    height: 28px !important;
+    padding: 3px !important;
+    margin-right: 2px !important;
+}
+
+.ql-toolbar-compact button:last-child {
+    margin-right: 0 !important;
+}
+
+.ql-toolbar-compact select {
+    height: 28px !important;
+    padding: 2px 4px !important;
+    margin-right: 2px !important;
+    font-size: 12px !important;
+}
+
+.ql-toolbar-compact select:last-child {
+    margin-right: 0 !important;
+}
+
+.ql-toolbar-compact .ql-picker-label {
+    height: 28px !important;
+    line-height: 28px !important;
+    padding: 2px 4px !important;
+}
+
+.ql-toolbar-compact .ql-picker-options {
+    top: 28px !important;
+}
+
+/* Ensure toolbar doesn't wrap */
+.ql-toolbar-compact {
+    white-space: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* Smaller font size for compact look */
+.ql-toolbar-compact {
+    font-size: 13px;
+}
+
+/* Responsive: allow horizontal scroll on very small screens */
+@media (max-width: 768px) {
+    .ql-toolbar-compact {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+
