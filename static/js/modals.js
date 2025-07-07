@@ -99,7 +99,6 @@ function validateModalComponents(modalId) {
 
 function hideModal(modalId) {
     window.appLogger?.buttonClick('HIDE_MODAL', { modalId });
-    console.log('hideModal called with modalId:', modalId);
     
     const modal = document.getElementById(modalId);
     if (modal) {
@@ -110,7 +109,6 @@ function hideModal(modalId) {
         }, 250);
     } else {
         window.appLogger?.error('Modal not found for hiding:', modalId);
-        console.error('Modal not found for hiding:', modalId);
     }
 }
 
@@ -218,7 +216,13 @@ function showEditSectionModal(sectionId, title, tags) {
 
 function showEditNoteModal(sectionId, noteId, title, content, tags) {
     try {
-        console.log('showEditNoteModal called with:', { sectionId, noteId, title, content: content?.substring(0, 100), tags });
+        window.appLogger?.action('SHOW_EDIT_NOTE_MODAL_START', { 
+            sectionId, 
+            noteId, 
+            title, 
+            contentLength: content?.length || 0,
+            tagsCount: Array.isArray(tags) ? tags.length : 0
+        });
         
         const form = document.getElementById('editNoteForm');
         if (!form) {
@@ -227,7 +231,20 @@ function showEditNoteModal(sectionId, noteId, title, content, tags) {
         
         const currentUrl = new URL(window.location.href);
         // Ensure the state parameter is preserved in the form action
-        form.action = `/note/update/${sectionId}/${noteId}` + currentUrl.search;
+        let searchParams = currentUrl.search;
+        
+        // If there's no state parameter in the URL, add the current state
+        if (!searchParams.includes('state=') && window.currentState) {
+            searchParams = searchParams ? `${searchParams}&state=${window.currentState}` : `?state=${window.currentState}`;
+        }
+        
+        form.action = `/note/update/${sectionId}/${noteId}${searchParams}`;
+        
+        window.appLogger?.action('FORM_ACTION_SET', { 
+            formAction: form.action,
+            sectionId,
+            noteId
+        });
         
         const titleInput = document.getElementById('editNoteTitle');
         if (!titleInput) {
@@ -241,19 +258,31 @@ function showEditNoteModal(sectionId, noteId, title, content, tags) {
         }
         contentInput.value = content || ''; // Hidden textarea value
         
+        window.appLogger?.action('MODAL_FIELDS_POPULATED', {
+            titleLength: titleInput.value.length,
+            contentLength: contentInput.value.length
+        });
+        
         if (window.noteEditor) {
             window.noteEditor.setContent(content || '');
             if (window.toggleEditorView) {
                 window.toggleEditorView('richtext'); // Always start with rich text view
             }
+            window.appLogger?.action('NOTE_EDITOR_CONTENT_SET', {
+                contentLength: content?.length || 0,
+                editorAvailable: true
+            });
         } else if (window.noteEditorQuill) {
             // Fallback to old system for backward compatibility
             window.noteEditorQuill.root.innerHTML = content || '';
             if (window.toggleEditorView) {
                 window.toggleEditorView('richtext');
             }
+            window.appLogger?.action('NOTE_EDITOR_FALLBACK_USED', {
+                contentLength: content?.length || 0
+            });
         } else {
-            console.warn('Note editor not available, attempting to initialize');
+            window.appLogger?.error('Note editor not available, attempting to initialize');
             // Try to initialize the editor after modal is shown
             setTimeout(() => {
                 if (typeof window.initializeEditors === 'function') {
@@ -263,9 +292,10 @@ function showEditNoteModal(sectionId, noteId, title, content, tags) {
                         if (window.toggleEditorView) {
                             window.toggleEditorView('richtext');
                         }
+                        window.appLogger?.action('NOTE_EDITOR_LATE_INIT_SUCCESS');
                     }
                 } else {
-                    console.error('Cannot initialize editors: initializeEditors function not available');
+                    window.appLogger?.error('Cannot initialize editors: initializeEditors function not available');
                 }
             }, 300);
         }
@@ -337,11 +367,21 @@ function showEditNoteModal(sectionId, noteId, title, content, tags) {
 }
 
 function showImportModal() {
-    if (window.importEditorQuill) {
-        window.importEditorQuill.root.innerHTML = '';
-        document.getElementById('html-import-editor').value = '';
-        window.toggleImportEditorView('richtext'); 
+    // Clear both editors
+    if (window.importEditor && window.importEditor.quill) {
+        window.importEditor.quill.root.innerHTML = '';
     }
+    
+    const htmlEditor = document.getElementById('html-import-editor');
+    if (htmlEditor) {
+        htmlEditor.value = '';
+    }
+    
+    // Start with rich text view
+    if (window.toggleImportEditorView) {
+        window.toggleImportEditorView('richtext');
+    }
+    
     showModal('importModal');
 }
 
@@ -570,4 +610,8 @@ window.showRenameModal = showRenameModal;
 window.showRenameStateModal = showRenameStateModal;
 window.showRenameCategoryModal = showRenameCategoryModal;
 window.showEditAndTagModal = showEditAndTagModal;
-window.showAddAndTagModal = showAddAndTagModal;
+
+// showAddAndTagModal is defined in the HTML template, assign it conditionally
+if (typeof showAddAndTagModal !== 'undefined') {
+    window.showAddAndTagModal = showAddAndTagModal;
+}

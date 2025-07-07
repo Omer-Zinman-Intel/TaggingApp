@@ -42,6 +42,14 @@ class RichTextEditor {
         this.quill = null;
         this.observer = null;
         
+        // Debug logging
+        console.log(`RichTextEditor constructor:`, {
+            containerId,
+            outputElementId,
+            containerFound: !!this.container,
+            outputElementFound: !!this.outputElement
+        });
+        
         // Create custom toolbar HTML with tooltips
         this.createCustomToolbar();
         
@@ -129,6 +137,12 @@ class RichTextEditor {
             return;
         }
         
+        // Retry finding the output element if not found in constructor
+        if (!this.outputElement) {
+            this.outputElement = document.getElementById(this.outputElementId);
+            console.log(`Retrying to find output element ${this.outputElementId}:`, !!this.outputElement);
+        }
+        
         // Initialize Quill editor
         this.quill = new Quill(`#${this.containerId}`, this.options);
         
@@ -144,29 +158,27 @@ class RichTextEditor {
     }
     
     setupContentSync() {
-        if (!this.outputElement) return;
-        
-        // Listen for text changes
-        this.quill.on('text-change', () => {
-            this.syncContent();
-        });
-        
-        // Listen for manual content updates (like image resize)
-        this.observer = new MutationObserver(() => {
-            this.syncContent();
-        });
-        
-        this.observer.observe(this.quill.root, { 
-            childList: true, 
-            subtree: true, 
-            attributes: true, 
-            attributeFilter: ['style', 'width', 'height'] 
-        });
+        // Simple setup - no real-time sync needed
+        console.log(`Editor ready: ${this.containerId}`);
     }
     
     syncContent() {
         if (this.outputElement) {
-            this.outputElement.value = this.quill.root.innerHTML;
+            const content = this.getCurrentContent();
+            this.outputElement.value = content;
+            console.log(`✅ Content synced for ${this.containerId} (${content.length} chars)`);
+        } else {
+            console.error(`❌ Cannot sync content for ${this.containerId}: outputElement not found (${this.outputElementId})`);
+            // Try to find the output element again
+            this.outputElement = document.getElementById(this.outputElementId);
+            if (this.outputElement) {
+                console.log(`✅ Found output element on retry for ${this.containerId}`);
+                const content = this.getCurrentContent();
+                this.outputElement.value = content;
+                console.log(`✅ Content synced on retry for ${this.containerId} (${content.length} chars)`);
+            } else {
+                console.error(`❌ Output element ${this.outputElementId} still not found`);
+            }
         }
     }
     
@@ -177,7 +189,39 @@ class RichTextEditor {
     }
     
     getContent() {
-        return this.quill ? this.quill.root.innerHTML : '';
+        if (!this.quill) return '';
+        
+        // Use the proper Quill API method to get HTML content
+        try {
+            // Try the new Quill 2.0 method first
+            if (this.quill.getSemanticHTML) {
+                return this.quill.getSemanticHTML();
+            }
+            // Fallback to root.innerHTML
+            return this.quill.root.innerHTML;
+        } catch (error) {
+            console.error('Error getting content from Quill:', error);
+            return this.quill.root.innerHTML || '';
+        }
+    }
+    
+    getCurrentContent() {
+        // Alternative method that ensures we get the latest content
+        if (!this.quill) return '';
+        
+        // Force a focus/blur cycle to ensure content is captured
+        const wasFocused = this.quill.hasFocus();
+        if (wasFocused) {
+            this.quill.blur();
+        }
+        
+        const content = this.getContent();
+        
+        if (wasFocused) {
+            this.quill.focus();
+        }
+        
+        return content;
     }
     
     focus() {
@@ -195,6 +239,56 @@ class RichTextEditor {
         }
     }
 }
+
+// Debug function to check sync status
+function debugEditorSync() {
+    console.log('=== Editor Sync Debug ===');
+    
+    if (noteEditor) {
+        const quillContent = noteEditor.getContent();
+        const hiddenContent = noteEditor.outputElement ? noteEditor.outputElement.value : 'N/A';
+        console.log('Note Editor:');
+        console.log('  Quill content length:', quillContent.length);
+        console.log('  Hidden field content length:', hiddenContent.length);
+        console.log('  Content matches:', quillContent === hiddenContent);
+        console.log('  Quill preview:', quillContent.substring(0, 200) + (quillContent.length > 200 ? '...' : ''));
+    } else {
+        console.log('Note Editor: Not initialized');
+    }
+    
+    if (importEditor) {
+        const quillContent = importEditor.getContent();
+        const hiddenContent = importEditor.outputElement ? importEditor.outputElement.value : 'N/A';
+        console.log('Import Editor:');
+        console.log('  Quill content length:', quillContent.length);
+        console.log('  Hidden field content length:', hiddenContent.length);
+        console.log('  Content matches:', quillContent === hiddenContent);
+        console.log('  Quill preview:', quillContent.substring(0, 200) + (quillContent.length > 200 ? '...' : ''));
+    } else {
+        console.log('Import Editor: Not initialized');
+    }
+    
+    console.log('=== End Debug ===');
+}
+
+// Make debug function globally available
+window.debugEditorSync = debugEditorSync;
+
+// Manual sync function for testing
+function manualSync() {
+    console.log('🔄 Manual sync triggered');
+    if (window.noteEditor) {
+        window.noteEditor.syncContent();
+        console.log('✅ Note editor synced');
+    }
+    if (window.importEditor) {
+        window.importEditor.syncContent();
+        console.log('✅ Import editor synced');
+    }
+}
+
+// Make manual sync globally available
+window.manualSync = manualSync;
 
 // Global editor instances
 let noteEditor;
@@ -215,6 +309,11 @@ const TOOLBAR_OPTIONS = [
 ];
 
 function initializeEditors() {
+    // Check if editors are already initialized
+    if (window.noteEditor && window.noteEditor.quill) {
+        return;
+    }
+    
     // Initialize note editor
     if (document.getElementById('quill-editor')) {
         noteEditor = new RichTextEditor('quill-editor', 'editNoteContent', {
@@ -223,6 +322,7 @@ function initializeEditors() {
         
         // Make globally accessible for backward compatibility
         window.noteEditorQuill = noteEditor.quill;
+        window.noteEditor = noteEditor;
     }
     
     // Initialize import editor
@@ -233,6 +333,7 @@ function initializeEditors() {
         
         // Make globally accessible for backward compatibility
         window.importEditorQuill = importEditor.quill;
+        window.importEditor = importEditor;
     }
     
     // Initialize shared content system
@@ -240,10 +341,6 @@ function initializeEditors() {
     
     // Initialize toggle button states
     initializeToggleButtonStates();
-    
-    // Store editor instances globally
-    window.noteEditor = noteEditor;
-    window.importEditor = importEditor;
 }
 
 // Initialize button states for editor toggles
@@ -288,6 +385,11 @@ function toggleImportEditorView(view) {
             html.value = importEditor.getContent();
         }
     }
+    
+    // Always ensure the hidden textarea is updated after any view change
+    if (importEditor) {
+        importEditor.syncContent();
+    }
 }
 
 function toggleEditorView(view) {
@@ -314,17 +416,37 @@ function toggleEditorView(view) {
         richContainer.classList.remove('hidden');
         if (richTextBtn) richTextBtn.classList.add('active');
         
-        // Sync from HTML editor if it has content
-        if (noteEditor && htmlEditor.value) {
-            noteEditor.setContent(htmlEditor.value);
+        // Load content from HTML editor if it has content and Quill is empty
+        if (noteEditor && htmlEditor.value.trim()) {
+            const currentQuillContent = noteEditor.getContent();
+            if (!currentQuillContent.trim() || currentQuillContent === '<p><br></p>') {
+                console.log('📝 Loading HTML content into rich text editor');
+                noteEditor.setContent(htmlEditor.value);
+            }
+        }
+        
+        // Update the hidden field with Quill content
+        if (noteEditor) {
+            const contentField = document.getElementById('editNoteContent');
+            if (contentField) {
+                contentField.value = noteEditor.getContent();
+            }
         }
     } else if (view === 'html') {
         htmlEditor.classList.remove('hidden');
         if (htmlBtn) htmlBtn.classList.add('active');
         
-        // Sync from Quill editor
+        // Sync from Quill editor to HTML editor
         if (noteEditor) {
-            htmlEditor.value = noteEditor.getContent();
+            console.log('📝 Syncing rich text content to HTML editor');
+            const content = noteEditor.getContent();
+            htmlEditor.value = content;
+            
+            // Update the hidden field
+            const contentField = document.getElementById('editNoteContent');
+            if (contentField) {
+                contentField.value = content;
+            }
         }
     } else if (view === 'preview') {
         previewContainer.classList.remove('hidden');
@@ -332,8 +454,21 @@ function toggleEditorView(view) {
         
         // Update preview with current content
         if (noteEditor) {
-            previewContainer.innerHTML = noteEditor.getContent();
+            console.log('📝 Updating preview with current content');
+            const content = noteEditor.getContent();
+            previewContainer.innerHTML = content;
+            
+            // Update the hidden field
+            const contentField = document.getElementById('editNoteContent');
+            if (contentField) {
+                contentField.value = content;
+            }
         }
+    }
+    
+    // Always ensure the hidden textarea is updated after any view change
+    if (noteEditor) {
+        noteEditor.syncContent();
     }
 }
 
@@ -364,11 +499,15 @@ function syncEditorContent(fromEditor, toEditor) {
 function syncAllEditors() {
     // This function can be called when you want to sync content between editors
     // For example, when opening a modal that should show the same content
-    if (noteEditor && importEditor) {
-        // You can implement logic here to decide which direction to sync
-        // For now, this is a placeholder for future use
-        console.log('Sync functionality available');
+    if (noteEditor) {
+        noteEditor.syncContent();
+        console.log('Note editor content synced');
     }
+    if (importEditor) {
+        importEditor.syncContent();
+        console.log('Import editor content synced');
+    }
+    console.log('All editors synced');
 }
 
 // Advanced synchronization utilities
@@ -412,7 +551,32 @@ function initializeSharedContent() {
     window.sharedEditorContent = sharedEditorContent;
 }
 
+// Manual initialization function for testing
+function forceInitializeEditors() {
+    console.log('🔄 Force initializing editors...');
+    
+    // Clear any existing editor instances
+    if (window.noteEditor) {
+        if (window.noteEditor.destroy) {
+            window.noteEditor.destroy();
+        }
+        window.noteEditor = null;
+    }
+    
+    if (window.importEditor) {
+        if (window.importEditor.destroy) {
+            window.importEditor.destroy();
+        }
+        window.importEditor = null;
+    }
+    
+    // Call initialization
+    initializeEditors();
+}
+
+// Make functions globally available
 window.initializeEditors = initializeEditors;
+window.forceInitializeEditors = forceInitializeEditors;
 window.toggleImportEditorView = toggleImportEditorView;
 window.toggleEditorView = toggleEditorView;
 window.cleanActiveEditorContent = cleanActiveEditorContent;
@@ -421,6 +585,5 @@ window.syncAllEditors = syncAllEditors;
 window.initializeSharedContent = initializeSharedContent;
 window.createSharedEditorContent = createSharedEditorContent;
 window.initializeToggleButtonStates = initializeToggleButtonStates;
-window.initializeSharedContent = initializeSharedContent;
 
 initializeToggleButtonStates();

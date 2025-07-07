@@ -25,19 +25,31 @@ def get_filename_from_state_name(state_name: str) -> str:
     sanitized_name = re.sub(r'[^a-zA-Z0-9_-]', '', state_name.replace(' ', '_'))
     return f"{sanitized_name}.json"
 
-def save_state(state_name: str) -> None:
+def save_state(state_name: str) -> bool:
     """
     Saves the current in-memory core.document_state to its JSON file atomically.
     It writes to a temporary file first and then replaces the original to prevent
     data corruption in case of an error during writing.
+    Returns True on success, False on failure.
     """
     if not state_name:
-        print("Error: Attempted to save state with no name.")
-        return
+        print("❌ Error: Attempted to save state with no name.")
+        return False
 
     filename = get_filename_from_state_name(state_name)
     filepath = os.path.join(core.STATES_DIR, filename)
     temp_filepath = filepath + ".tmp"
+
+    print(f"🔍 DEBUG: Saving state '{state_name}' to {filepath}")
+    print(f"🔍 DEBUG: Current document_state structure:")
+    print(f"  - Document title: {core.document_state.get('documentTitle', 'N/A')}")
+    print(f"  - Sections count: {len(core.document_state.get('sections', []))}")
+    
+    # Log details about each section and its notes
+    for i, section in enumerate(core.document_state.get('sections', [])):
+        print(f"  - Section {i}: {section.get('sectionTitle', 'N/A')} ({len(section.get('notes', []))} notes)")
+        for j, note in enumerate(section.get('notes', [])):
+            print(f"    - Note {j}: {note.get('noteTitle', 'N/A')} ({len(note.get('content', ''))} chars)")
 
     # Create a serializable copy of the state, converting the 'known_tags' set to a list.
     state_to_save = copy.deepcopy(core.document_state)
@@ -55,11 +67,20 @@ def save_state(state_name: str) -> None:
             json.dump(state_to_save, f, indent=4)
         # Atomically replace the old file with the new one.
         os.replace(temp_filepath, filepath)
+        print(f"✅ State '{state_name}' saved successfully to {filepath}")
+        
+        # Verify the save by reading it back
+        with open(filepath, 'r', encoding='utf-8') as f:
+            verification_data = json.load(f)
+            print(f"🔍 DEBUG: Verification - File contains {len(verification_data.get('sections', []))} sections")
+            
+        return True
     except Exception as e:
-        print(f"Error saving state '{state_name}': {e}")
+        print(f"❌ Error saving state '{state_name}': {e}")
         # Clean up the temporary file if it exists
         if os.path.exists(temp_filepath):
             os.remove(temp_filepath)
+        return False
 
 def load_state(state_name: str) -> bool:
     """

@@ -251,6 +251,10 @@ before being sent to the browser as valid HTML/JavaScript.
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 </head>
 <body class="bg-gray-50">
+    <script>
+        // Make current state available to JavaScript
+        window.currentState = {{ current_state|tojson }};
+    </script>
 
     <div class="max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-4 sm:p-6 lg:p-8 my-8">
 
@@ -1095,6 +1099,11 @@ before being sent to the browser as valid HTML/JavaScript.
         });
         
         console.log('Modal system initialized with fallbacks');
+        
+        // Make showAddAndTagModal available globally after it's defined
+        if (typeof showAddAndTagModal !== 'undefined') {
+            window.showAddAndTagModal = showAddAndTagModal;
+        }
     });
 </script>
 
@@ -1105,6 +1114,21 @@ before being sent to the browser as valid HTML/JavaScript.
 <script src="{{ url_for('static', filename='js/drag_drop.js') }}"></script>
 <script src="{{ url_for('static', filename='js/editors.js') }}"></script>
 <script src="{{ url_for('static', filename='js/modals.js') }}"></script>
+
+<!-- Initialize Editors after all scripts are loaded -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize editors now that all scripts are loaded
+    if (typeof initializeEditors === 'function') {
+        console.log('🔄 Initializing editors from HTML template...');
+        window.appLogger?.componentStatus('EDITORS', 'initializing');
+        initializeEditors();
+        window.appLogger?.componentStatus('EDITORS', 'initialized');
+    } else {
+        console.error('❌ initializeEditors function not found');
+    }
+});
+</script>
 
 <!-- Comprehensive Action Tracking -->
 <script>

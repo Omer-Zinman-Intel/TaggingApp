@@ -204,27 +204,55 @@ def add_note(section_id: str):
 
 def update_note(section_id: str, note_id: str):
     state_name = request.args.get('state')
+    
+    # Debug: Log all form data
+    print(f"🔍 DEBUG: Form data received:")
+    print(f"  - noteTitle: {request.form.get('noteTitle', 'NOT_PROVIDED')}")
+    print(f"  - content: {request.form.get('content', 'NOT_PROVIDED')[:200]}...")
+    print(f"  - tags: {request.form.get('tags', 'NOT_PROVIDED')}")
+    
     _, note = content_processor.find_section_and_note(section_id, note_id)
     if note:
-        old_tags = note.get("tags", [])
-        note["noteTitle"] = request.form.get("noteTitle", note["noteTitle"])
-        note["content"] = request.form.get("content", note["content"])
+        # Get form data
+        new_title = request.form.get("noteTitle", note["noteTitle"])
+        new_content = request.form.get("content", note["content"])
         new_tags_input = request.form.get("tags", "")
         
-        # Process tags as individual singular tags
+        print(f"🔍 DEBUG: Before update - Note content: {note['content'][:200]}...")
+        print(f"🔍 DEBUG: New content to save: {new_content[:200]}...")
+        
+        # Update note with new data
+        old_tags = note.get("tags", [])
+        note["noteTitle"] = new_title
+        note["content"] = new_content  # Save HTML directly to JSON
+        
         if new_tags_input.strip():
             new_tags = [tag.strip() for tag in new_tags_input.split(',') if tag.strip()]
         else:
             new_tags = []
         
-        # Handle intelligent tag editing for cleanup
+        # Update tags and save state
         tag_manager.handle_smart_tag_update(old_tags, new_tags, exclude_note_id=note_id)
-        
         note["tags"] = new_tags
-        tag_manager.sync_known_tags()  # No parameters needed - syncs from actual usage
-        state_manager.save_state(state_name)
+        tag_manager.sync_known_tags()
+        
+        # Force save state and verify
+        save_result = state_manager.save_state(state_name)
+        print(f"🔍 DEBUG: Save state result: {save_result}")
+        
+        # Verify the save worked
+        fresh_note = content_processor.find_section_and_note(section_id, note_id)[1]
+        if fresh_note:
+            print(f"🔍 DEBUG: After save - Note content: {fresh_note['content'][:200]}...")
+        
+        # Log successful update
+        print(f"✅ Note {note_id} updated successfully - Content: {len(new_content)} chars, Tags: {new_tags}")
+        
     else:
         flash("Note not found.", "error")
+        print(f"❌ Note not found: section_id={section_id}, note_id={note_id}")
+    
+    # Return to same page position
     return redirect(get_redirect_url())
 
 def delete_note(section_id: str, note_id: str):

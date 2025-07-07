@@ -3,15 +3,6 @@ document.addEventListener('DOMContentLoaded', function() {
     window.appLogger?.action('CORE_INITIALIZATION_START');
     console.log('Initializing TaggingApp...');
     
-    // Initialize editors
-    if (typeof initializeEditors === 'function') {
-        window.appLogger?.componentStatus('EDITORS', 'initializing');
-        initializeEditors();
-        window.appLogger?.componentStatus('EDITORS', 'initialized');
-    } else {
-        window.appLogger?.componentStatus('EDITORS', 'missing');
-    }
-    
     // Initialize tag inputs system
     try {
         if (!window.tagInputs) window.tagInputs = {};
@@ -57,12 +48,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const importForm = document.getElementById('importForm');
     if(importForm) {
         importForm.addEventListener('submit', () => {
+            console.log('📥 Import form submission - Direct WYSIWYG mode');
+            
             const contentHolder = document.getElementById('import_html_content');
-            if(document.getElementById('html-import-editor').classList.contains('hidden')){
-                contentHolder.value = window.importEditorQuill.root.innerHTML;
+            const currentView = document.getElementById('html-import-editor').classList.contains('hidden');
+            
+            if(currentView) {
+                // Rich text view is active
+                if (window.importEditor && window.importEditor.quill) {
+                    const content = window.importEditor.quill.root.innerHTML;
+                    contentHolder.value = content;
+                    console.log('✅ Import content from rich text editor:', content.length, 'characters');
+                } else {
+                    console.error('❌ Import editor not available');
+                }
             } else {
-                contentHolder.value = document.getElementById('html-import-editor').value;
+                // HTML view is active
+                const htmlEditor = document.getElementById('html-import-editor');
+                contentHolder.value = htmlEditor.value;
+                console.log('✅ Import content from HTML editor:', htmlEditor.value.length, 'characters');
             }
+            
+            console.log('📤 Final import content length:', contentHolder.value.length);
         });
     }
 
@@ -82,14 +89,123 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const editNoteForm = document.getElementById('editNoteForm');
     if (editNoteForm) {
-        editNoteForm.addEventListener('submit', function() {
+        editNoteForm.addEventListener('submit', function(e) {
+            // Prevent default submission to capture content first
+            e.preventDefault();
+            
+            window.appLogger?.action('NOTE_FORM_SUBMISSION_START', {
+                formAction: editNoteForm.action,
+                formMethod: editNoteForm.method,
+                hasNoteEditor: !!window.noteEditor,
+                hasQuill: !!(window.noteEditor && window.noteEditor.quill)
+            });
+            
+            // Get HTML content using multiple methods for debugging
+            if (window.noteEditor && window.noteEditor.quill) {
+                // Capture multiple content states for debugging
+                const quillRootContent = window.noteEditor.quill.root.innerHTML;
+                const getCurrentContentResult = window.noteEditor.getCurrentContent();
+                const getContentResult = window.noteEditor.getContent();
+                
+                // Also try getSemanticHTML if available
+                let semanticHTML = null;
+                try {
+                    if (window.noteEditor.quill.getSemanticHTML) {
+                        semanticHTML = window.noteEditor.quill.getSemanticHTML();
+                    }
+                } catch (error) {
+                    // Ignore error, semanticHTML will remain null
+                }
+                
+                // Log all content capture methods for comparison
+                window.appLogger?.action('QUILL_CONTENT_CAPTURE_DEBUG', {
+                    quillRootContent: {
+                        length: quillRootContent.length,
+                        preview: quillRootContent.substring(0, 300),
+                        full: quillRootContent
+                    },
+                    getCurrentContentResult: {
+                        length: getCurrentContentResult.length,
+                        preview: getCurrentContentResult.substring(0, 300),
+                        full: getCurrentContentResult
+                    },
+                    getContentResult: {
+                        length: getContentResult.length,
+                        preview: getContentResult.substring(0, 300),
+                        full: getContentResult
+                    },
+                    semanticHTML: semanticHTML ? {
+                        length: semanticHTML.length,
+                        preview: semanticHTML.substring(0, 300),
+                        full: semanticHTML
+                    } : null,
+                    hasFocus: window.noteEditor.quill.hasFocus(),
+                    selection: window.noteEditor.quill.getSelection(),
+                    editorState: {
+                        isEnabled: window.noteEditor.quill.isEnabled(),
+                        length: window.noteEditor.quill.getLength()
+                    }
+                });
+                
+                // Use the getCurrentContent method (which should be the most reliable)
+                const htmlContent = getCurrentContentResult;
+                const contentField = document.getElementById('editNoteContent');
+                
+                window.appLogger?.action('NOTE_CONTENT_CAPTURED', {
+                    contentLength: htmlContent.length,
+                    hasContent: htmlContent.length > 0,
+                    contentPreview: htmlContent.substring(0, 200),
+                    hasContentField: !!contentField
+                });
+                
+                if (contentField) {
+                    contentField.value = htmlContent;
+                    
+                    // Log what was actually set in the field
+                    window.appLogger?.action('CONTENT_FIELD_POPULATED', {
+                        fieldValueLength: contentField.value.length,
+                        fieldValuePreview: contentField.value.substring(0, 200),
+                        fieldValueFull: contentField.value,
+                        matchesHtmlContent: contentField.value === htmlContent
+                    });
+                } else {
+                    window.appLogger?.error('Content field editNoteContent not found');
+                }
+            } else {
+                window.appLogger?.error('Rich text editor not available during form submission', {
+                    hasNoteEditor: !!window.noteEditor,
+                    hasQuill: !!(window.noteEditor && window.noteEditor.quill)
+                });
+            }
+            
+            // Handle tags
             if (window.tagInputs && window.tagInputs.note) {
                 const hiddenInput = document.getElementById('editNoteTags');
                 if (hiddenInput) {
                     const tagsValue = window.tagInputs.note.tags.join(', ');
                     hiddenInput.value = tagsValue;
+                    window.appLogger?.action('NOTE_TAGS_CAPTURED', { 
+                        tags: tagsValue,
+                        tagCount: window.tagInputs.note.tags.length
+                    });
                 }
             }
+            
+            // Log final form data before submission
+            const formData = new FormData(editNoteForm);
+            const formDataObj = {};
+            for (let [key, value] of formData.entries()) {
+                formDataObj[key] = value;
+            }
+            window.appLogger?.action('NOTE_FORM_SUBMISSION_READY', {
+                formData: formDataObj,
+                contentLength: formDataObj.content ? formDataObj.content.length : 0,
+                contentPreview: formDataObj.content ? formDataObj.content.substring(0, 200) : 'NO_CONTENT',
+                fullContent: formDataObj.content || 'NO_CONTENT'
+            });
+            
+            // Now submit the form programmatically
+            editNoteForm.submit();
         });
     }
     
@@ -106,169 +222,127 @@ window.exportPdf = function() {
         const docTitle = document.title.replace(/ /g, '_');
         const opt = { 
             margin: [0.5, 0.5, 0.5, 0.5], 
-            filename: `${docTitle}.pdf`, 
-            image: { type: 'jpeg', quality: 0.98 }, 
-            html2canvas: { scale: 2, useCORS: true }, 
-            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } 
+            filename: `${docTitle}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { 
+                scale: 2, 
+                logging: false,
+                width: element.scrollWidth,
+                height: element.scrollHeight
+            },
+            jsPDF: { 
+                unit: 'in', 
+                format: 'a4', 
+                orientation: 'portrait'
+            }
         };
         
-        window.appLogger?.action('PDF_GENERATION_CONFIG', { 
-            filename: opt.filename,
-            elementId: element?.id,
-            elementExists: !!element
+        const promise = window.html2pdf().from(element).set(opt).save();
+        promise.then(() => {
+            window.appLogger?.action('EXPORT_PDF_SUCCESS');
+        }).catch(error => {
+            window.appLogger?.error('Error exporting PDF:', error.message);
         });
-        
-        window.html2pdf().from(element).set(opt).save();
-        window.appLogger?.action('EXPORT_PDF_SUCCESS', { filename: opt.filename });
     } else {
-        window.appLogger?.error("PDF generation library is not loaded yet.");
-        console.error("PDF generation library is not loaded yet.");
+        window.appLogger?.error('html2pdf library not available');
+        alert('PDF export library not loaded. Please refresh the page and try again.');
     }
 };
 
-window.handleTagClick = function(event, tagName) {
-    window.appLogger?.action('TAG_CLICK', { 
-        tagName, 
-        isDragging: !!window.isDragging,
-        ctrlKey: event.ctrlKey,
-        shiftKey: event.shiftKey
+window.exportHtml = function() {
+    window.appLogger?.action('EXPORT_HTML_START');
+    
+    const element = document.getElementById('content-to-export');
+    const content = element.innerHTML;
+    const docTitle = document.title.replace(/ /g, '_');
+    
+    const blob = new Blob([content], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${docTitle}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    window.appLogger?.action('EXPORT_HTML_SUCCESS');
+};
+
+// Global functions for editor management
+window.toggleEditorView = function(viewType) {
+    const richTextContainer = document.getElementById('quill-editor-container');
+    const htmlEditor = document.getElementById('html-editor');
+    const previewContainer = document.getElementById('quill-preview-container');
+    const toggleButtons = document.querySelectorAll('#editor-toggle-buttons .toggle-btn');
+    
+    // Reset all buttons
+    toggleButtons.forEach(btn => {
+        btn.classList.remove('bg-blue-500', 'text-white');
+        btn.classList.add('bg-gray-200', 'text-gray-700');
     });
     
-    event.preventDefault();
-    event.stopPropagation();
-    if (window.isDragging) return;
+    // Hide all views
+    richTextContainer.classList.add('hidden');
+    htmlEditor.classList.add('hidden');
+    previewContainer.classList.add('hidden');
     
-    const lowerTagName = tagName.toLowerCase();
-    const currentFilters = new Set(window.ACTIVE_FILTERS_LOWER);
+    switch(viewType) {
+        case 'richtext':
+            richTextContainer.classList.remove('hidden');
+            document.querySelector('button[onclick="toggleEditorView(\'richtext\')"]').classList.add('bg-blue-500', 'text-white');
+            document.querySelector('button[onclick="toggleEditorView(\'richtext\')"]').classList.remove('bg-gray-200', 'text-gray-700');
+            break;
+        case 'html':
+            htmlEditor.classList.remove('hidden');
+            if (window.noteEditor && window.noteEditor.quill) {
+                htmlEditor.value = window.noteEditor.quill.root.innerHTML;
+            }
+            document.querySelector('button[onclick="toggleEditorView(\'html\')"]').classList.add('bg-blue-500', 'text-white');
+            document.querySelector('button[onclick="toggleEditorView(\'html\')"]').classList.remove('bg-gray-200', 'text-gray-700');
+            break;
+        case 'preview':
+            previewContainer.classList.remove('hidden');
+            if (window.noteEditor && window.noteEditor.quill) {
+                previewContainer.innerHTML = window.noteEditor.quill.root.innerHTML;
+            }
+            document.querySelector('button[onclick="toggleEditorView(\'preview\')"]').classList.add('bg-blue-500', 'text-white');
+            document.querySelector('button[onclick="toggleEditorView(\'preview\')"]').classList.remove('bg-gray-200', 'text-gray-700');
+            break;
+    }
+};
 
-    let newFilters;
-    if (currentFilters.has(lowerTagName)) {
-        newFilters = Array.from(currentFilters).filter(f => f !== lowerTagName);
-        window.appLogger?.action('TAG_FILTER_REMOVED', { tagName, remainingFilters: newFilters });
+window.cleanActiveEditorContent = function(editorType) {
+    let editor;
+    
+    switch(editorType) {
+        case 'note':
+            editor = window.noteEditor;
+            break;
+        case 'import':
+            editor = window.importEditor;
+            break;
+        default:
+            console.error('Unknown editor type:', editorType);
+            return;
+    }
+    
+    if (editor && editor.quill) {
+        let content = editor.quill.root.innerHTML;
+        
+        // Remove empty paragraphs
+        content = content.replace(/<p><br><\/p>/g, '');
+        content = content.replace(/<p>\s*<\/p>/g, '');
+        
+        // Remove multiple consecutive <br> tags
+        content = content.replace(/(<br\s*\/?>){3,}/g, '<br><br>');
+        
+        // Set the cleaned content back
+        editor.quill.root.innerHTML = content;
+        
+        console.log(`✅ Cleaned ${editorType} editor content`);
     } else {
-        newFilters = Array.from(currentFilters);
-        newFilters.push(lowerTagName);
-        window.appLogger?.action('TAG_FILTER_ADDED', { tagName, allFilters: newFilters });
+        console.error(`❌ ${editorType} editor not available for cleaning`);
     }
-    
-    const url = new URL(window.location.href);
-    url.searchParams.delete('filter');
-    newFilters.forEach(f => url.searchParams.append('filter', f));
-    url.searchParams.set('state', window.CURRENT_STATE);
-    
-    window.appLogger?.action('NAVIGATING_WITH_FILTERS', { 
-        newUrl: url.toString(),
-        filters: newFilters,
-        state: window.CURRENT_STATE
-    });
-    window.location.href = url.toString();
-};
-
-window.removeAndTagComponent = async function(event, andTagName, componentToRemove) {
-    window.appLogger?.action('REMOVE_AND_TAG_COMPONENT_START', { andTagName, componentToRemove });
-    
-    event.preventDefault();
-    event.stopPropagation();
-    if (!confirm(`Are you sure you want to remove '${componentToRemove}' from '${andTagName}'?`)) {
-        window.appLogger?.action('REMOVE_AND_TAG_COMPONENT_CANCELLED', { andTagName, componentToRemove });
-        return;
-    }
-    
-    const currentUrl = new URL(window.location.href);
-    const queryParams = new URLSearchParams(currentUrl.search);
-    
-    const formData = new FormData();
-    formData.append('and_tag_name', andTagName);
-    formData.append('component_to_remove', componentToRemove);
-    formData.append('state', window.CURRENT_STATE);
-
-    try {
-        window.appLogger?.action('REMOVE_AND_TAG_COMPONENT_REQUEST', { 
-            url: `/tag/remove_and_component?${queryParams.toString()}`,
-            andTagName,
-            componentToRemove
-        });
-        
-        const response = await fetch(`/tag/remove_and_component?${queryParams.toString()}`, {
-            method: 'POST',
-            body: formData
-        });
-        const data = await response.json();
-        
-        if (data.success) {
-            window.appLogger?.action('REMOVE_AND_TAG_COMPONENT_SUCCESS', { andTagName, componentToRemove });
-            window.location.reload();
-        } else {
-            alert('Failed to remove component: ' + data.message);
-        }
-    } catch (error) {
-        console.error('Error removing AND tag component:', error);
-        alert('An error occurred while removing the component.');
-    }
-};
-
-window.showTagContextMenu = function(event, tagName) {
-    window.appLogger?.action('SHOW_TAG_CONTEXT_MENU', { 
-        tagName,
-        x: event.pageX,
-        y: event.pageY 
-    });
-    
-    event.preventDefault();
-    event.stopPropagation();
-    
-    const contextMenu = document.createElement('div');
-    contextMenu.className = 'fixed bg-white shadow-lg border rounded-md py-2 z-50';
-    contextMenu.style.left = event.pageX + 'px';
-    contextMenu.style.top = event.pageY + 'px';
-    
-    const renameItem = document.createElement('div');
-    renameItem.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm';
-    renameItem.textContent = 'Rename tag globally';
-    renameItem.onclick = () => {
-        window.appLogger?.action('CONTEXT_MENU_RENAME_CLICKED', { tagName });
-        document.body.removeChild(contextMenu);
-        showRenameModal(tagName);
-    };
-    
-    const removeItem = document.createElement('div');
-    removeItem.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm text-red-600';
-    removeItem.textContent = 'Remove tag globally';
-    removeItem.onclick = () => {
-        window.appLogger?.action('CONTEXT_MENU_REMOVE_CLICKED', { tagName });
-        document.body.removeChild(contextMenu);
-        if (confirm(`Remove tag '${tagName}' from ALL content? This action cannot be undone.`)) {
-            window.appLogger?.action('TAG_GLOBAL_REMOVAL_CONFIRMED', { tagName });
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '/tag/delete_global_tag';
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'tag_to_delete';
-            input.value = tagName;
-            form.appendChild(input);
-            document.body.appendChild(form);
-            form.submit();
-        } else {
-            window.appLogger?.action('TAG_GLOBAL_REMOVAL_CANCELLED', { tagName });
-        }
-    };
-    
-    contextMenu.appendChild(renameItem);
-    contextMenu.appendChild(removeItem);
-    document.body.appendChild(contextMenu);
-    
-    window.appLogger?.componentStatus('CONTEXT_MENU', 'created', { 
-        tagName,
-        menuItems: ['rename', 'remove']
-    });
-    
-    const removeMenu = (e) => {
-        if (!contextMenu.contains(e.target)) {
-            window.appLogger?.action('CONTEXT_MENU_CLOSED', { tagName });
-            document.body.removeChild(contextMenu);
-            document.removeEventListener('click', removeMenu);
-        }
-    };
-    setTimeout(() => document.addEventListener('click', removeMenu), 0);
 };
