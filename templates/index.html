@@ -97,13 +97,6 @@ before being sent to the browser as valid HTML/JavaScript.
                 </div>
                 {% endif %}
                 
-                <!-- Help text for tag interactions -->
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
-                    <p class="text-sm text-blue-800">
-                        💡 <strong>Tag Interactions:</strong> Click to filter • Double-click to rename • Hover for more options • Drag to organize
-                    </p>
-                </div>
-                
                 <div class="bg-white p-3 rounded-lg shadow-sm mb-3">
                     <div class="flex justify-between items-center tag-category-header">
                         <h4 class="font-semibold text-gray-700 flex items-center">
@@ -116,7 +109,7 @@ before being sent to the browser as valid HTML/JavaScript.
                         {% for tag in uncategorized_tags %}
                             <span class="tag-bubble {% if tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
                                draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}" ondragstart="drag(event)" ondragend="dragEnd(event)" ondrop="drop(event)" data-tag-name="{{ tag }}" data-source-category-id="uncategorized">
-                                <span onclick='handleTagClick(event, {{ tag|tojson|safe }})' ondblclick='event.stopPropagation(); showRenameModal({{ tag|tojson|safe }})' oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }})' title="Double-click to rename">{{ tag }}</span>
+                                <span onclick='handleTagClick(event, {{ tag|tojson|safe }})' oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }})'>{{ tag }}</span>
                                 <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white shadow-lg rounded-md p-1 flex items-center z-20 opacity-0 group-hover/tag:opacity-100 transition-opacity pointer-events-none group-hover/tag:pointer-events-auto">
                                     <button onclick='console.log("Button clicked for tag:", {{ tag|tojson|safe }}); event.stopPropagation(); showRenameModal({{ tag|tojson|safe }})' class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md" title="Rename tag">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -161,7 +154,7 @@ before being sent to the browser as valid HTML/JavaScript.
                             {% for tag in category.tags %}
                                 <span class="tag-bubble {% if tag in and_tags %}and-tag{% elif tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
                                    draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}" ondragstart="drag(event)" ondragend="dragEnd(event)" ondrop="drop(event)" data-tag-name="{{ tag }}" data-source-category-id="{{ category.id }}">
-                                    <span onclick='handleTagClick(event, {{ tag|tojson|safe }})' ondblclick='event.stopPropagation(); showRenameModal({{ tag|tojson|safe }})' title="Double-click to rename">{{ tag }}</span>
+                                    <span onclick='handleTagClick(event, {{ tag|tojson|safe }})'>{{ tag }}</span>
                                     <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white shadow-lg rounded-md p-1 flex items-center z-20 opacity-0 group-hover/tag:opacity-100 transition-opacity pointer-events-none group-hover/tag:pointer-events-auto">
                                         <button onclick='console.log("Button clicked for tag:", {{ tag|tojson|safe }}); event.preventDefault(); event.stopPropagation(); showRenameModal({{ tag|tojson|safe }})' class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
