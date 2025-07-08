@@ -1535,4 +1535,64 @@ div[class*="content"] a:hover {
 .content-display a.ql-size-huge,
 .text-gray-600 a.ql-size-huge { font-size: 2.5em !important; }
 
+/* Blockquote styling for editor */
+.ql-editor blockquote {
+    border-left: 4px solid #e2e8f0;
+    padding-left: 16px;
+    margin: 16px 0;
+    font-style: italic;
+    color: #64748b;
+    background-color: #f8fafc;
+    padding: 12px 16px;
+    border-radius: 4px;
+}
+
+/* Blockquote styling for main content view */
+.prose blockquote,
+.prose-sm blockquote,
+.note-content blockquote,
+.content-display blockquote,
+.text-gray-600 blockquote {
+    border-left: 4px solid #e2e8f0 !important;
+    padding-left: 16px !important;
+    margin: 16px 0 !important;
+    font-style: italic !important;
+    color: #64748b !important;
+    background-color: #f8fafc !important;
+    padding: 12px 16px !important;
+    border-radius: 4px !important;
+    font-size: inherit !important;
+    font-family: inherit !important;
+    line-height: 1.6 !important;
+}
+
+/* Ensure blockquotes work in any content context */
+div[class*="text-gray"] blockquote,
+div[class*="prose"] blockquote,
+div[class*="content"] blockquote {
+    border-left: 4px solid #e2e8f0 !important;
+    padding-left: 16px !important;
+    margin: 16px 0 !important;
+    font-style: italic !important;
+    color: #64748b !important;
+    background-color: #f8fafc !important;
+    padding: 12px 16px !important;
+    border-radius: 4px !important;
+    font-size: inherit !important;
+    line-height: 1.6 !important;
+}
+
+/* Blockquote content styling */
+.ql-editor blockquote p,
+.prose blockquote p,
+.prose-sm blockquote p,
+.note-content blockquote p,
+.content-display blockquote p,
+.text-gray-600 blockquote p {
+    margin: 0 !important;
+    padding: 0 !important;
+    font-style: inherit !important;
+    color: inherit !important;
+}
+
 

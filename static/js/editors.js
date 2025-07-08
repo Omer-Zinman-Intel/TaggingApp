@@ -57,12 +57,11 @@ class RichTextEditor {
         this.options = {
             theme: 'snow',
             placeholder: options.placeholder || 'Start typing...',
-            formats: ['header', 'font', 'size', 'bold', 'italic', 'underline', 'strike', 'color', 'background', 'script', 'list', 'bullet', 'indent', 'blockquote', 'code-block', 'link', 'image', 'video'],
+            formats: ['header', 'font', 'size', 'bold', 'italic', 'underline', 'strike', 'color', 'background', 'script', 'list', 'bullet', 'indent', 'blockquote', 'code-block', 'link', 'image'],
             modules: { 
                 toolbar: {
                     container: `#${containerId}-toolbar`,
                     handlers: {
-                        'video': this.handleVideo.bind(this),
                         'link': this.handleLink.bind(this),
                         'font': this.handleFont.bind(this),
                         'size': this.handleSize.bind(this)
@@ -178,7 +177,6 @@ class RichTextEditor {
                     <button class="ql-code-block" title="Code Block"></button>
                     <button class="ql-link" title="Insert Link"></button>
                     <button class="ql-image" title="Insert Image"></button>
-                    <button class="ql-video" title="Insert Video"></button>
                     <button class="ql-clean" title="Clear Formatting"></button>
                 </span>
             </div>
