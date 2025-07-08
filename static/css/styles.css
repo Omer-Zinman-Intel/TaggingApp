@@ -650,4 +650,133 @@ html body .ql-picker-options:not(.color-picker-visible) {
     }
 }
 
+/* =============
+   QUILL INDENTATION STYLES
+   ============= */
+/* Text indentation levels - matches Quill's ql-indent-* classes */
+.ql-indent-1 {
+    padding-left: 3em !important;
+}
+
+.ql-indent-2 {
+    padding-left: 6em !important;
+}
+
+.ql-indent-3 {
+    padding-left: 9em !important;
+}
+
+.ql-indent-4 {
+    padding-left: 12em !important;
+}
+
+.ql-indent-5 {
+    padding-left: 15em !important;
+}
+
+.ql-indent-6 {
+    padding-left: 18em !important;
+}
+
+.ql-indent-7 {
+    padding-left: 21em !important;
+}
+
+.ql-indent-8 {
+    padding-left: 24em !important;
+}
+
+/* Apply indentation in both editor and display contexts */
+.ql-editor .ql-indent-1,
+.content-display .ql-indent-1,
+.note-content .ql-indent-1 {
+    padding-left: 3em !important;
+}
+
+.ql-editor .ql-indent-2,
+.content-display .ql-indent-2,
+.note-content .ql-indent-2 {
+    padding-left: 6em !important;
+}
+
+.ql-editor .ql-indent-3,
+.content-display .ql-indent-3,
+.note-content .ql-indent-3 {
+    padding-left: 9em !important;
+}
+
+.ql-editor .ql-indent-4,
+.content-display .ql-indent-4,
+.note-content .ql-indent-4 {
+    padding-left: 12em !important;
+}
+
+.ql-editor .ql-indent-5,
+.content-display .ql-indent-5,
+.note-content .ql-indent-5 {
+    padding-left: 15em !important;
+}
+
+.ql-editor .ql-indent-6,
+.content-display .ql-indent-6,
+.note-content .ql-indent-6 {
+    padding-left: 18em !important;
+}
+
+.ql-editor .ql-indent-7,
+.content-display .ql-indent-7,
+.note-content .ql-indent-7 {
+    padding-left: 21em !important;
+}
+
+.ql-editor .ql-indent-8,
+.content-display .ql-indent-8,
+.note-content .ql-indent-8 {
+    padding-left: 24em !important;
+}
+
+/* Mobile responsive indentation - smaller indents on small screens */
+@media (max-width: 768px) {
+    .ql-indent-1 { padding-left: 1.5em !important; }
+    .ql-indent-2 { padding-left: 3em !important; }
+    .ql-indent-3 { padding-left: 4.5em !important; }
+    .ql-indent-4 { padding-left: 6em !important; }
+    .ql-indent-5 { padding-left: 7.5em !important; }
+    .ql-indent-6 { padding-left: 9em !important; }
+    .ql-indent-7 { padding-left: 10.5em !important; }
+    .ql-indent-8 { padding-left: 12em !important; }
+    
+    .ql-editor .ql-indent-1,
+    .content-display .ql-indent-1,
+    .note-content .ql-indent-1 { padding-left: 1.5em !important; }
+    
+    .ql-editor .ql-indent-2,
+    .content-display .ql-indent-2,
+    .note-content .ql-indent-2 { padding-left: 3em !important; }
+    
+    .ql-editor .ql-indent-3,
+    .content-display .ql-indent-3,
+    .note-content .ql-indent-3 { padding-left: 4.5em !important; }
+    
+    .ql-editor .ql-indent-4,
+    .content-display .ql-indent-4,
+    .note-content .ql-indent-4 { padding-left: 6em !important; }
+    
+    .ql-editor .ql-indent-5,
+    .content-display .ql-indent-5,
+    .note-content .ql-indent-5 { padding-left: 7.5em !important; }
+    
+    .ql-editor .ql-indent-6,
+    .content-display .ql-indent-6,
+    .note-content .ql-indent-6 { padding-left: 9em !important; }
+    
+    .ql-editor .ql-indent-7,
+    .content-display .ql-indent-7,
+    .note-content .ql-indent-7 { padding-left: 10.5em !important; }
+    
+    .ql-editor .ql-indent-8,
+    .content-display .ql-indent-8,
+    .note-content .ql-indent-8 { padding-left: 12em !important; }
+}
+
 
