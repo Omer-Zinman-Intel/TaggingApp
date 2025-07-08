@@ -513,19 +513,16 @@
    QUILL COLOR PICKER FIX - CLICK ONLY, ALWAYS BELOW
    =================== */
 
-/* DISABLE Quill's default picker behavior completely */
-.ql-picker.ql-expanded .ql-picker-options,
-.ql-picker.ql-expanded > .ql-picker-options,
-.ql-expanded .ql-picker-options,
-.ql-snow .ql-picker.ql-expanded .ql-picker-options,
+/* DISABLE Quill's default picker behavior ONLY for color/background pickers */
 .ql-color-picker.ql-expanded .ql-picker-options,
 .ql-background.ql-expanded .ql-picker-options {
     display: none !important; /* Disable Quill's default expanded behavior */
     visibility: hidden !important;
 }
 
-/* Hide ALL picker options by default - only our click will show them */
-.ql-picker-options {
+/* Hide ONLY color/background picker options by default - only our click will show them */
+.ql-color-picker .ql-picker-options,
+.ql-background .ql-picker-options {
     display: none !important; /* Hidden by default */
     visibility: hidden !important;
     z-index: -1 !important; 
@@ -535,8 +532,9 @@
     opacity: 0 !important;
 }
 
-/* Show picker options ONLY when we explicitly set them visible via JavaScript */
-.ql-picker-options.color-picker-visible {
+/* Show color/background picker options ONLY when we explicitly set them visible via JavaScript */
+.ql-color-picker .ql-picker-options.color-picker-visible,
+.ql-background .ql-picker-options.color-picker-visible {
     display: flex !important; /* Show when we add our class */
     visibility: visible !important;
     z-index: 99999 !important;
@@ -552,10 +550,57 @@
     padding: 8px !important; /* Only allow our intended padding */
 }
 
-/* Ensure no Quill defaults interfere - MAXIMUM specificity */
-html body .ql-toolbar.ql-snow .ql-picker-options.color-picker-visible,
-html body .ql-snow .ql-toolbar .ql-picker-options.color-picker-visible,
-html body .modal .ql-picker-options.color-picker-visible {
+/* ===================
+   OTHER QUILL DROPDOWNS (Header, Font Family, Font Size) - Normal Behavior
+   =================== */
+
+/* Allow normal Quill behavior for non-color pickers */
+.ql-picker:not(.ql-color-picker):not(.ql-background).ql-expanded .ql-picker-options {
+    display: block !important;
+    visibility: visible !important;
+    z-index: 99999 !important;
+    position: absolute !important; /* Use absolute for normal dropdowns */
+    background: white !important;
+    border: 1px solid #ccc !important;
+    border-radius: 4px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+    max-height: 200px !important;
+    overflow-y: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    top: 100% !important; /* Position below the button */
+    left: 0 !important;
+    min-width: 100% !important;
+}
+
+/* Ensure dropdown items in normal pickers are properly styled */
+.ql-picker:not(.ql-color-picker):not(.ql-background) .ql-picker-options .ql-picker-item {
+    padding: 8px 12px !important;
+    cursor: pointer !important;
+    border: none !important;
+    background: white !important;
+    color: #333 !important;
+    text-align: left !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+.ql-picker:not(.ql-color-picker):not(.ql-background) .ql-picker-options .ql-picker-item:hover {
+    background-color: #f0f0f0 !important;
+}
+
+.ql-picker:not(.ql-color-picker):not(.ql-background) .ql-picker-options .ql-picker-item.ql-selected {
+    background-color: #e3f2fd !important;
+    color: #1976d2 !important;
+}
+
+/* Ensure no Quill defaults interfere with color pickers - MAXIMUM specificity */
+html body .ql-toolbar.ql-snow .ql-color-picker .ql-picker-options.color-picker-visible,
+html body .ql-toolbar.ql-snow .ql-background .ql-picker-options.color-picker-visible,
+html body .ql-snow .ql-toolbar .ql-color-picker .ql-picker-options.color-picker-visible,
+html body .ql-snow .ql-toolbar .ql-background .ql-picker-options.color-picker-visible,
+html body .modal .ql-color-picker .ql-picker-options.color-picker-visible,
+html body .modal .ql-background .ql-picker-options.color-picker-visible {
     z-index: 99999 !important;
     display: flex !important;
     position: fixed !important;
@@ -567,11 +612,13 @@ html body .modal .ql-picker-options.color-picker-visible {
     opacity: 1 !important;
 }
 
-/* FORCE HIDE all picker options that don't have our visible class */
-html body .ql-toolbar.ql-snow .ql-picker-options:not(.color-picker-visible),
-html body .ql-snow .ql-toolbar .ql-picker-options:not(.color-picker-visible),
-html body .modal .ql-picker-options:not(.color-picker-visible),
-html body .ql-picker-options:not(.color-picker-visible) {
+/* FORCE HIDE only color/background picker options that don't have our visible class */
+html body .ql-toolbar.ql-snow .ql-color-picker .ql-picker-options:not(.color-picker-visible),
+html body .ql-toolbar.ql-snow .ql-background .ql-picker-options:not(.color-picker-visible),
+html body .ql-snow .ql-toolbar .ql-color-picker .ql-picker-options:not(.color-picker-visible),
+html body .ql-snow .ql-toolbar .ql-background .ql-picker-options:not(.color-picker-visible),
+html body .modal .ql-color-picker .ql-picker-options:not(.color-picker-visible),
+html body .modal .ql-background .ql-picker-options:not(.color-picker-visible) {
     display: none !important;
     visibility: hidden !important;
     z-index: -1 !important;
@@ -579,6 +626,20 @@ html body .ql-picker-options:not(.color-picker-visible) {
     top: -9999px !important;
     left: -9999px !important;
     opacity: 0 !important;
+}
+
+/* Ensure other dropdowns (header, font family, font size) work normally with high z-index */
+html body .ql-toolbar.ql-snow .ql-picker:not(.ql-color-picker):not(.ql-background).ql-expanded .ql-picker-options,
+html body .ql-snow .ql-toolbar .ql-picker:not(.ql-color-picker):not(.ql-background).ql-expanded .ql-picker-options,
+html body .modal .ql-picker:not(.ql-color-picker):not(.ql-background).ql-expanded .ql-picker-options {
+    display: block !important;
+    visibility: visible !important;
+    z-index: 99999 !important;
+    position: absolute !important;
+    background: white !important;
+    border: 1px solid #ccc !important;
+    border-radius: 4px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
 }
 
 /* Color Picker Grid Layout - Smaller fixed width with ~6 colors per row */
