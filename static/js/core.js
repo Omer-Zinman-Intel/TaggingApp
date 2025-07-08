@@ -270,6 +270,159 @@ window.exportHtml = function() {
     window.appLogger?.action('EXPORT_HTML_SUCCESS');
 };
 
+// Handle tag clicks in the filter menu
+window.handleTagClick = function(event, tagName) {
+    console.log(`Tag clicked: ${tagName}`);
+    window.appLogger?.action('TAG_CLICKED', { tag: tagName });
+    
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // Prevent click handling during drag operations
+    if (window.isDragging) {
+        console.log("Tag click ignored during drag operation");
+        return;
+    }
+    
+    // Get the current URL and parse its parameters
+    const currentUrl = new URL(window.location.href);
+    const params = new URLSearchParams(currentUrl.search);
+    
+    // Get all current filters
+    const currentFilters = params.getAll('filter');
+    
+    // Special case for "All" tag - clear all filters
+    if (tagName.toLowerCase() === 'all') {
+        params.delete('filter');
+    } 
+    // If this tag is already active, remove it from filters
+    else if (currentFilters.some(filter => filter.toLowerCase() === tagName.toLowerCase())) {
+        params.delete('filter');
+        currentFilters.forEach(filter => {
+            if (filter.toLowerCase() !== tagName.toLowerCase()) {
+                params.append('filter', filter);
+            }
+        });
+    } 
+    // Otherwise add this tag to filters
+    else {
+        params.append('filter', tagName);
+    }
+    
+    // Build the new URL and navigate to it
+    currentUrl.search = params.toString();
+    console.log(`Navigating to: ${currentUrl.toString()}`);
+    window.location.href = currentUrl.toString();
+};
+
+// Handle right-click context menu for tags
+window.showTagContextMenu = function(event, tagName) {
+    console.log(`Tag context menu requested for: ${tagName}`);
+    window.appLogger?.action('TAG_CONTEXT_MENU', { tag: tagName });
+    
+    // Prevent the default context menu
+    event.preventDefault();
+    
+    // Get existing or create a new context menu
+    let contextMenu = document.getElementById('tag-context-menu');
+    if (!contextMenu) {
+        contextMenu = document.createElement('div');
+        contextMenu.id = 'tag-context-menu';
+        contextMenu.className = 'absolute z-50 bg-white shadow-lg rounded-md py-2 w-48';
+        contextMenu.style.display = 'none';
+        document.body.appendChild(contextMenu);
+    }
+    
+    // Position the context menu at the mouse position
+    contextMenu.style.top = `${event.pageY}px`;
+    contextMenu.style.left = `${event.pageX}px`;
+    
+    // Update the context menu content based on the tag
+    contextMenu.innerHTML = `
+        <div class="px-3 py-1 text-sm font-medium text-gray-800 border-b mb-1">${tagName}</div>
+        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
+           onclick="event.preventDefault(); showRenameModal('${tagName}'); hideContextMenu();">
+           Rename Tag
+        </a>
+        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+           onclick="event.preventDefault(); copyToClipboard('${tagName}'); hideContextMenu();">
+           Copy Tag
+        </a>
+        <a href="#" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+           onclick="event.preventDefault(); deleteGlobalTag('${tagName}'); hideContextMenu();">
+           Delete Tag
+        </a>
+    `;
+    
+    // Show the context menu
+    contextMenu.style.display = 'block';
+    
+    // Add a click event listener to the document to hide the context menu when clicking outside
+    setTimeout(() => {
+        document.addEventListener('click', hideContextMenu);
+    }, 10);
+    
+    return false;
+};
+
+// Helper function to hide the context menu
+window.hideContextMenu = function() {
+    const contextMenu = document.getElementById('tag-context-menu');
+    if (contextMenu) {
+        contextMenu.style.display = 'none';
+    }
+    document.removeEventListener('click', hideContextMenu);
+};
+
+// Helper function to copy text to clipboard
+window.copyToClipboard = function(text) {
+    navigator.clipboard.writeText(text)
+        .then(() => {
+            console.log('Text copied to clipboard:', text);
+            window.appLogger?.action('COPY_TO_CLIPBOARD', { content: text });
+            
+            // Show a brief notification
+            const notification = document.createElement('div');
+            notification.textContent = 'Copied to clipboard!';
+            notification.className = 'fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg z-50';
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 2000);
+        })
+        .catch(err => {
+            console.error('Failed to copy text:', err);
+            window.appLogger?.error('Failed to copy to clipboard', { error: err.message });
+        });
+};
+
+// Helper function to delete a tag globally
+window.deleteGlobalTag = function(tagName) {
+    if (confirm(`Are you sure you want to delete the tag "${tagName}" everywhere?`)) {
+        // Create and submit a form to delete the tag
+        const form = document.createElement('form');
+        form.method = 'POST';
+        
+        // Get the current URL parameters
+        const currentUrl = new URL(window.location.href);
+        const params = new URLSearchParams(currentUrl.search);
+        
+        // Build the delete tag URL
+        form.action = `/tag/delete?state=${window.CURRENT_STATE || ''}&${params.toString()}`;
+        
+        // Add the tag to delete
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'tag_to_delete';
+        input.value = tagName;
+        
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+    }
+};
+
 // Global functions for editor management
 window.toggleEditorView = function(viewType) {
     const richTextContainer = document.getElementById('quill-editor-container');
