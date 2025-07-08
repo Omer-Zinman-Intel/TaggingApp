@@ -46,34 +46,205 @@
 .ql-editor {
     min-height: 200px;
     overflow-x: hidden; /* Prevent horizontal scrolling from videos */
+    
+    /* Apply prose styling to match main content view */
+    font-size: 0.875rem; /* prose-sm equivalent */
+    line-height: 1.7;
+    color: #4b5563; /* text-gray-600 equivalent */
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
-/* Font size styles */
-.ql-size-small {
+/* Apply prose styles directly to both Quill editor content areas */
+.ql-editor h1, .ql-editor h2, .ql-editor h3, .ql-editor h4, .ql-editor h5, .ql-editor h6,
+#import-editor .ql-editor h1, #import-editor .ql-editor h2, #import-editor .ql-editor h3, 
+#import-editor .ql-editor h4, #import-editor .ql-editor h5, #import-editor .ql-editor h6 { 
+    margin-top: 1.25em; 
+    margin-bottom: 0.5em; 
+    font-weight: 600; 
+    color: #374151; /* Darker color for headings */
+}
+
+.ql-editor h1, #import-editor .ql-editor h1 { font-size: 2em; }
+.ql-editor h2, #import-editor .ql-editor h2 { font-size: 1.5em; }
+.ql-editor h3, #import-editor .ql-editor h3 { font-size: 1.25em; }
+.ql-editor h4, #import-editor .ql-editor h4 { font-size: 1.125em; }
+.ql-editor h5, #import-editor .ql-editor h5 { font-size: 1em; }
+.ql-editor h6, #import-editor .ql-editor h6 { font-size: 0.875em; }
+
+.ql-editor p, #import-editor .ql-editor p { 
+    margin-top: 0.75em; 
+    margin-bottom: 0.75em; 
+}
+
+.ql-editor ul, .ql-editor ol, #import-editor .ql-editor ul, #import-editor .ql-editor ol { 
+    margin-top: 0.75em; 
+    margin-bottom: 0.75em; 
+    padding-left: 1.5em; 
+}
+
+.ql-editor ul, #import-editor .ql-editor ul { 
+    list-style-type: disc; 
+}
+
+.ql-editor ol, #import-editor .ql-editor ol { 
+    list-style-type: decimal; 
+}
+
+.ql-editor blockquote, #import-editor .ql-editor blockquote {
+    border-left: 4px solid #e5e7eb;
+    padding-left: 1em;
+    margin: 1em 0;
+    font-style: italic;
+    color: #6b7280;
+}
+
+.ql-editor strong, #import-editor .ql-editor strong {
+    font-weight: 600;
+}
+
+.ql-editor em, #import-editor .ql-editor em {
+    font-style: italic;
+}
+
+.ql-editor code, #import-editor .ql-editor code { 
+    background-color: #e5e7eb; 
+    padding: 0.2em 0.4em; 
+    margin: 0; 
+    font-size: 85%; 
+    border-radius: 3px; 
+    font-family: 'Courier New', monospace;
+}
+
+.ql-editor img, #import-editor .ql-editor img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+    margin: 0.5em 0;
+}
+
+.ql-editor a, #import-editor .ql-editor a {
+    color: #3b82f6;
+    text-decoration: underline;
+}
+
+.ql-editor a:hover, #import-editor .ql-editor a:hover {
+    color: #1d4ed8;
+}
+
+/* Ensure import editor inherits same base styling */
+#import-editor .ql-editor {
+    min-height: 200px;
+    overflow-x: hidden;
+    font-size: 0.875rem;
+    line-height: 1.7;
+    color: #4b5563;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+/* Font size styles - apply to both editors */
+.ql-size-small, #import-editor .ql-size-small {
     font-size: 0.75em;
 }
 
-.ql-size-large {
+.ql-size-large, #import-editor .ql-size-large {
     font-size: 1.5em;
 }
 
-.ql-size-huge {
+.ql-size-huge, #import-editor .ql-size-huge {
     font-size: 2.5em;
 }
 
-/* Code block styling */
-.ql-editor pre.ql-syntax {
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
-    border-radius: 4px;
-    color: #495057;
-    overflow: visible;
-    padding: 1em;
+/* Additional typography to match main content */
+.ql-editor li, #import-editor .ql-editor li {
+    margin: 0.25em 0;
+    line-height: 1.6;
+}
+
+.ql-editor li p, #import-editor .ql-editor li p {
+    margin: 0.25em 0;
+}
+
+.ql-editor table, #import-editor .ql-editor table {
+    border-collapse: collapse;
+    width: 100%;
     margin: 1em 0;
 }
 
-/* Video responsive styling */
-.ql-editor .ql-video {
+.ql-editor table td, .ql-editor table th,
+#import-editor .ql-editor table td, #import-editor .ql-editor table th {
+    border: 1px solid #d1d5db;
+    padding: 0.5em;
+    text-align: left;
+}
+
+.ql-editor table th, #import-editor .ql-editor table th {
+    background-color: #f3f4f6;
+    font-weight: 600;
+}
+
+/* Code block styling - inherit from prose, apply to both editors */
+.ql-editor pre.ql-syntax, #import-editor .ql-editor pre.ql-syntax {
+    background-color: #e5e7eb; 
+    padding: 1em; 
+    border-radius: 6px; 
+    overflow-x: auto;
+    border: 1px solid #d1d5db;
+    color: #374151;
+    margin: 1em 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875em;
+}
+
+.ql-editor pre, #import-editor .ql-editor pre {
+    background-color: #e5e7eb; 
+    padding: 1em; 
+    border-radius: 6px; 
+    overflow-x: auto;
+    border: 1px solid #d1d5db;
+    color: #374151;
+    margin: 1em 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875em;
+}
+
+/* Apply prose alignment styles to both editors */
+.ql-editor .ql-align-center, #import-editor .ql-editor .ql-align-center {
+    text-align: center;
+}
+
+.ql-editor .ql-align-right, #import-editor .ql-editor .ql-align-right {
+    text-align: right;
+}
+
+.ql-editor .ql-align-justify, #import-editor .ql-editor .ql-align-justify {
+    text-align: justify;
+}
+
+.ql-editor img.ql-align-center, #import-editor .ql-editor img.ql-align-center {
+    margin-left: auto !important;
+    margin-right: auto !important;
+    display: block !important;
+    float: none !important;
+}
+
+.ql-editor img.ql-align-right, #import-editor .ql-editor img.ql-align-right {
+    float: right !important;
+    margin-left: 1em !important;
+    margin-bottom: 0.5em !important;
+    margin-right: 0 !important;
+    display: inline !important;
+}
+
+.ql-editor img.ql-align-left, #import-editor .ql-editor img.ql-align-left {
+    float: left !important;
+    margin-right: 1em !important;
+    margin-bottom: 0.5em !important;
+    margin-left: 0 !important;
+    display: inline !important;
+}
+
+/* Video responsive styling - apply to both editors */
+.ql-editor .ql-video, #import-editor .ql-editor .ql-video {
     max-width: 100%;
     height: auto;
     width: 100%;
@@ -83,11 +254,15 @@
     aspect-ratio: 16/9; /* Default video aspect ratio */
 }
 
-/* Video iframe specific styling */
+/* Video iframe specific styling - apply to both editors */
 .ql-editor iframe[src*="youtube"],
 .ql-editor iframe[src*="vimeo"],
 .ql-editor iframe[src*="youtu.be"],
-.ql-editor iframe {
+.ql-editor iframe,
+#import-editor .ql-editor iframe[src*="youtube"],
+#import-editor .ql-editor iframe[src*="vimeo"],
+#import-editor .ql-editor iframe[src*="youtu.be"],
+#import-editor .ql-editor iframe {
     max-width: 100% !important;
     width: 100% !important;
     height: auto !important;

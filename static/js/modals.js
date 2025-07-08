@@ -1,6 +1,23 @@
 // Global script - no ES6 modules
 // Using global tag input system
 
+// Test function to verify modal functions are accessible
+function testModalFunctions() {
+    console.log('=== Modal Functions Test ===');
+    console.log('showModal function:', typeof showModal);
+    console.log('hideModal function:', typeof hideModal);
+    console.log('handleNoteModalCancel function:', typeof handleNoteModalCancel);
+    console.log('handleImportModalCancel function:', typeof handleImportModalCancel);
+    console.log('window.showModal:', typeof window.showModal);
+    console.log('window.hideModal:', typeof window.hideModal);
+    console.log('================================');
+}
+
+// Make functions globally accessible
+window.showModal = showModal;
+window.hideModal = hideModal;
+window.testModalFunctions = testModalFunctions;
+
 function showModal(modalId) {
     window.appLogger?.buttonClick('SHOW_MODAL', { modalId });
     console.log('showModal called with modalId:', modalId);
@@ -98,17 +115,94 @@ function validateModalComponents(modalId) {
 }
 
 function hideModal(modalId) {
+    console.log('🚫 hideModal called with modalId:', modalId);
     window.appLogger?.buttonClick('HIDE_MODAL', { modalId });
     
+    // Handle cancellation logic for specific modals
+    if (modalId === 'editNoteModal') {
+        console.log('🚫 Handling note modal cancel');
+        handleNoteModalCancel();
+    } else if (modalId === 'importModal') {
+        console.log('🚫 Handling import modal cancel');
+        handleImportModalCancel();
+    }
+    
     const modal = document.getElementById(modalId);
+    console.log('🚫 Modal element found:', !!modal);
+    
     if (modal) {
+        console.log('🚫 Adding opacity-0 class');
         modal.classList.add('opacity-0');
         setTimeout(() => {
+            console.log('🚫 Adding hidden class');
             modal.classList.add('hidden');
             window.appLogger?.action('MODAL_CLOSED', { modalId });
         }, 250);
     } else {
+        console.error('❌ Modal not found for hiding:', modalId);
         window.appLogger?.error('Modal not found for hiding:', modalId);
+    }
+}
+
+function handleNoteModalCancel() {
+    console.log('🚫 Note modal cancelled - clearing unsaved changes');
+    
+    try {
+        // Reset the editor to clear any styling/formatting state
+        if (window.noteEditor && window.noteEditor.resetEditor) {
+            window.noteEditor.resetEditor();
+            console.log('🚫 Note editor reset on cancel');
+        }
+        
+        // Clear any auto-save backups that shouldn't persist after cancellation
+        if (window.contentPreservation) {
+            console.log('🚫 Found contentPreservation, calling clearCancelledChanges');
+            window.contentPreservation.clearCancelledChanges('note', 'editNoteForm');
+            console.log('🚫 clearCancelledChanges completed successfully');
+        } else {
+            console.log('🚫 No contentPreservation found, skipping cleanup');
+        }
+        
+        window.appLogger?.action('NOTE_MODAL_CANCELLED', {
+            timestamp: Date.now(),
+            editorReset: true
+        });
+        
+        console.log('🚫 Note modal cancel handling completed');
+    } catch (error) {
+        console.error('❌ Error in handleNoteModalCancel:', error);
+        window.appLogger?.error('Note modal cancel failed', { error: error.message });
+    }
+}
+
+function handleImportModalCancel() {
+    console.log('🚫 Import modal cancelled - clearing unsaved changes');
+    
+    try {
+        // Reset the editor to clear any styling/formatting state
+        if (window.importEditor && window.importEditor.resetEditor) {
+            window.importEditor.resetEditor();
+            console.log('🚫 Import editor reset on cancel');
+        }
+        
+        // Clear any auto-save backups that shouldn't persist after cancellation
+        if (window.contentPreservation) {
+            console.log('🚫 Found contentPreservation, calling clearCancelledChanges');
+            window.contentPreservation.clearCancelledChanges('import', 'importForm');
+            console.log('🚫 clearCancelledChanges completed successfully');
+        } else {
+            console.log('🚫 No contentPreservation found, skipping cleanup');
+        }
+        
+        window.appLogger?.action('IMPORT_MODAL_CANCELLED', {
+            timestamp: Date.now(),
+            editorReset: true
+        });
+        
+        console.log('🚫 Import modal cancel handling completed');
+    } catch (error) {
+        console.error('❌ Error in handleImportModalCancel:', error);
+        window.appLogger?.error('Import modal cancel failed', { error: error.message });
     }
 }
 
@@ -264,13 +358,21 @@ function showEditNoteModal(sectionId, noteId, title, content, tags) {
         });
         
         if (window.noteEditor) {
+            // First reset the editor to clear any previous styling/state
+            if (window.noteEditor.resetEditor) {
+                window.noteEditor.resetEditor();
+            }
+            
+            // Then set the fresh content from main view
             window.noteEditor.setContent(content || '');
+            
             if (window.toggleEditorView) {
                 window.toggleEditorView('richtext'); // Always start with rich text view
             }
             window.appLogger?.action('NOTE_EDITOR_CONTENT_SET', {
                 contentLength: content?.length || 0,
-                editorAvailable: true
+                editorAvailable: true,
+                editorReset: true
             });
         } else if (window.noteEditorQuill) {
             // Fallback to old system for backward compatibility
@@ -288,6 +390,10 @@ function showEditNoteModal(sectionId, noteId, title, content, tags) {
                 if (typeof window.initializeEditors === 'function') {
                     window.initializeEditors();
                     if (window.noteEditor) {
+                        // Reset and set content for late initialization too
+                        if (window.noteEditor.resetEditor) {
+                            window.noteEditor.resetEditor();
+                        }
                         window.noteEditor.setContent(content || '');
                         if (window.toggleEditorView) {
                             window.toggleEditorView('richtext');
@@ -367,9 +473,13 @@ function showEditNoteModal(sectionId, noteId, title, content, tags) {
 }
 
 function showImportModal() {
-    // Clear both editors
-    if (window.importEditor && window.importEditor.quill) {
-        window.importEditor.quill.root.innerHTML = '';
+    // Clear both editors using proper reset method
+    if (window.importEditor) {
+        if (window.importEditor.resetEditor) {
+            window.importEditor.resetEditor();
+        } else if (window.importEditor.quill) {
+            window.importEditor.quill.root.innerHTML = '';
+        }
     }
     
     const htmlEditor = document.getElementById('html-import-editor');

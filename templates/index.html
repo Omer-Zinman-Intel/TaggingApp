@@ -37,13 +37,6 @@ before being sent to the browser as valid HTML/JavaScript.
             overflow-y: auto;
             position: relative;
         }
-        /* Override Quill's link font inheritance */
-        .ql-editor a {
-            font-size: unset !important;
-            font-weight: unset !important;
-            font-family: unset !important;
-            line-height: unset !important;
-        }
     </style>
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
     <script>
@@ -612,7 +605,7 @@ before being sent to the browser as valid HTML/JavaScript.
                              <button type="button" onclick="toggleEditorView('html')" class="toggle-btn px-3 py-1 text-sm font-semibold bg-gray-200" title="HTML Source Code">HTML</button>
                              <button type="button" onclick="toggleEditorView('preview')" class="toggle-btn px-3 py-1 text-sm font-semibold bg-gray-200 rounded-r-md" title="Preview Content">Preview</button>
                         </div>
-                        <button type="button" onclick="hideModal('editNoteModal')" class="p-1 rounded-full hover:bg-gray-200">&times;</button>
+                        <button type="button" onclick="console.log('X button clicked!'); hideModal('editNoteModal')" class="p-1 rounded-full hover:bg-gray-200">&times;</button>
                     </div>
                 </div>
                  <div class="p-6 space-y-4 modal-body">
@@ -638,7 +631,7 @@ before being sent to the browser as valid HTML/JavaScript.
                     </div>
                  </div>
                  <div class="p-4 bg-gray-50 flex justify-end space-x-3 rounded-b-lg border-t">
-                    <button type="button" onclick="hideModal('editNoteModal')" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
+                    <button type="button" onclick="console.log('Cancel button clicked!'); hideModal('editNoteModal')" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save Changes</button>
                 </div>
             </form>

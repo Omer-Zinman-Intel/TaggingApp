@@ -222,6 +222,271 @@ class RichTextEditor {
         
         // Add debugging for color picker functionality
         this.addColorPickerDebugLogging();
+
+        // Patch code block and clear formatting behavior
+        this.patchCodeBlockAndClearFormatting();
+    }
+    
+    // Patch Quill to clean all formatting when code block is removed or clear formatting is used
+    patchCodeBlockAndClearFormatting() {
+        if (!this.quill) return;
+
+        // Track code block state more reliably
+        this._lastWasCodeBlock = false;
+        this._codeBlockElements = new Set();
+
+        // Listen for format changes and text changes
+        this.quill.on('text-change', (delta, oldDelta, source) => {
+            setTimeout(() => {
+                this.checkForCodeBlockRemoval();
+            }, 50); // Small delay to ensure DOM updates
+        });
+
+        // Listen for selection changes to track code blocks
+        this.quill.on('selection-change', (range) => {
+            if (!range) return;
+            setTimeout(() => {
+                this.trackCodeBlockState(range);
+            }, 10);
+        });
+
+        // Patch clear formatting button with more aggressive cleaning
+        const toolbar = document.getElementById(`${this.containerId}-toolbar`);
+        if (toolbar) {
+            const clearBtn = toolbar.querySelector('.ql-clean');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', (e) => {
+                    // Prevent default Quill behavior temporarily
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    setTimeout(() => {
+                        const selection = this.quill.getSelection();
+                        if (selection) {
+                            this.aggressiveFormatClear(selection);
+                        }
+                    }, 10);
+                });
+            }
+
+            // Also listen for code block button clicks
+            const codeBlockBtn = toolbar.querySelector('.ql-code-block');
+            if (codeBlockBtn) {
+                codeBlockBtn.addEventListener('click', () => {
+                    setTimeout(() => {
+                        const selection = this.quill.getSelection();
+                        if (selection) {
+                            const format = this.quill.getFormat(selection.index, selection.length);
+                            // If code block was just turned off, aggressively clean
+                            if (!format['code-block']) {
+                                console.log('🎯 Code block button clicked - cleaning formatting');
+                                this.aggressiveFormatClear(selection);
+                            }
+                        }
+                    }, 100);
+                });
+            }
+        }
+        
+        // Also listen for keyboard shortcuts that might toggle code blocks
+        this.quill.keyboard.addBinding({
+            key: 'E',
+            ctrlKey: true,
+            shiftKey: true
+        }, () => {
+            setTimeout(() => {
+                const selection = this.quill.getSelection();
+                if (selection) {
+                    this.checkForCodeBlockRemoval();
+                }
+            }, 100);
+        });
+    }
+
+    // Track code block state for better detection
+    trackCodeBlockState(range) {
+        if (!this.quill || !range) return;
+        
+        const format = this.quill.getFormat(range.index, range.length);
+        const isCodeBlock = !!format['code-block'];
+        
+        // Store previous state
+        const wasCodeBlock = this._lastWasCodeBlock;
+        this._lastWasCodeBlock = isCodeBlock;
+        
+        // If we just exited a code block, clean formatting
+        if (wasCodeBlock && !isCodeBlock) {
+            setTimeout(() => {
+                this.cleanCodeBlockFormatting(range);
+            }, 50);
+        }
+    }
+
+    // Check for code block removal by examining DOM
+    checkForCodeBlockRemoval() {
+        if (!this.quill) return;
+        
+        const selection = this.quill.getSelection();
+        if (!selection) return;
+        
+        // Check if we're still in a code block
+        const format = this.quill.getFormat(selection.index, selection.length);
+        const isCodeBlock = !!format['code-block'];
+        
+        // If we were in a code block but aren't anymore, clean formatting
+        if (this._lastWasCodeBlock && !isCodeBlock) {
+            this.cleanCodeBlockFormatting(selection);
+        }
+        
+        this._lastWasCodeBlock = isCodeBlock;
+    }
+
+    // More aggressive format clearing
+    aggressiveFormatClear(selection) {
+        if (!this.quill || !selection) return;
+        
+        console.log('🧹 Starting aggressive format clear for selection:', selection);
+        
+        // Step 1: Get the actual text content to preserve
+        const textContent = this.quill.getText(selection.index, selection.length || 1);
+        
+        // Step 2: Remove all formatting using multiple methods
+        this.quill.removeFormat(selection.index, selection.length || 1);
+        
+        // Step 3: Force clear all formats individually
+        const allFormats = [
+            'font', 'background', 'color', 'code', 'code-block', 'bold', 'italic', 
+            'underline', 'strike', 'size', 'script', 'align', 'blockquote', 
+            'list', 'indent', 'direction', 'header', 'link'
+        ];
+        
+        allFormats.forEach(format => {
+            try {
+                this.quill.formatText(selection.index, selection.length || 1, format, false);
+            } catch (error) {
+                console.warn(`Failed to clear format ${format}:`, error);
+            }
+        });
+        
+        // Step 4: Nuclear option - replace the content entirely
+        setTimeout(() => {
+            if (textContent) {
+                // Delete the formatted text and insert plain text
+                this.quill.deleteText(selection.index, selection.length || 1);
+                this.quill.insertText(selection.index, textContent);
+                
+                // Reset selection to the new text
+                this.quill.setSelection(selection.index, textContent.length);
+            }
+            
+            // Step 5: Clean up any remaining DOM artifacts
+            this.cleanupDOMFormatting(selection);
+            
+            // Step 6: Force editor update
+            this.quill.update();
+        }, 50);
+        
+        console.log('✨ Aggressive format clear completed');
+    }
+
+    // Clean up DOM-level formatting that Quill might miss
+    cleanupDOMFormatting(selection) {
+        if (!this.quill || !selection) return;
+        
+        const editor = this.quill.container.querySelector('.ql-editor');
+        if (!editor) return;
+        
+        console.log('🧹 Cleaning DOM formatting');
+        
+        // Get all elements in the editor
+        const allElements = editor.querySelectorAll('*');
+        
+        allElements.forEach(element => {
+            // Remove inline styles completely
+            const stylesToRemove = [
+                'fontFamily', 'font-family',
+                'backgroundColor', 'background-color', 'background',
+                'color',
+                'fontSize', 'font-size',
+                'fontWeight', 'font-weight',
+                'fontStyle', 'font-style',
+                'textDecoration', 'text-decoration'
+            ];
+            
+            stylesToRemove.forEach(style => {
+                element.style.removeProperty(style);
+                element.style[style] = '';
+            });
+            
+            // Remove problematic classes
+            const classesToRemove = [];
+            Array.from(element.classList).forEach(className => {
+                if (className.startsWith('ql-font-') || 
+                    className.startsWith('ql-size-') || 
+                    className.startsWith('ql-color-') || 
+                    className.startsWith('ql-background-') ||
+                    className.includes('code') ||
+                    className.includes('mono')) {
+                    classesToRemove.push(className);
+                }
+            });
+            
+            classesToRemove.forEach(className => {
+                element.classList.remove(className);
+            });
+            
+            // Remove style attribute if it's empty
+            if (element.style.length === 0) {
+                element.removeAttribute('style');
+            }
+        });
+        
+        // Special handling for code elements
+        const codeElements = editor.querySelectorAll('code, pre, .ql-code-block');
+        codeElements.forEach(codeEl => {
+            // If it's not actually a code block anymore, remove code-specific styling
+            const parent = codeEl.parentElement;
+            if (parent && !parent.classList.contains('ql-code-block')) {
+                codeEl.style.fontFamily = '';
+                codeEl.style.backgroundColor = '';
+                codeEl.style.color = '';
+                codeEl.removeAttribute('style');
+            }
+        });
+        
+        console.log('✨ DOM cleanup completed');
+    }
+
+    // Remove all code block-related formatting from the selection
+    cleanCodeBlockFormatting(selection) {
+        if (!this.quill || !selection) return;
+        
+        console.log('🧹 Cleaning code block formatting from selection:', selection);
+        
+        // Remove all possible code block-related formats
+        const formatsToRemove = [
+            'font', 'background', 'color', 'code', 'code-block', 'bold', 'italic', 
+            'underline', 'strike', 'size', 'script', 'align', 'blockquote', 
+            'list', 'indent', 'direction', 'header', 'link'
+        ];
+        
+        // Use both length and single character to ensure complete cleanup
+        const cleanupLength = Math.max(selection.length || 1, 1);
+        
+        formatsToRemove.forEach(format => {
+            try {
+                this.quill.formatText(selection.index, cleanupLength, format, false);
+            } catch (error) {
+                console.warn(`Failed to remove format ${format}:`, error);
+            }
+        });
+        
+        // Force a refresh of the editor state
+        setTimeout(() => {
+            this.quill.update();
+        }, 100);
+        
+        console.log('✨ Code block formatting cleanup completed');
     }
     
     addColorPickerDebugLogging() {
@@ -523,6 +788,101 @@ class RichTextEditor {
     setupContentSync() {
         // Simple setup - no real-time sync needed
         console.log(`Editor ready: ${this.containerId}`);
+        
+        // Add real-time sync between rich text and HTML editors
+        this.setupRealTimeSync();
+    }
+    
+    setupRealTimeSync() {
+        // Set up real-time synchronization for note editor
+        if (this.containerId === 'quill-editor') {
+            const htmlEditor = document.getElementById('html-editor');
+            if (htmlEditor) {
+                // Listen for changes in HTML editor and sync to rich text
+                htmlEditor.addEventListener('input', () => {
+                    // Only sync if HTML editor is currently visible
+                    if (!htmlEditor.classList.contains('hidden')) {
+                        console.log('📝 HTML editor changed, syncing to rich text (background)');
+                        // Don't immediately sync to avoid conflicts while user is typing
+                        // Just mark that there are changes
+                        htmlEditor.dataset.hasChanges = 'true';
+                        
+                        // Trigger content preservation for HTML changes
+                        if (window.contentPreservation && htmlEditor.value.length > 50) {
+                            window.contentPreservation.saveContent('note', htmlEditor.value, 'editNoteForm', 'html-change');
+                        }
+                    }
+                });
+            }
+            
+            // Listen for Quill content changes
+            if (this.quill) {
+                this.quill.on('text-change', () => {
+                    // Only sync if rich text editor is currently visible
+                    const richContainer = document.getElementById('quill-editor-container');
+                    if (richContainer && !richContainer.classList.contains('hidden')) {
+                        console.log('📝 Rich text editor changed, syncing to HTML (background)');
+                        const htmlEditor = document.getElementById('html-editor');
+                        if (htmlEditor) {
+                            htmlEditor.value = this.getContent();
+                            htmlEditor.dataset.hasChanges = 'false';
+                        }
+                        
+                        // Trigger content preservation for significant changes
+                        if (window.contentPreservation) {
+                            const content = this.getContent();
+                            if (content && content.length > 50) { // Only backup substantial content
+                                window.contentPreservation.saveContent('note', content, 'editNoteForm', 'content-change');
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Set up real-time synchronization for import editor
+        if (this.containerId === 'import-editor') {
+            const htmlEditor = document.getElementById('html-import-editor');
+            if (htmlEditor) {
+                // Listen for changes in HTML editor and sync to rich text
+                htmlEditor.addEventListener('input', () => {
+                    // Only sync if HTML editor is currently visible
+                    if (!htmlEditor.classList.contains('hidden')) {
+                        console.log('📝 Import HTML editor changed, syncing to rich text (background)');
+                        htmlEditor.dataset.hasChanges = 'true';
+                        
+                        // Trigger content preservation for HTML changes
+                        if (window.contentPreservation && htmlEditor.value.length > 50) {
+                            window.contentPreservation.saveContent('import', htmlEditor.value, 'importForm', 'html-change');
+                        }
+                    }
+                });
+            }
+            
+            // Listen for Quill content changes
+            if (this.quill) {
+                this.quill.on('text-change', () => {
+                    // Only sync if rich text editor is currently visible
+                    const richContainer = document.getElementById('import-editor-container');
+                    if (richContainer && !richContainer.classList.contains('hidden')) {
+                        console.log('📝 Import rich text editor changed, syncing to HTML (background)');
+                        const htmlEditor = document.getElementById('html-import-editor');
+                        if (htmlEditor) {
+                            htmlEditor.value = this.getContent();
+                            htmlEditor.dataset.hasChanges = 'false';
+                        }
+                        
+                        // Trigger content preservation for significant changes
+                        if (window.contentPreservation) {
+                            const content = this.getContent();
+                            if (content && content.length > 50) { // Only backup substantial content
+                                window.contentPreservation.saveContent('import', content, 'importForm', 'content-change');
+                            }
+                        }
+                    }
+                });
+            }
+        }
     }
     
     syncContent() {
@@ -547,7 +907,88 @@ class RichTextEditor {
     
     setContent(html) {
         if (this.quill) {
-            this.quill.root.innerHTML = html || '';
+            // Clear the editor completely first
+            this.quill.setText('');
+            
+            // Reset any formatting state
+            this.quill.removeFormat(0, this.quill.getLength());
+            
+            // Set the new content
+            if (html && html.trim()) {
+                // Use the most direct method to avoid extra content
+                this.quill.root.innerHTML = html;
+                
+                // Clean up any extra empty paragraphs that might have been added
+                this.cleanupExtraContent();
+            } else {
+                // Set empty content
+                this.quill.setText('');
+            }
+            
+            // Reset selection to beginning
+            this.quill.setSelection(0, 0);
+            
+            // Force a formatting reset to ensure clean state
+            this.quill.format('font', false);
+            this.quill.format('size', false);
+            this.quill.format('color', false);
+            this.quill.format('background', false);
+            
+            console.log(`✨ Editor content reset and loaded fresh (${html?.length || 0} chars)`);
+        }
+    }
+    
+    cleanupExtraContent() {
+        if (!this.quill) return;
+        
+        // Remove trailing empty paragraphs
+        const content = this.quill.root.innerHTML;
+        
+        // Check if content ends with empty paragraphs and remove them
+        // Specifically target the <p><br></p><p><br></p> pattern at the end
+        let cleanedContent = content;
+        
+        // Handle the exact pattern: <p><br></p><p><br></p>
+        if (content.endsWith('<p><br></p><p><br></p>')) {
+            cleanedContent = content.substring(0, content.length - '<p><br></p><p><br></p>'.length);
+            console.log('🎯 Removed specific <p><br></p><p><br></p> pattern from end');
+        }
+        // Handle other multiple empty paragraphs at the end
+        else {
+            cleanedContent = content
+                .replace(/(<p><br><\/p>\s*){2,}$/, '') // Remove multiple trailing <p><br></p>
+                .replace(/(<p><\/p>\s*){2,}$/, '')     // Remove multiple trailing empty paragraphs
+                .replace(/(<p>\s*<\/p>\s*){2,}$/, '')  // Remove multiple trailing paragraphs with whitespace
+                .replace(/<p><br><\/p>$/, '')          // Remove single trailing <p><br></p>
+                .replace(/<p><\/p>$/, '')              // Remove single trailing empty paragraph
+                .replace(/(<br\s*\/?>)+$/, '');        // Remove trailing br tags
+        }
+        
+        if (cleanedContent !== content) {
+            this.quill.root.innerHTML = cleanedContent;
+            console.log('🧹 Cleaned up extra trailing content');
+        }
+    }
+    
+    resetEditor() {
+        if (this.quill) {
+            // Complete editor reset - clear everything
+            this.quill.setText('');
+            this.quill.removeFormat(0, this.quill.getLength());
+            
+            // Reset all possible formatting
+            const formats = ['bold', 'italic', 'underline', 'strike', 'font', 'size', 'color', 'background', 'script', 'header', 'blockquote', 'code-block', 'list', 'indent', 'align', 'link'];
+            formats.forEach(format => {
+                this.quill.format(format, false);
+            });
+            
+            // Reset selection
+            this.quill.setSelection(0, 0);
+            
+            // Clear any cached styles or state
+            this.quill.blur();
+            
+            console.log('🔄 Editor completely reset');
         }
     }
     
@@ -556,35 +997,43 @@ class RichTextEditor {
         
         // Use the proper Quill API method to get HTML content
         try {
+            let content = '';
+            
             // Try the new Quill 2.0 method first
             if (this.quill.getSemanticHTML) {
-                return this.quill.getSemanticHTML();
+                content = this.quill.getSemanticHTML();
+            } else {
+                // Fallback to root.innerHTML
+                content = this.quill.root.innerHTML;
             }
-            // Fallback to root.innerHTML
-            return this.quill.root.innerHTML;
+            
+            // Clean up any extra trailing content before returning
+            return this.cleanExtraContent(content);
         } catch (error) {
             console.error('Error getting content from Quill:', error);
-            return this.quill.root.innerHTML || '';
+            const fallbackContent = this.quill.root.innerHTML || '';
+            return this.cleanExtraContent(fallbackContent);
         }
+    }
+    
+    cleanExtraContent(content) {
+        if (!content) return '';
+        
+        // Remove trailing empty paragraphs and br tags - specifically target <p><br></p> patterns
+        return content
+            .replace(/(<p><br><\/p>\s*)+$/, '') // Remove multiple trailing <p><br></p> patterns
+            .replace(/(<p><\/p>\s*)+$/, '')     // Remove multiple trailing empty paragraphs
+            .replace(/(<p>\s*<\/p>\s*)+$/, '')  // Remove multiple trailing paragraphs with only whitespace
+            .replace(/(<br\s*\/?>)+$/, '')      // Remove trailing br tags
+            .replace(/\s+$/, '');               // Remove any trailing whitespace
     }
     
     getCurrentContent() {
         // Alternative method that ensures we get the latest content
         if (!this.quill) return '';
         
-        // Force a focus/blur cycle to ensure content is captured
-        const wasFocused = this.quill.hasFocus();
-        if (wasFocused) {
-            this.quill.blur();
-        }
-        
-        const content = this.getContent();
-        
-        if (wasFocused) {
-            this.quill.focus();
-        }
-        
-        return content;
+        // Simply get the content without focus/blur cycle to avoid extra content
+        return this.getContent();
     }
     
     focus() {
@@ -1096,6 +1545,442 @@ class RichTextEditor {
     // ...existing code...
 }
 
+/*
+ * CONTENT PRESERVATION SYSTEM
+ * 
+ * This system automatically saves and restores editor content to prevent data loss
+ * during errors or accidental navigation.
+ * 
+ * FEATURES:
+ * 
+ * 1. Automatic Saving:
+ *    - Content is automatically saved at regular intervals (e.g., every 5 seconds).
+ *    - Saves are triggered on form submissions and before the page unloads.
+ * 
+ * 2. Restoration on Error:
+ *    - If an error occurs (e.g., form validation error), the system attempts to restore
+ *      the latest saved content for the affected editor.
+ * 
+ * 3. Manual Backup/Restore:
+ *    - Functions are provided to manually trigger backup and restore actions for testing
+ *      and debugging purposes.
+ */
+
+// Content preservation system for error recovery
+class ContentPreservation {
+    constructor() {
+        this.storageKey = 'taggingapp_editor_backup';
+        this.maxBackups = 5;
+        this.autoSaveInterval = 5000; // 5 seconds
+        this.autoSaveTimer = null;
+        
+        // Initialize preservation system
+        this.init();
+    }
+    
+    init() {
+        console.log('🔄 Initializing content preservation system');
+        
+        // Restore content on page load if available
+        this.restoreContentOnLoad();
+        
+        // Set up auto-save
+        this.setupAutoSave();
+        
+        // Set up form submission backup
+        this.setupFormSubmissionBackup();
+        
+        // Set up beforeunload backup
+        this.setupBeforeUnloadBackup();
+    }
+    
+    generateBackupKey(editorType, formId = null) {
+        const timestamp = Date.now();
+        const url = window.location.pathname;
+        return `${this.storageKey}_${editorType}_${formId || 'default'}_${url}_${timestamp}`;
+    }
+    
+    saveContent(editorType, content, formId = null, reason = 'manual') {
+        try {
+            const backupData = {
+                editorType,
+                content,
+                formId,
+                reason,
+                timestamp: Date.now(),
+                url: window.location.pathname,
+                userAgent: navigator.userAgent.substring(0, 100)
+            };
+            
+            const key = this.generateBackupKey(editorType, formId);
+            localStorage.setItem(key, JSON.stringify(backupData));
+            
+            // Clean up old backups
+            this.cleanupOldBackups();
+            
+            console.log(`💾 Content saved for ${editorType}:`, {
+                reason,
+                contentLength: content.length,
+                key: key.substring(0, 50) + '...'
+            });
+            
+            window.appLogger?.action('CONTENT_PRESERVED', {
+                editorType,
+                reason,
+                contentLength: content.length,
+                timestamp: backupData.timestamp
+            });
+            
+            return key;
+        } catch (error) {
+            console.error('❌ Failed to save content:', error);
+            window.appLogger?.error('Content preservation failed', { error: error.message });
+            return null;
+        }
+    }
+    
+    getLatestBackup(editorType, formId = null) {
+        try {
+            const keys = Object.keys(localStorage).filter(key => 
+                key.startsWith(this.storageKey) && 
+                key.includes(`_${editorType}_`) &&
+                key.includes(`_${formId || 'default'}_`) &&
+                key.includes(window.location.pathname)
+            );
+            
+            if (keys.length === 0) return null;
+            
+            // Sort by timestamp (newest first)
+            keys.sort((a, b) => {
+                const timestampA = parseInt(a.split('_').pop());
+                const timestampB = parseInt(b.split('_').pop());
+                return timestampB - timestampA;
+            });
+            
+            const latestKey = keys[0];
+            const backupData = JSON.parse(localStorage.getItem(latestKey));
+            
+            // Check if backup is recent (within last hour)
+            const oneHour = 60 * 60 * 1000;
+            if (Date.now() - backupData.timestamp > oneHour) {
+                console.log('⏰ Backup is too old, ignoring');
+                return null;
+            }
+            
+            return { key: latestKey, data: backupData };
+        } catch (error) {
+            console.error('❌ Failed to retrieve backup:', error);
+            return null;
+        }
+    }
+    
+    restoreContent(editorType, formId = null, showNotification = false) {
+        const backup = this.getLatestBackup(editorType, formId);
+        if (!backup) return false;
+        
+        try {
+            const editor = this.getEditorInstance(editorType);
+            if (!editor) {
+                console.warn(`Editor ${editorType} not found for restoration`);
+                return false;
+            }
+            
+            // Restore content
+            editor.setContent(backup.data.content);
+            
+            console.log(`🔄 Content restored for ${editorType}:`, {
+                contentLength: backup.data.content.length,
+                savedAt: new Date(backup.data.timestamp).toLocaleString(),
+                reason: backup.data.reason,
+                showNotification: showNotification
+            });
+            
+            // Only show user notification if explicitly requested (during error recovery)
+            if (showNotification) {
+                this.showRestoreNotification(editorType, backup.data);
+            }
+            
+            // Clean up the used backup
+            localStorage.removeItem(backup.key);
+            
+            window.appLogger?.action('CONTENT_RESTORED', {
+                editorType,
+                contentLength: backup.data.content.length,
+                originalReason: backup.data.reason,
+                timeSinceBackup: Date.now() - backup.data.timestamp,
+                notificationShown: showNotification
+            });
+            
+            return true;
+        } catch (error) {
+            console.error('❌ Failed to restore content:', error);
+            window.appLogger?.error('Content restoration failed', { error: error.message });
+            return false;
+        }
+    }
+    
+    getEditorInstance(editorType) {
+        switch (editorType) {
+            case 'note':
+                return window.noteEditor;
+            case 'import':
+                return window.importEditor;
+            default:
+                return null;
+        }
+    }
+    
+    restoreContentOnLoad() {
+        // Check if we're coming back from a form submission (detect error state)
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasError = urlParams.has('error') || 
+                        document.querySelector('.alert-danger, .error-message') ||
+                        window.location.hash.includes('error');
+        
+        if (hasError) {
+            console.log('🚨 Error state detected, attempting content restoration');
+        }
+        
+        // Delay restoration to ensure editors are initialized
+        setTimeout(() => {
+            let restored = false;
+            
+            // Try to restore note editor content - only show notification if there's an error
+            if (window.noteEditor) {
+                if (this.restoreContent('note', 'editNoteForm', hasError)) {
+                    restored = true;
+                }
+            }
+            
+            // Try to restore import editor content - only show notification if there's an error
+            if (window.importEditor) {
+                if (this.restoreContent('import', 'importForm', hasError)) {
+                    restored = true;
+                }
+            }
+            
+            if (restored) {
+                console.log('✅ Content restoration completed');
+                if (hasError) {
+                    console.log('📢 User was notified about error recovery');
+                } else {
+                    console.log('🔇 Silent restoration (no error state)');
+                }
+            }
+        }, 1000);
+    }
+    
+    setupAutoSave() {
+        this.autoSaveTimer = setInterval(() => {
+            this.performAutoSave();
+        }, this.autoSaveInterval);
+        
+        console.log(`⏱️ Auto-save enabled (every ${this.autoSaveInterval/1000}s)`);
+    }
+    
+    performAutoSave() {
+        let saved = false;
+        
+        // Auto-save note editor
+        if (window.noteEditor && window.noteEditor.quill) {
+            const content = window.noteEditor.getContent();
+            if (content && content.trim() && content !== '<p><br></p>') {
+                this.saveContent('note', content, 'editNoteForm', 'auto-save');
+                saved = true;
+            }
+        }
+        
+        // Auto-save import editor
+        if (window.importEditor && window.importEditor.quill) {
+            const content = window.importEditor.getContent();
+            if (content && content.trim() && content !== '<p><br></p>') {
+                this.saveContent('import', content, 'importForm', 'auto-save');
+                saved = true;
+            }
+        }
+        
+        if (saved) {
+            console.log('💾 Auto-save completed');
+        }
+    }
+    
+    setupFormSubmissionBackup() {
+        // Backup before form submission
+        const forms = ['editNoteForm', 'importForm', 'editSectionForm'];
+        
+        forms.forEach(formId => {
+            const form = document.getElementById(formId);
+            if (form) {
+                // Add event listener with high priority
+                form.addEventListener('submit', (e) => {
+                    this.backupBeforeSubmission(formId);
+                }, true);
+            }
+        });
+    }
+    
+    backupBeforeSubmission(formId) {
+        console.log(`💾 Backing up content before ${formId} submission`);
+        
+        if (formId === 'editNoteForm' && window.noteEditor) {
+            const content = window.noteEditor.getContent();
+            if (content && content.trim()) {
+                this.saveContent('note', content, formId, 'form-submission');
+            }
+        }
+        
+        if (formId === 'importForm' && window.importEditor) {
+            const content = window.importEditor.getContent();
+            if (content && content.trim()) {
+                this.saveContent('import', content, formId, 'form-submission');
+            }
+        }
+    }
+    
+    setupBeforeUnloadBackup() {
+        window.addEventListener('beforeunload', () => {
+            this.performAutoSave();
+        });
+    }
+    
+    cleanupOldBackups() {
+        try {
+            const keys = Object.keys(localStorage).filter(key => 
+                key.startsWith(this.storageKey)
+            );
+            
+            if (keys.length <= this.maxBackups) return;
+            
+            // Sort by timestamp and remove oldest
+            keys.sort((a, b) => {
+                const timestampA = parseInt(a.split('_').pop());
+                const timestampB = parseInt(b.split('_').pop());
+                return timestampA - timestampB;
+            });
+            
+            const toRemove = keys.slice(0, keys.length - this.maxBackups);
+            toRemove.forEach(key => localStorage.removeItem(key));
+            
+            console.log(`🧹 Cleaned up ${toRemove.length} old backups`);
+        } catch (error) {
+            console.error('❌ Failed to cleanup old backups:', error);
+        }
+    }
+    
+    showRestoreNotification(editorType, backupData) {
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-3 rounded-md shadow-lg z-50 max-w-sm';
+        notification.innerHTML = `
+            <div class="flex items-start space-x-3">
+                <div class="flex-shrink-0">
+                    <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <div class="flex-1">
+                    <div class="text-sm font-medium">Content Restored</div>
+                    <div class="text-xs opacity-90 mt-1">
+                        Your ${editorType} editor content was automatically restored from ${new Date(backupData.timestamp).toLocaleTimeString()}
+                    </div>
+                </div>
+                <button onclick="this.parentElement.parentElement.remove()" class="text-white hover:text-gray-200">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+            </div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Auto-remove after 10 seconds
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+            }
+        }, 10000);
+    }
+    
+    // Manual backup/restore functions for debugging
+    manualBackup(editorType) {
+        const editor = this.getEditorInstance(editorType);
+        if (!editor) return false;
+        
+        const content = editor.getContent();
+        return this.saveContent(editorType, content, null, 'manual');
+    }
+    
+    manualRestore(editorType) {
+        return this.restoreContent(editorType, null, true); // Show notification for manual restore
+    }
+    
+    // Clear backups for cancelled operations
+    clearCancelledChanges(editorType, formId = null) {
+        try {
+            const keys = Object.keys(localStorage).filter(key => 
+                key.startsWith(this.storageKey) && 
+                key.includes(`_${editorType}_`) &&
+                key.includes(`_${formId || 'default'}_`) &&
+                key.includes(window.location.pathname)
+            );
+            
+            // Remove recent backups (last 5 minutes) that might be from cancelled operations
+            const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+            keys.forEach(key => {
+                const timestamp = parseInt(key.split('_').pop());
+                if (timestamp > fiveMinutesAgo) {
+                    localStorage.removeItem(key);
+                }
+            });
+            
+            console.log(`🧹 Cleared ${keys.length} cancelled backups for ${editorType}`);
+            
+            window.appLogger?.action('CANCELLED_BACKUPS_CLEARED', {
+                editorType,
+                formId,
+                clearedCount: keys.length
+            });
+        } catch (error) {
+            console.error('❌ Failed to clear cancelled backups:', error);
+        }
+    }
+    
+    // Clear all backups for a specific editor type and form
+    clearAllBackups(editorType, formId = null) {
+        try {
+            const keys = Object.keys(localStorage).filter(key => 
+                key.startsWith(this.storageKey) && 
+                key.includes(`_${editorType}_`) &&
+                key.includes(`_${formId || 'default'}_`) &&
+                key.includes(window.location.pathname)
+            );
+            
+            keys.forEach(key => localStorage.removeItem(key));
+            
+            console.log(`🗑️ Cleared all ${keys.length} backups for ${editorType}`);
+            
+            window.appLogger?.action('ALL_BACKUPS_CLEARED', {
+                editorType,
+                formId,
+                clearedCount: keys.length
+            });
+        } catch (error) {
+            console.error('❌ Failed to clear all backups:', error);
+        }
+    }
+    
+    // Cleanup method
+    destroy() {
+        if (this.autoSaveTimer) {
+            clearInterval(this.autoSaveTimer);
+            this.autoSaveTimer = null;
+        }
+    }
+}
+
+// Initialize content preservation system
+let contentPreservation = null;
+
 // Debug function to check sync status
 function debugEditorSync() {
     console.log('=== Editor Sync Debug ===');
@@ -1146,6 +2031,74 @@ function manualSync() {
 // Make manual sync globally available
 window.manualSync = manualSync;
 
+// Make manual backup/restore functions globally available for debugging
+window.manualBackupNote = function() {
+    if (contentPreservation) {
+        return contentPreservation.manualBackup('note');
+    }
+    console.warn('Content preservation system not initialized');
+    return false;
+};
+
+window.manualRestoreNote = function() {
+    if (contentPreservation) {
+        return contentPreservation.manualRestore('note');
+    }
+    console.warn('Content preservation system not initialized');
+    return false;
+};
+
+window.manualBackupImport = function() {
+    if (contentPreservation) {
+        return contentPreservation.manualBackup('import');
+    }
+    console.warn('Content preservation system not initialized');
+    return false;
+};
+
+window.manualRestoreImport = function() {
+    if (contentPreservation) {
+        return contentPreservation.manualRestore('import');
+    }
+    console.warn('Content preservation system not initialized');
+    return false;
+};
+
+// Enhanced debug function that includes backup information
+window.debugEditorBackups = function() {
+    console.log('=== Editor Backup Debug ===');
+    
+    if (contentPreservation) {
+        const noteBackup = contentPreservation.getLatestBackup('note', 'editNoteForm');
+        const importBackup = contentPreservation.getLatestBackup('import', 'importForm');
+        
+        console.log('Note Editor Backup:', noteBackup ? {
+            timestamp: new Date(noteBackup.data.timestamp).toLocaleString(),
+            contentLength: noteBackup.data.content.length,
+            reason: noteBackup.data.reason,
+            preview: noteBackup.data.content.substring(0, 200)
+        } : 'None');
+        
+        console.log('Import Editor Backup:', importBackup ? {
+            timestamp: new Date(importBackup.data.timestamp).toLocaleString(),
+            contentLength: importBackup.data.content.length,
+            reason: importBackup.data.reason,
+            preview: importBackup.data.content.substring(0, 200)
+        } : 'None');
+        
+        // Show all backup keys
+        const allBackups = Object.keys(localStorage).filter(key => 
+            key.startsWith(contentPreservation.storageKey)
+        );
+        console.log('Total Backups:', allBackups.length);
+        console.log('Backup Keys:', allBackups);
+    } else {
+        console.log('Content preservation system not initialized');
+    }
+    
+    console.log('=== End Backup Debug ===');
+};
+
 // Global editor instances
 let noteEditor;
 let importEditor;
@@ -1168,6 +2121,12 @@ function initializeEditors() {
     // Check if editors are already initialized
     if (window.noteEditor && window.noteEditor.quill) {
         return;
+    }
+    
+    // Initialize content preservation system first
+    if (!contentPreservation) {
+        contentPreservation = new ContentPreservation();
+        window.contentPreservation = contentPreservation;
     }
     
     // Initialize note editor
@@ -1219,6 +2178,13 @@ function toggleImportEditorView(view) {
     const htmlBtn = document.querySelector('#import-editor-toggle-buttons button[onclick*="html"]');
     
     if (view === 'richtext') {
+        // Before switching to rich text, sync any changes from HTML editor
+        if (importEditor && html.value.trim()) {
+            console.log('📝 Syncing HTML content to rich text editor');
+            importEditor.setContent(html.value);
+            html.dataset.hasChanges = 'false';
+        }
+        
         rich.classList.remove('hidden');
         html.classList.add('hidden');
         
@@ -1226,10 +2192,19 @@ function toggleImportEditorView(view) {
         if (richTextBtn) richTextBtn.classList.add('active');
         if (htmlBtn) htmlBtn.classList.remove('active');
         
-        if (importEditor && html.value) {
-            importEditor.setContent(html.value);
+        // Focus the rich text editor
+        if (importEditor) {
+            setTimeout(() => importEditor.focus(), 100);
         }
     } else {
+        // Before switching to HTML, sync any changes from rich text editor
+        if (importEditor) {
+            console.log('📝 Syncing rich text content to HTML editor');
+            const content = importEditor.getContent();
+            html.value = content;
+            html.dataset.hasChanges = 'false';
+        }
+        
         html.classList.remove('hidden');
         rich.classList.add('hidden');
         
@@ -1237,9 +2212,8 @@ function toggleImportEditorView(view) {
         if (htmlBtn) htmlBtn.classList.add('active');
         if (richTextBtn) richTextBtn.classList.remove('active');
         
-        if (importEditor) {
-            html.value = importEditor.getContent();
-        }
+        // Focus the HTML editor
+        setTimeout(() => html.focus(), 100);
     }
     
     // Always ensure the hidden textarea is updated after any view change
@@ -1269,16 +2243,20 @@ function toggleEditorView(view) {
     if (previewBtn) previewBtn.classList.remove('active');
     
     if (view === 'richtext') {
+        // Before switching to rich text, sync any changes from HTML editor
+        if (noteEditor && htmlEditor.value.trim()) {
+            // Always sync when switching, regardless of whether HTML editor had focus
+            console.log('📝 Syncing HTML content to rich text editor');
+            noteEditor.setContent(htmlEditor.value);
+            htmlEditor.dataset.hasChanges = 'false';
+        }
+        
         richContainer.classList.remove('hidden');
         if (richTextBtn) richTextBtn.classList.add('active');
         
-        // Load content from HTML editor if it has content and Quill is empty
-        if (noteEditor && htmlEditor.value.trim()) {
-            const currentQuillContent = noteEditor.getContent();
-            if (!currentQuillContent.trim() || currentQuillContent === '<p><br></p>') {
-                console.log('📝 Loading HTML content into rich text editor');
-                noteEditor.setContent(htmlEditor.value);
-            }
+        // Focus the rich text editor
+        if (noteEditor) {
+            setTimeout(() => noteEditor.focus(), 100);
         }
         
         // Update the hidden field with Quill content
@@ -1289,36 +2267,52 @@ function toggleEditorView(view) {
             }
         }
     } else if (view === 'html') {
-        htmlEditor.classList.remove('hidden');
-        if (htmlBtn) htmlBtn.classList.add('active');
-        
-        // Sync from Quill editor to HTML editor
+        // Before switching to HTML, sync any changes from rich text editor
         if (noteEditor) {
             console.log('📝 Syncing rich text content to HTML editor');
             const content = noteEditor.getContent();
             htmlEditor.value = content;
-            
-            // Update the hidden field
-            const contentField = document.getElementById('editNoteContent');
-            if (contentField) {
-                contentField.value = content;
-            }
+            htmlEditor.dataset.hasChanges = 'false';
+        }
+        
+        htmlEditor.classList.remove('hidden');
+        if (htmlBtn) htmlBtn.classList.add('active');
+        
+        // Focus the HTML editor
+        setTimeout(() => htmlEditor.focus(), 100);
+        
+        // Update the hidden field
+        const contentField = document.getElementById('editNoteContent');
+        if (contentField) {
+            contentField.value = htmlEditor.value;
         }
     } else if (view === 'preview') {
+        // Before switching to preview, sync content from the currently active editor
+        let contentToPreview = '';
+        
+        // Check which editor was active and sync from it
+        if (!richContainer.classList.contains('hidden') && noteEditor) {
+            // Rich text was active
+            contentToPreview = noteEditor.getContent();
+        } else if (!htmlEditor.classList.contains('hidden')) {
+            // HTML was active
+            contentToPreview = htmlEditor.value;
+        } else if (noteEditor) {
+            // Default to rich text content
+            contentToPreview = noteEditor.getContent();
+        }
+        
+        console.log('📝 Syncing content to preview');
         previewContainer.classList.remove('hidden');
         if (previewBtn) previewBtn.classList.add('active');
         
-        // Update preview with current content
-        if (noteEditor) {
-            console.log('📝 Updating preview with current content');
-            const content = noteEditor.getContent();
-            previewContainer.innerHTML = content;
-            
-            // Update the hidden field
-            const contentField = document.getElementById('editNoteContent');
-            if (contentField) {
-                contentField.value = content;
-            }
+        // Update preview content
+        previewContainer.innerHTML = contentToPreview;
+        
+        // Update the hidden field
+        const contentField = document.getElementById('editNoteContent');
+        if (contentField) {
+            contentField.value = contentToPreview;
         }
     }
     
