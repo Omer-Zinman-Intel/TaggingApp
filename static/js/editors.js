@@ -58,7 +58,12 @@ class RichTextEditor {
             theme: 'snow',
             placeholder: options.placeholder || 'Start typing...',
             modules: { 
-                toolbar: `#${containerId}-toolbar`, // Use custom toolbar
+                toolbar: {
+                    container: `#${containerId}-toolbar`,
+                    handlers: {
+                        // Custom handlers can be added here if needed
+                    }
+                },
                 syntax: typeof hljs !== 'undefined' ? {
                     highlight: text => hljs.highlightAuto(text).value
                 } : true // Fallback to basic syntax highlighting
@@ -66,6 +71,37 @@ class RichTextEditor {
         };
         
         this.initialize();
+        
+        // Add document-wide click handler to manage picker state
+        this.setupPickerStateManager();
+    }
+    
+    setupPickerStateManager() {
+        // Add a global click handler to clean up picker positioning when closed
+        document.addEventListener('click', (e) => {
+            // Check if any picker is being closed
+            const wasPickerClick = e.target.closest('.ql-picker');
+            
+            // If clicking outside all pickers, clean up any positioning
+            if (!wasPickerClick) {
+                const allPickerOptions = document.querySelectorAll('.ql-picker-options');
+                allPickerOptions.forEach(options => {
+                    // Reset any positioning we may have applied
+                    if (options.style.position === 'fixed' || options.style.position === 'absolute') {
+                        options.style.position = '';
+                        options.style.left = '';
+                        options.style.top = '';
+                        options.style.zIndex = '';
+                    }
+                });
+                
+                // Remove overflow allowance from modal bodies
+                const modalBodies = document.querySelectorAll('.modal-body.allow-overflow');
+                modalBodies.forEach(body => {
+                    body.classList.remove('allow-overflow');
+                });
+            }
+        });
     }
     
     createCustomToolbar() {
@@ -101,12 +137,8 @@ class RichTextEditor {
                     <button class="ql-strike" title="Strike Through"></button>
                 </span>
                 <span class="ql-formats">
-                    <select class="ql-color" title="Text Color">
-                        <option selected></option>
-                    </select>
-                    <select class="ql-background" title="Background Color">
-                        <option selected></option>
-                    </select>
+                    <select class="ql-color" title="Text Color"></select>
+                    <select class="ql-background" title="Background Color"></select>
                 </span>
                 <span class="ql-formats">
                     <button class="ql-script" value="sub" title="Subscript"></button>
@@ -155,8 +187,226 @@ class RichTextEditor {
         }
         
         console.log('Editor initialized with custom toolbar for:', this.containerId);
+        
+        // Add debugging for color picker functionality
+        this.addColorPickerDebugLogging();
     }
     
+    addColorPickerDebugLogging() {
+        const toolbar = document.getElementById(`${this.containerId}-toolbar`);
+        if (!toolbar) {
+            window.appLogger?.error('COLOR_PICKER_DEBUG_SETUP_FAILED', { 
+                reason: 'Toolbar not found',
+                containerId: this.containerId 
+            });
+            return;
+        }
+        
+        window.appLogger?.info('COLOR_PICKER_DEBUG_SETUP', {
+            containerId: this.containerId,
+            toolbarFound: true
+        });
+        
+        // Find all picker elements and their current state
+        const allPickers = toolbar.querySelectorAll('.ql-color, .ql-background');
+        window.appLogger?.info('COLOR_PICKER_ELEMENTS_FOUND', {
+            containerId: this.containerId,
+            count: allPickers.length,
+            elements: Array.from(allPickers).map((picker, index) => ({
+                index,
+                tagName: picker.tagName,
+                classList: Array.from(picker.classList),
+                hasParent: !!picker.parentElement
+            }))
+        });
+        
+        // Check if Quill has transformed these selects into picker components
+        const quillPickers = toolbar.querySelectorAll('.ql-picker');
+        window.appLogger?.info('QUILL_PICKER_COMPONENTS_FOUND', {
+            containerId: this.containerId,
+            count: quillPickers.length,
+            pickers: Array.from(quillPickers).map((picker, index) => ({
+                index,
+                classList: Array.from(picker.classList),
+                childrenCount: picker.children.length,
+                hasPickerOptions: !!picker.querySelector('.ql-picker-options')
+            }))
+        });
+        
+        // Set up click-based color picker positioning - OVERRIDE Quill's default behavior
+        this.currentPickerOptions = null;
+        this.currentModalBody = null;
+        this.currentPickerType = null; // 'color' or 'background'
+        
+        // Handle color picker button clicks
+        toolbar.addEventListener('click', (e) => {
+            const colorButton = e.target.closest('.ql-color .ql-picker-label');
+            const backgroundButton = e.target.closest('.ql-background .ql-picker-label');
+            
+            if (colorButton || backgroundButton) {
+                // Prevent Quill's default expand behavior
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const pickerElement = e.target.closest('.ql-picker');
+                if (pickerElement) {
+                    pickerElement.classList.remove('ql-expanded');
+                }
+                
+                // Determine picker type
+                this.currentPickerType = colorButton ? 'color' : 'background';
+                
+                // Close any currently open picker
+                if (this.currentPickerOptions) {
+                    this.hideColorPicker();
+                }
+                
+                // Show the clicked picker
+                this.showColorPicker(pickerElement, this.currentPickerType);
+                
+                window.appLogger?.action('COLOR_PICKER_CLICKED', {
+                    type: this.currentPickerType,
+                    pickerElement: pickerElement?.className || 'none'
+                });
+            } else {
+                // Click outside picker - close any open picker
+                if (this.currentPickerOptions && !e.target.closest('.ql-picker-options')) {
+                    this.hideColorPicker();
+                }
+            }
+        }, true); // Use capture to intercept before Quill handles it
+        
+        // Handle clicks outside the picker area
+        document.addEventListener('click', (e) => {
+            if (this.currentPickerOptions && 
+                !e.target.closest('.ql-picker-options') && 
+                !e.target.closest('.ql-color') && 
+                !e.target.closest('.ql-background')) {
+                this.hideColorPicker();
+            }
+        });    }
+
+    showColorPicker(pickerElement, pickerType) {
+        if (!pickerElement) return;
+        
+        // Find the picker dropdown/options element
+        const pickerOptions = pickerElement.querySelector('.ql-picker-options');
+        if (!pickerOptions) return;
+        
+        // Get the picker button for positioning reference
+        const pickerButton = pickerElement.querySelector('.ql-picker-label');
+        if (!pickerButton) return;
+        
+        // Find the modal body and temporarily allow overflow
+        const modalBody = pickerElement.closest('.modal-body');
+        this.currentModalBody = modalBody;
+        if (modalBody) {
+            modalBody.classList.add('allow-overflow');
+        }
+        
+        // Position the picker below the button
+        this.positionColorPickerBelowButton(pickerOptions, pickerButton);
+        
+        // Add our visible class to show the picker
+        pickerOptions.classList.add('color-picker-visible');
+        
+        // Store reference and set up color selection handlers
+        this.currentPickerOptions = pickerOptions;
+        this.setupColorSelection(pickerOptions, pickerType);
+        
+        window.appLogger?.action('COLOR_PICKER_SHOWN', {
+            type: pickerType,
+            positioning: 'fixed below button (click-based)'
+        });
+    }
+
+    setupColorSelection(pickerOptions, pickerType) {
+        if (!pickerOptions) return;
+        
+        // Remove any existing listeners to prevent duplicates
+        const existingHandler = pickerOptions._colorSelectionHandler;
+        if (existingHandler) {
+            pickerOptions.removeEventListener('click', existingHandler);
+        }
+        
+        // Create new color selection handler
+        const colorSelectionHandler = (e) => {
+            const colorItem = e.target.closest('.ql-picker-item');
+            if (!colorItem) return;
+            
+            // Get the color value from the item
+            const colorValue = colorItem.getAttribute('data-value') || 
+                             colorItem.style.backgroundColor || 
+                             window.getComputedStyle(colorItem).backgroundColor;
+            
+            window.appLogger?.action('COLOR_SELECTED', {
+                type: pickerType,
+                colorValue: colorValue,
+                itemElement: colorItem.className
+            });
+            
+            // Apply the color using Quill's format method
+            if (this.quill) {
+                const selection = this.quill.getSelection();
+                if (selection && selection.length > 0) {
+                    // Apply to selected text
+                    this.quill.format(pickerType, colorValue);
+                } else {
+                    // Set format for next text input
+                    this.quill.format(pickerType, colorValue);
+                }
+                
+                // Focus back to the editor
+                this.quill.focus();
+            }
+            
+            // Close the picker after selection
+            setTimeout(() => {
+                this.hideColorPicker();
+            }, 100);
+        };
+        
+        // Store the handler reference and add the listener
+        pickerOptions._colorSelectionHandler = colorSelectionHandler;
+        pickerOptions.addEventListener('click', colorSelectionHandler);
+    }
+
+    hideColorPicker() {
+        if (this.currentPickerOptions) {
+            // Remove our visible class
+            this.currentPickerOptions.classList.remove('color-picker-visible');
+            
+            // FORCE the picker to be completely hidden - override any CSS that might show it
+            this.currentPickerOptions.setAttribute('style', `
+                display: none !important;
+                visibility: hidden !important;
+                position: fixed !important;
+                top: -9999px !important;
+                left: -9999px !important;
+                z-index: -1 !important;
+                opacity: 0 !important;
+            `);
+            
+            // Clean up the color selection handler
+            const existingHandler = this.currentPickerOptions._colorSelectionHandler;
+            if (existingHandler) {
+                this.currentPickerOptions.removeEventListener('click', existingHandler);
+                delete this.currentPickerOptions._colorSelectionHandler;
+            }
+            
+            this.currentPickerOptions = null;
+        }
+        
+        if (this.currentModalBody) {
+            this.currentModalBody.classList.remove('allow-overflow');
+            this.currentModalBody = null;
+        }
+        
+        this.currentPickerType = null;
+        
+        window.appLogger?.action('COLOR_PICKER_HIDDEN');
+    }
+
     setupContentSync() {
         // Simple setup - no real-time sync needed
         console.log(`Editor ready: ${this.containerId}`);
@@ -230,6 +480,109 @@ class RichTextEditor {
         }
     }
     
+    fixColorPickerPositioning(pickerElement) {
+        if (!pickerElement) return;
+        
+        // Wait for the picker to be fully expanded
+        setTimeout(() => {
+            // Find the picker dropdown/options element
+            const pickerOptions = pickerElement.querySelector('.ql-picker-options');
+            if (!pickerOptions) return;
+            
+            // Only proceed if the picker is actually expanded (visible)
+            const computedStyles = window.getComputedStyle(pickerOptions);
+            if (computedStyles.display === 'none') return;
+            
+            // Get the picker button for positioning reference
+            const pickerButton = pickerElement.querySelector('.ql-picker-label');
+            if (!pickerButton) return;
+            
+            // Use fixed positioning to break out of all containers
+            this.positionColorPickerBelowButton(pickerOptions, pickerButton);
+            
+            // Log the positioning for debugging
+            window.appLogger?.action('COLOR_PICKER_POSITIONING_APPLIED', {
+                pickerElement: pickerElement.className,
+                positioning: 'fixed above button (tag-suggestions style)',
+                zIndex: '99999'
+            });
+        }, 50); // Small delay to ensure DOM updates are complete
+    }
+    
+    positionColorPickerBelowButton(pickerOptions, pickerButton) {
+        // Get button position relative to viewport
+        const buttonRect = pickerButton.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        
+        console.log('DEBUG: Button position:', {
+            top: buttonRect.top,
+            bottom: buttonRect.bottom,
+            left: buttonRect.left,
+            height: buttonRect.height
+        });
+        
+        // Get actual dimensions first
+        const pickerWidth = 180; // Our fixed width
+        
+        // ALWAYS position below the button - NEVER above
+        const belowPosition = buttonRect.bottom + 10; // 10px gap below button
+        const leftPosition = buttonRect.left;
+        
+        console.log('DEBUG: Calculated position:', {
+            belowPosition: belowPosition,
+            leftPosition: leftPosition,
+            pickerWidth: pickerWidth
+        });
+        
+        // Ensure it doesn't go off-screen horizontally
+        let finalLeft = leftPosition;
+        if (leftPosition + pickerWidth > viewportWidth - 10) {
+            finalLeft = viewportWidth - pickerWidth - 10;
+        }
+        if (finalLeft < 10) {
+            finalLeft = 10;
+        }
+        
+        // FORCE final positioning using setAttribute for maximum override power
+        pickerOptions.setAttribute('style', `
+            position: fixed !important;
+            z-index: 99999 !important;
+            background-color: white !important;
+            border: 1px solid #d1d5db !important;
+            border-radius: 6px !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+            transform: none !important;
+            bottom: auto !important;
+            right: auto !important;
+            margin: 0 !important;
+            width: 180px !important;
+            min-width: 180px !important;
+            max-width: 180px !important;
+            display: flex !important;
+            flex-wrap: wrap !important;
+            padding: 8px !important;
+            box-sizing: border-box !important;
+            visibility: visible !important;
+            top: ${belowPosition}px !important;
+            left: ${finalLeft}px !important;
+        `);
+        
+        console.log('DEBUG: Final applied styles:', {
+            styleAttribute: pickerOptions.getAttribute('style'),
+            computedTop: window.getComputedStyle(pickerOptions).top,
+            computedLeft: window.getComputedStyle(pickerOptions).left
+        });
+        
+        // Log final position for debugging
+        window.appLogger?.action('COLOR_PICKER_POSITIONED_BELOW', {
+            buttonTop: buttonRect.top,
+            buttonBottom: buttonRect.bottom,
+            pickerTop: belowPosition,
+            pickerLeft: finalLeft,
+            pickerWidth: pickerWidth
+        });
+    }
+
     destroy() {
         if (this.observer) {
             this.observer.disconnect();

@@ -35,6 +35,11 @@
     overflow-y: auto;
 }
 
+/* Class to temporarily allow overflow when pickers are active */
+.modal-body.allow-overflow {
+    overflow: visible !important;
+}
+
 /* =============
    EDITOR STYLES
    ============= */
@@ -504,11 +509,144 @@
     font-size: 13px;
 }
 
+/* ===================
+   QUILL COLOR PICKER FIX - CLICK ONLY, ALWAYS BELOW
+   =================== */
+
+/* DISABLE Quill's default picker behavior completely */
+.ql-picker.ql-expanded .ql-picker-options,
+.ql-picker.ql-expanded > .ql-picker-options,
+.ql-expanded .ql-picker-options,
+.ql-snow .ql-picker.ql-expanded .ql-picker-options,
+.ql-color-picker.ql-expanded .ql-picker-options,
+.ql-background.ql-expanded .ql-picker-options {
+    display: none !important; /* Disable Quill's default expanded behavior */
+    visibility: hidden !important;
+}
+
+/* Hide ALL picker options by default - only our click will show them */
+.ql-picker-options {
+    display: none !important; /* Hidden by default */
+    visibility: hidden !important;
+    z-index: -1 !important; 
+    position: fixed !important;
+    top: -9999px !important;
+    left: -9999px !important;
+    opacity: 0 !important;
+}
+
+/* Show picker options ONLY when we explicitly set them visible via JavaScript */
+.ql-picker-options.color-picker-visible {
+    display: flex !important; /* Show when we add our class */
+    visibility: visible !important;
+    z-index: 99999 !important;
+    position: fixed !important;
+    transform: none !important; /* Prevent any transforms */
+    clip: none !important; /* Prevent clipping */
+    overflow: visible !important;
+    opacity: 1 !important;
+    /* Force remove any positioning that could interfere */
+    bottom: auto !important;
+    right: auto !important;
+    margin: 0 !important;
+    padding: 8px !important; /* Only allow our intended padding */
+}
+
+/* Ensure no Quill defaults interfere - MAXIMUM specificity */
+html body .ql-toolbar.ql-snow .ql-picker-options.color-picker-visible,
+html body .ql-snow .ql-toolbar .ql-picker-options.color-picker-visible,
+html body .modal .ql-picker-options.color-picker-visible {
+    z-index: 99999 !important;
+    display: flex !important;
+    position: fixed !important;
+    visibility: visible !important;
+    transform: none !important;
+    bottom: auto !important;
+    right: auto !important;
+    margin: 0 !important;
+    opacity: 1 !important;
+}
+
+/* FORCE HIDE all picker options that don't have our visible class */
+html body .ql-toolbar.ql-snow .ql-picker-options:not(.color-picker-visible),
+html body .ql-snow .ql-toolbar .ql-picker-options:not(.color-picker-visible),
+html body .modal .ql-picker-options:not(.color-picker-visible),
+html body .ql-picker-options:not(.color-picker-visible) {
+    display: none !important;
+    visibility: hidden !important;
+    z-index: -1 !important;
+    position: fixed !important;
+    top: -9999px !important;
+    left: -9999px !important;
+    opacity: 0 !important;
+}
+
+/* Color Picker Grid Layout - Smaller fixed width with ~6 colors per row */
+.ql-color-picker .ql-picker-options,
+.ql-background .ql-picker-options {
+    width: 180px !important; /* Reduced width for ~6 colors per row */
+    min-width: 180px !important;
+    max-width: 180px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    padding: 8px !important;
+    box-sizing: border-box !important;
+    background: white !important;
+    border: 1px solid #ccc !important;
+    border-radius: 4px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Color picker items in grid layout */
+.ql-color-picker .ql-picker-options .ql-picker-item,
+.ql-background .ql-picker-options .ql-picker-item {
+    width: 24px !important;
+    height: 24px !important;
+    margin: 2px !important;
+    border: 1px solid #ddd !important;
+    border-radius: 3px !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    box-sizing: border-box !important;
+}
+
+/* Hover effect for color items */
+.ql-color-picker .ql-picker-options .ql-picker-item:hover,
+.ql-background .ql-picker-options .ql-picker-item:hover {
+    border-color: #666 !important;
+    transform: scale(1.1) !important;
+    transition: all 0.1s ease !important;
+    z-index: 1 !important;
+    position: relative !important;
+}
+
+/* Selected color item */
+.ql-color-picker .ql-picker-options .ql-picker-item.ql-selected,
+.ql-background .ql-picker-options .ql-picker-item.ql-selected {
+    border-color: #06c !important;
+    border-width: 2px !important;
+    box-shadow: 0 0 0 1px #06c !important;
+}
+
 /* Responsive: allow horizontal scroll on very small screens */
 @media (max-width: 768px) {
     .ql-toolbar-compact {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Even smaller color picker on mobile */
+    .ql-color-picker .ql-picker-options,
+    .ql-background .ql-picker-options {
+        width: 150px !important; /* 5 colors per row on mobile */
+        min-width: 150px !important;
+        max-width: 150px !important;
+    }
+    
+    .ql-color-picker .ql-picker-options .ql-picker-item,
+    .ql-background .ql-picker-options .ql-picker-item {
+        width: 22px !important;
+        height: 22px !important;
     }
 }
 
