@@ -57,6 +57,7 @@ class RichTextEditor {
         this.options = {
             theme: 'snow',
             placeholder: options.placeholder || 'Start typing...',
+            formats: ['header', 'font', 'size', 'bold', 'italic', 'underline', 'strike', 'color', 'background', 'script', 'list', 'bullet', 'indent', 'blockquote', 'code-block', 'link', 'image', 'video'],
             modules: { 
                 toolbar: {
                     container: `#${containerId}-toolbar`,
@@ -69,6 +70,11 @@ class RichTextEditor {
                 } : true // Fallback to basic syntax highlighting
             }
         };
+        
+        // Configure font whitelist for Quill
+        const Font = Quill.import('formats/font');
+        Font.whitelist = ['serif', 'monospace', 'arial', 'times', 'georgia', 'helvetica', 'comic', 'impact', 'verdana', 'tahoma', 'trebuchet', 'palatino', 'courier', 'lucida'];
+        Quill.register(Font, true);
         
         this.initialize();
         
@@ -93,6 +99,8 @@ class RichTextEditor {
                         options.style.top = '';
                         options.style.zIndex = '';
                     }
+                    // Remove our picker classes
+                    options.classList.remove('picker-visible', 'color-picker-visible');
                 });
                 
                 // Remove overflow allowance from modal bodies
@@ -122,6 +130,20 @@ class RichTextEditor {
                     </select>
                     <select class="ql-font" title="Font Family">
                         <option selected></option>
+                        <option value="serif">Serif</option>
+                        <option value="monospace">Monospace</option>
+                        <option value="arial">Arial</option>
+                        <option value="times">Times New Roman</option>
+                        <option value="georgia">Georgia</option>
+                        <option value="helvetica">Helvetica</option>
+                        <option value="comic">Comic Sans MS</option>
+                        <option value="impact">Impact</option>
+                        <option value="verdana">Verdana</option>
+                        <option value="tahoma">Tahoma</option>
+                        <option value="trebuchet">Trebuchet MS</option>
+                        <option value="palatino">Palatino</option>
+                        <option value="courier">Courier New</option>
+                        <option value="lucida">Lucida Console</option>
                     </select>
                     <select class="ql-size" title="Font Size">
                         <option value="small">S</option>
@@ -233,17 +255,20 @@ class RichTextEditor {
             }))
         });
         
-        // Set up click-based color picker positioning - OVERRIDE Quill's default behavior
+        // Set up click-based picker positioning - OVERRIDE Quill's default behavior
         this.currentPickerOptions = null;
         this.currentModalBody = null;
-        this.currentPickerType = null; // 'color' or 'background'
+        this.currentPickerType = null; // 'color', 'background', 'header', 'font', or 'size'
         
-        // Handle color picker button clicks
+        // Handle all picker button clicks
         toolbar.addEventListener('click', (e) => {
             const colorButton = e.target.closest('.ql-color .ql-picker-label');
             const backgroundButton = e.target.closest('.ql-background .ql-picker-label');
+            const headerButton = e.target.closest('.ql-header .ql-picker-label');
+            const fontButton = e.target.closest('.ql-font .ql-picker-label');
+            const sizeButton = e.target.closest('.ql-size .ql-picker-label');
             
-            if (colorButton || backgroundButton) {
+            if (colorButton || backgroundButton || headerButton || fontButton || sizeButton) {
                 // Prevent Quill's default expand behavior
                 e.preventDefault();
                 e.stopPropagation();
@@ -254,24 +279,34 @@ class RichTextEditor {
                 }
                 
                 // Determine picker type
-                this.currentPickerType = colorButton ? 'color' : 'background';
+                if (colorButton) {
+                    this.currentPickerType = 'color';
+                } else if (backgroundButton) {
+                    this.currentPickerType = 'background';
+                } else if (headerButton) {
+                    this.currentPickerType = 'header';
+                } else if (fontButton) {
+                    this.currentPickerType = 'font';
+                } else if (sizeButton) {
+                    this.currentPickerType = 'size';
+                }
                 
                 // Close any currently open picker
                 if (this.currentPickerOptions) {
-                    this.hideColorPicker();
+                    this.hidePicker();
                 }
                 
                 // Show the clicked picker
-                this.showColorPicker(pickerElement, this.currentPickerType);
+                this.showPicker(pickerElement, this.currentPickerType);
                 
-                window.appLogger?.action('COLOR_PICKER_CLICKED', {
+                window.appLogger?.action('PICKER_CLICKED', {
                     type: this.currentPickerType,
                     pickerElement: pickerElement?.className || 'none'
                 });
             } else {
                 // Click outside picker - close any open picker
                 if (this.currentPickerOptions && !e.target.closest('.ql-picker-options')) {
-                    this.hideColorPicker();
+                    this.hidePicker();
                 }
             }
         }, true); // Use capture to intercept before Quill handles it
@@ -281,12 +316,15 @@ class RichTextEditor {
             if (this.currentPickerOptions && 
                 !e.target.closest('.ql-picker-options') && 
                 !e.target.closest('.ql-color') && 
-                !e.target.closest('.ql-background')) {
-                this.hideColorPicker();
+                !e.target.closest('.ql-background') &&
+                !e.target.closest('.ql-header') &&
+                !e.target.closest('.ql-font') &&
+                !e.target.closest('.ql-size')) {
+                this.hidePicker();
             }
         });    }
 
-    showColorPicker(pickerElement, pickerType) {
+    showPicker(pickerElement, pickerType) {
         if (!pickerElement) return;
         
         // Find the picker dropdown/options element
@@ -305,16 +343,21 @@ class RichTextEditor {
         }
         
         // Position the picker below the button
-        this.positionColorPickerBelowButton(pickerOptions, pickerButton);
+        this.positionPickerBelowButton(pickerOptions, pickerButton, pickerType);
         
         // Add our visible class to show the picker
-        pickerOptions.classList.add('color-picker-visible');
+        pickerOptions.classList.add('picker-visible');
         
-        // Store reference and set up color selection handlers
+        // Store reference and set up selection handlers
         this.currentPickerOptions = pickerOptions;
-        this.setupColorSelection(pickerOptions, pickerType);
         
-        window.appLogger?.action('COLOR_PICKER_SHOWN', {
+        if (pickerType === 'color' || pickerType === 'background') {
+            this.setupColorSelection(pickerOptions, pickerType);
+        } else {
+            this.setupDropdownSelection(pickerOptions, pickerType);
+        }
+        
+        window.appLogger?.action('PICKER_SHOWN', {
             type: pickerType,
             positioning: 'fixed below button (click-based)'
         });
@@ -371,9 +414,59 @@ class RichTextEditor {
         pickerOptions.addEventListener('click', colorSelectionHandler);
     }
 
-    hideColorPicker() {
+    setupDropdownSelection(pickerOptions, pickerType) {
+        if (!pickerOptions) return;
+        
+        // Remove any existing listeners to prevent duplicates
+        const existingHandler = pickerOptions._dropdownSelectionHandler;
+        if (existingHandler) {
+            pickerOptions.removeEventListener('click', existingHandler);
+        }
+        
+        // Create new dropdown selection handler
+        const dropdownSelectionHandler = (e) => {
+            const dropdownItem = e.target.closest('.ql-picker-item');
+            if (!dropdownItem) return;
+            
+            // Get the value from the item
+            const itemValue = dropdownItem.getAttribute('data-value') || dropdownItem.textContent;
+            
+            window.appLogger?.action('DROPDOWN_SELECTED', {
+                type: pickerType,
+                itemValue: itemValue,
+                itemElement: dropdownItem.className
+            });
+            
+            // Apply the selection using Quill's format method
+            if (this.quill) {
+                const selection = this.quill.getSelection();
+                if (selection && selection.length > 0) {
+                    // Apply to selected text
+                    this.quill.format(pickerType, itemValue || false);
+                } else {
+                    // Set format for next text input
+                    this.quill.format(pickerType, itemValue || false);
+                }
+                
+                // Focus back to the editor
+                this.quill.focus();
+            }
+            
+            // Close the picker after selection
+            setTimeout(() => {
+                this.hidePicker();
+            }, 100);
+        };
+        
+        // Store the handler reference and add the listener
+        pickerOptions._dropdownSelectionHandler = dropdownSelectionHandler;
+        pickerOptions.addEventListener('click', dropdownSelectionHandler);
+    }
+
+    hidePicker() {
         if (this.currentPickerOptions) {
-            // Remove our visible class
+            // Remove our visible classes
+            this.currentPickerOptions.classList.remove('picker-visible');
             this.currentPickerOptions.classList.remove('color-picker-visible');
             
             // FORCE the picker to be completely hidden - override any CSS that might show it
@@ -387,11 +480,17 @@ class RichTextEditor {
                 opacity: 0 !important;
             `);
             
-            // Clean up the color selection handler
-            const existingHandler = this.currentPickerOptions._colorSelectionHandler;
-            if (existingHandler) {
-                this.currentPickerOptions.removeEventListener('click', existingHandler);
+            // Clean up the selection handlers
+            const existingColorHandler = this.currentPickerOptions._colorSelectionHandler;
+            if (existingColorHandler) {
+                this.currentPickerOptions.removeEventListener('click', existingColorHandler);
                 delete this.currentPickerOptions._colorSelectionHandler;
+            }
+            
+            const existingDropdownHandler = this.currentPickerOptions._dropdownSelectionHandler;
+            if (existingDropdownHandler) {
+                this.currentPickerOptions.removeEventListener('click', existingDropdownHandler);
+                delete this.currentPickerOptions._dropdownSelectionHandler;
             }
             
             this.currentPickerOptions = null;
@@ -404,7 +503,7 @@ class RichTextEditor {
         
         this.currentPickerType = null;
         
-        window.appLogger?.action('COLOR_PICKER_HIDDEN');
+        window.appLogger?.action('PICKER_HIDDEN');
     }
 
     setupContentSync() {
@@ -498,7 +597,7 @@ class RichTextEditor {
             if (!pickerButton) return;
             
             // Use fixed positioning to break out of all containers
-            this.positionColorPickerBelowButton(pickerOptions, pickerButton);
+            this.positionPickerBelowButton(pickerOptions, pickerButton, 'color');
             
             // Log the positioning for debugging
             window.appLogger?.action('COLOR_PICKER_POSITIONING_APPLIED', {
@@ -509,26 +608,33 @@ class RichTextEditor {
         }, 50); // Small delay to ensure DOM updates are complete
     }
     
-    positionColorPickerBelowButton(pickerOptions, pickerButton) {
+    positionPickerBelowButton(pickerOptions, pickerButton, pickerType) {
         // Get button position relative to viewport
         const buttonRect = pickerButton.getBoundingClientRect();
         const viewportWidth = window.innerWidth;
         
         console.log('DEBUG: Button position:', {
+            type: pickerType,
             top: buttonRect.top,
             bottom: buttonRect.bottom,
             left: buttonRect.left,
             height: buttonRect.height
         });
         
-        // Get actual dimensions first
-        const pickerWidth = 180; // Our fixed width
+        // Set picker width based on type
+        let pickerWidth;
+        if (pickerType === 'color' || pickerType === 'background') {
+            pickerWidth = 180; // Color picker width
+        } else {
+            pickerWidth = 200; // Dropdown width
+        }
         
         // ALWAYS position below the button - NEVER above
         const belowPosition = buttonRect.bottom + 10; // 10px gap below button
         const leftPosition = buttonRect.left;
         
         console.log('DEBUG: Calculated position:', {
+            type: pickerType,
             belowPosition: belowPosition,
             leftPosition: leftPosition,
             pickerWidth: pickerWidth
@@ -543,38 +649,72 @@ class RichTextEditor {
             finalLeft = 10;
         }
         
+        // Apply different styling based on picker type
+        let pickerStyles;
+        if (pickerType === 'color' || pickerType === 'background') {
+            // Color picker styles
+            pickerStyles = `
+                position: fixed !important;
+                z-index: 99999 !important;
+                background-color: white !important;
+                border: 1px solid #d1d5db !important;
+                border-radius: 6px !important;
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+                transform: none !important;
+                bottom: auto !important;
+                right: auto !important;
+                margin: 0 !important;
+                width: 180px !important;
+                min-width: 180px !important;
+                max-width: 180px !important;
+                display: flex !important;
+                flex-wrap: wrap !important;
+                padding: 8px !important;
+                box-sizing: border-box !important;
+                visibility: visible !important;
+                top: ${belowPosition}px !important;
+                left: ${finalLeft}px !important;
+            `;
+        } else {
+            // Dropdown styles
+            pickerStyles = `
+                position: fixed !important;
+                z-index: 99999 !important;
+                background-color: white !important;
+                border: 1px solid #d1d5db !important;
+                border-radius: 6px !important;
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+                transform: none !important;
+                bottom: auto !important;
+                right: auto !important;
+                margin: 0 !important;
+                width: 200px !important;
+                min-width: 200px !important;
+                max-width: 200px !important;
+                display: block !important;
+                max-height: 200px !important;
+                overflow-y: auto !important;
+                padding: 0 !important;
+                box-sizing: border-box !important;
+                visibility: visible !important;
+                top: ${belowPosition}px !important;
+                left: ${finalLeft}px !important;
+            `;
+        }
+        
         // FORCE final positioning using setAttribute for maximum override power
-        pickerOptions.setAttribute('style', `
-            position: fixed !important;
-            z-index: 99999 !important;
-            background-color: white !important;
-            border: 1px solid #d1d5db !important;
-            border-radius: 6px !important;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
-            transform: none !important;
-            bottom: auto !important;
-            right: auto !important;
-            margin: 0 !important;
-            width: 180px !important;
-            min-width: 180px !important;
-            max-width: 180px !important;
-            display: flex !important;
-            flex-wrap: wrap !important;
-            padding: 8px !important;
-            box-sizing: border-box !important;
-            visibility: visible !important;
-            top: ${belowPosition}px !important;
-            left: ${finalLeft}px !important;
-        `);
+        pickerOptions.setAttribute('style', pickerStyles);
         
         console.log('DEBUG: Final applied styles:', {
+            type: pickerType,
             styleAttribute: pickerOptions.getAttribute('style'),
             computedTop: window.getComputedStyle(pickerOptions).top,
             computedLeft: window.getComputedStyle(pickerOptions).left
         });
         
         // Log final position for debugging
-        window.appLogger?.action('COLOR_PICKER_POSITIONED_BELOW', {
+        window.appLogger?.action('PICKER_POSITIONED_BELOW', {
+            type: pickerType,
             buttonTop: buttonRect.top,
             buttonBottom: buttonRect.bottom,
             pickerTop: belowPosition,
