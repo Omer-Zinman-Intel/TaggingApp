@@ -62,7 +62,10 @@ class RichTextEditor {
                 toolbar: {
                     container: `#${containerId}-toolbar`,
                     handlers: {
-                        // Custom handlers can be added here if needed
+                        'video': this.handleVideo.bind(this),
+                        'link': this.handleLink.bind(this),
+                        'font': this.handleFont.bind(this),
+                        'size': this.handleSize.bind(this)
                     }
                 },
                 syntax: typeof hljs !== 'undefined' ? {
@@ -208,6 +211,15 @@ class RichTextEditor {
             window.makeImageResizable(this.quill);
         }
         
+        // Add video wrapper functionality
+        this.setupVideoWrappers();
+        
+        // Add link wrapper functionality
+        this.setupLinkWrappers();
+        
+        // Set up link formatting handling
+        this.setupLinkFormatting();
+        
         console.log('Editor initialized with custom toolbar for:', this.containerId);
         
         // Add debugging for color picker functionality
@@ -346,7 +358,11 @@ class RichTextEditor {
         this.positionPickerBelowButton(pickerOptions, pickerButton, pickerType);
         
         // Add our visible class to show the picker
-        pickerOptions.classList.add('picker-visible');
+        if (pickerType === 'color' || pickerType === 'background') {
+            pickerOptions.classList.add('color-picker-visible');
+        } else {
+            pickerOptions.classList.add('picker-visible');
+        }
         
         // Store reference and set up selection handlers
         this.currentPickerOptions = pickerOptions;
@@ -731,6 +747,355 @@ class RichTextEditor {
             delete this.quill;
         }
     }
+    
+    handleVideo() {
+        const range = this.quill.getSelection();
+        if (!range) {
+            this.quill.focus();
+            return;
+        }
+        
+        // Prompt user for video URL
+        const url = prompt('Enter video URL (YouTube, Vimeo, or direct video link):');
+        if (!url) return;
+        
+        // Process the URL and insert video
+        this.insertResponsiveVideo(url, range);
+    }
+    
+    insertResponsiveVideo(url, range) {
+        let embedUrl = url;
+        let videoId = '';
+        
+        // Handle YouTube URLs
+        if (url.includes('youtube.com/watch?v=')) {
+            videoId = url.split('v=')[1].split('&')[0];
+            embedUrl = `https://www.youtube.com/embed/${videoId}`;
+        } else if (url.includes('youtu.be/')) {
+            videoId = url.split('youtu.be/')[1].split('?')[0];
+            embedUrl = `https://www.youtube.com/embed/${videoId}`;
+        } else if (url.includes('vimeo.com/')) {
+            videoId = url.split('vimeo.com/')[1].split('?')[0];
+            embedUrl = `https://player.vimeo.com/video/${videoId}`;
+        }
+        
+        // Create responsive video HTML
+        const videoHTML = `
+            <div class="video-wrapper">
+                <iframe src="${embedUrl}" 
+                        frameborder="0" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowfullscreen>
+                </iframe>
+            </div>
+        `;
+        
+        // Insert the video HTML
+        this.quill.clipboard.dangerouslyPasteHTML(range.index, videoHTML);
+        
+        // Move cursor after the video
+        this.quill.setSelection(range.index + 1);
+        
+        window.appLogger?.action('VIDEO_INSERTED', {
+            url: url,
+            embedUrl: embedUrl,
+            videoId: videoId
+        });
+    }
+    
+    setupVideoWrappers() {
+        // Watch for content changes to wrap any new videos
+        this.quill.on('text-change', () => {
+            this.wrapExistingVideos();
+        });
+        
+        // Initial wrap of any existing videos
+        setTimeout(() => {
+            this.wrapExistingVideos();
+        }, 100);
+    }
+    
+    wrapExistingVideos() {
+        const editor = this.quill.container.querySelector('.ql-editor');
+        if (!editor) return;
+        
+        // Find all iframe elements that aren't already wrapped
+        const iframes = editor.querySelectorAll('iframe:not(.video-wrapper iframe)');
+        
+        iframes.forEach(iframe => {
+            // Skip if already wrapped
+            if (iframe.closest('.video-wrapper')) return;
+            
+            // Create wrapper
+            const wrapper = document.createElement('div');
+            wrapper.className = 'video-wrapper';
+            
+            // Insert wrapper before iframe
+            iframe.parentNode.insertBefore(wrapper, iframe);
+            
+            // Move iframe into wrapper
+            wrapper.appendChild(iframe);
+            
+            // Ensure iframe has proper attributes
+            iframe.setAttribute('frameborder', '0');
+            iframe.setAttribute('allowfullscreen', '');
+            
+            window.appLogger?.action('VIDEO_WRAPPED', {
+                src: iframe.src,
+                wrapper: 'added'
+            });
+        });
+    }
+    
+    handleLink() {
+        const range = this.quill.getSelection();
+        if (!range) {
+            this.quill.focus();
+            return;
+        }
+        
+        const selectedText = this.quill.getText(range.index, range.length);
+        
+        // Check if there's already a link at this position
+        const existingLink = this.quill.getFormat(range.index, range.length).link;
+        
+        if (existingLink) {
+            // If there's already a link, prompt to edit it
+            const url = prompt('Edit URL:', existingLink);
+            if (url === null) return; // User cancelled
+            
+            if (url === '') {
+                // Remove the link if empty URL
+                this.quill.format('link', false);
+            } else {
+                // Update the existing link
+                const processedUrl = this.processUrl(url);
+                this.quill.format('link', processedUrl);
+            }
+        } else {
+            // No existing link, create new one
+            if (range.length === 0) {
+                // No text selected, prompt for both URL and text
+                const url = prompt('Enter URL:', 'https://');
+                if (!url) return;
+                
+                const displayText = prompt('Enter display text:', this.getDisplayTextFromUrl(url));
+                if (!displayText) return;
+                
+                // Insert new text with link formatting
+                const processedUrl = this.processUrl(url);
+                this.quill.insertText(range.index, displayText, 'link', processedUrl);
+                this.quill.setSelection(range.index + displayText.length);
+            } else {
+                // Text is selected, just add link to it
+                const url = prompt('Enter URL:', selectedText.startsWith('http') ? selectedText : 'https://');
+                if (!url) return;
+                
+                const processedUrl = this.processUrl(url);
+                // Apply link formatting to the selected text
+                this.quill.formatText(range.index, range.length, 'link', processedUrl);
+            }
+        }
+        
+        // Enhance the link after a short delay
+        setTimeout(() => {
+            this.enhanceExistingLinks();
+        }, 10);
+        
+        window.appLogger?.action('LINK_HANDLED', {
+            selectedText: selectedText,
+            hasSelection: range.length > 0,
+            existingLink: !!existingLink
+        });
+    }
+    
+    processUrl(url) {
+        // Ensure URL has protocol
+        if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('mailto:')) {
+            return 'https://' + url;
+        }
+        return url;
+    }
+    
+    getDisplayTextFromUrl(url) {
+        try {
+            const urlObj = new URL(url);
+            // Return domain name as display text
+            return urlObj.hostname.replace('www.', '');
+        } catch (e) {
+            // If URL is malformed, return truncated version
+            return url.length > 50 ? url.substring(0, 47) + '...' : url;
+        }
+    }
+    
+    setupLinkWrappers() {
+        // Watch for content changes to enhance any new links
+        this.quill.on('text-change', () => {
+            this.enhanceExistingLinks();
+        });
+        
+        // Initial enhancement of any existing links
+        setTimeout(() => {
+            this.enhanceExistingLinks();
+        }, 100);
+    }
+    
+    enhanceExistingLinks() {
+        const editor = this.quill.container.querySelector('.ql-editor');
+        if (!editor) return;
+        
+        // Find all links
+        const links = editor.querySelectorAll('a');
+        
+        links.forEach(link => {
+            // Skip if already enhanced
+            if (link.dataset.enhanced) return;
+            
+            const href = link.getAttribute('href');
+            const text = link.textContent;
+            
+            // Ensure proper viewport handling without changing display
+            link.style.maxWidth = '100%';
+            link.style.wordWrap = 'break-word';
+            link.style.wordBreak = 'break-word';
+            link.style.overflowWrap = 'break-word';
+            link.style.boxSizing = 'border-box';
+            
+            // Ensure baseline alignment without forcing font inheritance
+            link.style.verticalAlign = 'baseline';
+            
+            // Add title for long URLs
+            if (href && href.length > 50 && text.length < href.length) {
+                link.setAttribute('title', href);
+            }
+            
+            // Ensure protocol is present
+            if (href && !href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('mailto:')) {
+                link.setAttribute('href', 'https://' + href);
+            }
+            
+            // Mark as enhanced
+            link.dataset.enhanced = 'true';
+            
+            window.appLogger?.action('LINK_ENHANCED', {
+                href: href,
+                text: text,
+                enhanced: true
+            });
+        });
+    }
+    
+    setupLinkFormatting() {
+        // Watch for format changes and ensure they're applied to links correctly
+        this.quill.on('selection-change', (range) => {
+            if (!range) return;
+            
+            // Check if we're in a link
+            const format = this.quill.getFormat(range.index, range.length);
+            if (format.link) {
+                console.log('Link format detected:', format);
+                
+                // If we're in a link, ensure any font/size changes get applied to the link element
+                setTimeout(() => {
+                    const editor = this.quill.container.querySelector('.ql-editor');
+                    const links = editor.querySelectorAll('a');
+                    
+                    links.forEach(link => {
+                        if (link.getAttribute('href') === format.link) {
+                            // Check if the link has font/size formatting
+                            const linkRect = link.getBoundingClientRect();
+                            const selection = this.quill.getSelection();
+                            
+                            if (selection) {
+                                const selectionBounds = this.quill.getBounds(selection.index, selection.length);
+                                
+                                // If this link is in the selection area, apply any pending formats
+                                if (format.font) {
+                                    link.classList.add(`ql-font-${format.font}`);
+                                }
+                                if (format.size) {
+                                    link.classList.add(`ql-size-${format.size}`);
+                                }
+                                
+                                console.log('Applied formatting to link:', {
+                                    font: format.font,
+                                    size: format.size,
+                                    classes: Array.from(link.classList)
+                                });
+                            }
+                        }
+                    });
+                }, 10);
+            }
+        });
+    }
+
+    handleFont(value) {
+        const range = this.quill.getSelection();
+        if (!range) return;
+        
+        // Check if we're formatting a link
+        const format = this.quill.getFormat(range.index, range.length);
+        
+        if (format.link) {
+            // We're in a link, apply font formatting directly to the link element
+            this.applyFormatToLink(range, 'font', value, format.link);
+        } else {
+            // Normal font formatting
+            this.quill.format('font', value);
+        }
+    }
+    
+    handleSize(value) {
+        const range = this.quill.getSelection();
+        if (!range) return;
+        
+        // Check if we're formatting a link
+        const format = this.quill.getFormat(range.index, range.length);
+        
+        if (format.link) {
+            // We're in a link, apply size formatting directly to the link element
+            this.applyFormatToLink(range, 'size', value, format.link);
+        } else {
+            // Normal size formatting
+            this.quill.format('size', value);
+        }
+    }
+    
+    applyFormatToLink(range, formatType, value, linkUrl) {
+        const editor = this.quill.container.querySelector('.ql-editor');
+        const links = editor.querySelectorAll('a');
+        
+        // Find the link we're trying to format
+        links.forEach(link => {
+            if (link.getAttribute('href') === linkUrl) {
+                const linkRect = link.getBoundingClientRect();
+                const editorRect = editor.getBoundingClientRect();
+                
+                // Check if this link overlaps with our selection
+                const bounds = this.quill.getBounds(range.index, range.length);
+                
+                // Remove existing format classes
+                link.classList.forEach(className => {
+                    if (className.startsWith(`ql-${formatType}-`)) {
+                        link.classList.remove(className);
+                    }
+                });
+                
+                // Add new format class
+                if (value) {
+                    link.classList.add(`ql-${formatType}-${value}`);
+                }
+                
+                console.log(`Applied ${formatType}:${value} to link:`, link);
+                
+                // Also apply the Quill format to maintain consistency
+                this.quill.format(formatType, value);
+            }
+        });
+    }
+
+    // ...existing code...
 }
 
 // Debug function to check sync status

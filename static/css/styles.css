@@ -45,6 +45,7 @@
    ============= */
 .ql-editor {
     min-height: 200px;
+    overflow-x: hidden; /* Prevent horizontal scrolling from videos */
 }
 
 /* Font size styles */
@@ -75,6 +76,90 @@
 .ql-editor .ql-video {
     max-width: 100%;
     height: auto;
+    width: 100%;
+    /* Ensure videos don't exceed container bounds */
+    box-sizing: border-box;
+    /* Add responsive video container behavior */
+    aspect-ratio: 16/9; /* Default video aspect ratio */
+}
+
+/* Video iframe specific styling */
+.ql-editor iframe[src*="youtube"],
+.ql-editor iframe[src*="vimeo"],
+.ql-editor iframe[src*="youtu.be"],
+.ql-editor iframe {
+    max-width: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 200px;
+    max-height: 400px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-sizing: border-box;
+    display: block;
+    margin: 10px 0;
+}
+
+/* Responsive video wrapper for better control */
+.ql-editor .video-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    padding-bottom: 56.25%; /* 16:9 aspect ratio */
+    height: 0;
+    overflow: hidden;
+    margin: 10px 0;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.ql-editor .video-wrapper iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100% !important;
+    border: none;
+    border-radius: 8px;
+}
+
+/* Editor container video overflow management */
+.ql-editor {
+    overflow-x: hidden; /* Prevent horizontal scrolling from videos */
+}
+
+/* Ensure video containers don't break editor layout */
+.ql-editor > * {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Handle video in modal contexts */
+.modal-body .ql-editor .video-wrapper {
+    max-width: 100%;
+    width: 100%;
+}
+
+/* Video placeholder styling for better UX */
+.ql-editor .video-placeholder {
+    width: 100%;
+    height: 200px;
+    background-color: #f5f5f5;
+    border: 2px dashed #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    font-size: 14px;
+    margin: 10px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.ql-editor .video-placeholder:hover {
+    background-color: #ebebeb;
+    border-color: #999;
 }
 
 #quill-editor-container .ql-editor,
@@ -667,9 +752,6 @@ html body .ql-snow .ql-toolbar .ql-picker .ql-picker-options.color-picker-visibl
     clip: none !important;
     overflow: visible !important;
     opacity: 1 !important;
-    bottom: auto !important;
-    right: auto !important;
-    margin: 0 !important;
 }
 html body .ql-snow .ql-toolbar .ql-background .ql-picker-options.color-picker-visible,
 html body .modal .ql-color-picker .ql-picker-options.color-picker-visible,
@@ -969,5 +1051,488 @@ html body .modal .ql-picker:not(.ql-color-picker):not(.ql-background).ql-expande
 .ql-font-lucida {
     font-family: "Lucida Console", monospace;
 }
+
+/* Responsive video handling for different screen sizes */
+@media (max-width: 768px) {
+    .ql-editor .video-wrapper {
+        padding-bottom: 56.25%; /* Maintain 16:9 aspect ratio on mobile */
+        margin: 5px 0;
+    }
+    
+    .ql-editor iframe {
+        min-height: 180px;
+        max-height: 250px;
+    }
+}
+
+@media (max-width: 480px) {
+    .ql-editor .video-wrapper {
+        padding-bottom: 60%; /* Slightly taller on very small screens */
+        margin: 5px 0;
+    }
+    
+    .ql-editor iframe {
+        min-height: 150px;
+        max-height: 200px;
+    }
+}
+
+/* Ensure videos don't break out of their containers */
+.ql-editor .video-wrapper,
+.ql-editor iframe {
+    contain: layout style;
+}
+
+/* Link styling and viewport management */
+.ql-editor a {
+    color: #2563eb;
+    text-decoration: underline;
+    /* Allow font changes while maintaining baseline styling */
+    vertical-align: baseline;
+    /* Prevent links from exceeding viewport */
+    word-wrap: break-word;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    /* Ensure links don't cause horizontal scrolling */
+    max-width: 100%;
+    display: inline;
+    box-sizing: border-box;
+    /* Add some visual feedback */
+    transition: color 0.2s ease;
+    /* Prevent any positioning that might cause subscript appearance */
+    position: relative;
+    top: 0;
+    bottom: 0;
+}
+
+.ql-editor a:hover {
+    color: #1d4ed8;
+    text-decoration: none;
+}
+
+.ql-editor a:visited {
+    color: #7c3aed;
+}
+
+/* Handle very long URLs */
+.ql-editor a[href*="://"] {
+    /* Break long URLs appropriately */
+    word-break: break-all;
+    overflow-wrap: anywhere;
+    /* Ensure they don't exceed container width */
+    max-width: 100%;
+    white-space: normal;
+}
+
+/* Link styling in different contexts */
+.ql-editor p a,
+.ql-editor div a,
+.ql-editor span a {
+    /* Ensure inline links don't break layout while allowing font changes */
+    max-width: 100%;
+    vertical-align: baseline;
+    display: inline;
+}
+
+/* Show full URL on hover for truncated links */
+.ql-editor a[title] {
+    position: relative;
+}
+
+.ql-editor a[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    background: #333;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Additional link context handling */
+.ql-editor blockquote a,
+.ql-editor li a,
+.ql-editor h1 a,
+.ql-editor h2 a,
+.ql-editor h3 a,
+.ql-editor h4 a,
+.ql-editor h5 a,
+.ql-editor h6 a {
+    /* Links in special contexts */
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+    /* Allow font changes while maintaining baseline alignment */
+    vertical-align: baseline;
+    display: inline;
+}
+
+/* Ensure links don't interfere with editor layout */
+.ql-editor {
+    /* Prevent links from causing horizontal overflow */
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+}
+
+/* Handle link selection and editing */
+.ql-editor a:focus {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+/* Link in code blocks should be handled differently */
+.ql-editor pre a,
+.ql-editor code a {
+    word-break: break-all;
+    font-family: inherit;
+    background: rgba(37, 99, 235, 0.1);
+    padding: 1px 3px;
+    border-radius: 3px;
+}
+
+/* Ensure proper spacing around links */
+.ql-editor a {
+    margin: 0 1px;
+}
+
+/* Handle link tooltips better */
+.ql-editor a[title]:hover::after {
+    /* Ensure tooltip doesn't go off-screen */
+    max-width: min(300px, 90vw);
+    left: 0;
+    transform: translateX(-50%);
+    left: 50%;
+    pointer-events: none;
+    z-index: 10000;
+}
+
+/* Main content view link styling */
+.prose a,
+.prose-sm a {
+    color: #2563eb !important;
+    text-decoration: underline !important;
+    /* Allow font changes while maintaining baseline styling */
+    vertical-align: baseline !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    max-width: 100% !important;
+    display: inline !important;
+    box-sizing: border-box !important;
+    transition: color 0.2s ease !important;
+    position: relative !important;
+    top: 0 !important;
+    bottom: 0 !important;
+}
+
+.prose a:hover,
+.prose-sm a:hover {
+    color: #1d4ed8 !important;
+    text-decoration: none !important;
+}
+
+.prose a:visited,
+.prose-sm a:visited {
+    color: #7c3aed !important;
+}
+
+/* Ensure prose doesn't override our link styles */
+.prose a[href],
+.prose-sm a[href] {
+    color: #2563eb !important;
+    text-decoration: underline !important;
+    /* Allow font changes */
+}
+
+.prose a[href]:hover,
+.prose-sm a[href]:hover {
+    color: #1d4ed8 !important;
+    text-decoration: none !important;
+}
+
+/* Handle any specific prose selectors that might interfere */
+.prose > * a,
+.prose-sm > * a {
+    color: #2563eb !important;
+    text-decoration: underline !important;
+    /* Allow font changes */
+}
+
+/* Ensure links work in all prose contexts */
+.prose p a,
+.prose div a,
+.prose span a,
+.prose li a,
+.prose h1 a,
+.prose h2 a,
+.prose h3 a,
+.prose h4 a,
+.prose h5 a,
+.prose h6 a,
+.prose blockquote a,
+.prose-sm p a,
+.prose-sm div a,
+.prose-sm span a,
+.prose-sm li a,
+.prose-sm h1 a,
+.prose-sm h2 a,
+.prose-sm h3 a,
+.prose-sm h4 a,
+.prose-sm h5 a,
+.prose-sm h6 a,
+.prose-sm blockquote a {
+    color: #2563eb !important;
+    text-decoration: underline !important;
+    /* Allow font changes while maintaining baseline styling */
+    vertical-align: baseline !important;
+    display: inline !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    max-width: 100% !important;
+}
+
+.prose p a:hover,
+.prose div a:hover,
+.prose span a:hover,
+.prose li a:hover,
+.prose h1 a:hover,
+.prose h2 a:hover,
+.prose h3 a:hover,
+.prose h4 a:hover,
+.prose h5 a:hover,
+.prose h6 a:hover,
+.prose blockquote a:hover,
+.prose-sm p a:hover,
+.prose-sm div a:hover,
+.prose-sm span a:hover,
+.prose-sm li a:hover,
+.prose-sm h1 a:hover,
+.prose-sm h2 a:hover,
+.prose-sm h3 a:hover,
+.prose-sm h4 a:hover,
+.prose-sm h5 a:hover,
+.prose-sm h6 a:hover,
+.prose-sm blockquote a:hover {
+    color: #1d4ed8 !important;
+    text-decoration: none !important;
+}
+
+/* General content area link styling */
+.note-content a,
+.content-display a,
+.text-gray-600 a {
+    color: #2563eb !important;
+    text-decoration: underline !important;
+    /* Allow font changes while maintaining baseline styling */
+    vertical-align: baseline !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    max-width: 100% !important;
+    display: inline !important;
+    box-sizing: border-box !important;
+    transition: color 0.2s ease !important;
+    position: relative !important;
+    top: 0 !important;
+    bottom: 0 !important;
+}
+
+.note-content a:hover,
+.content-display a:hover,
+.text-gray-600 a:hover {
+    color: #1d4ed8 !important;
+    text-decoration: none !important;
+}
+
+.note-content a:visited,
+.content-display a:visited,
+.text-gray-600 a:visited {
+    color: #7c3aed !important;
+}
+
+/* Ensure links work in any div that might contain content */
+div[class*="text-gray"] a,
+div[class*="prose"] a,
+div[class*="content"] a {
+    color: #2563eb !important;
+    text-decoration: underline !important;
+    /* Allow font changes while maintaining baseline styling */
+    vertical-align: baseline !important;
+    display: inline !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    max-width: 100% !important;
+}
+
+div[class*="text-gray"] a:hover,
+div[class*="prose"] a:hover,
+div[class*="content"] a:hover {
+    color: #1d4ed8 !important;
+    text-decoration: none !important;
+}
+
+/* FORCE links to allow independent font styling - override all possible inheritance */
+.ql-editor a,
+.ql-editor a *,
+.ql-editor * a {
+    font-size: unset !important;
+    font-family: unset !important;
+    font-weight: unset !important;
+    line-height: unset !important;
+}
+
+/* Apply font formats to links when explicitly set */
+.ql-editor a.ql-font-serif { font-family: Georgia, "Times New Roman", serif !important; }
+.ql-editor a.ql-font-monospace { font-family: Monaco, "Courier New", monospace !important; }
+.ql-editor a.ql-font-arial { font-family: Arial, sans-serif !important; }
+.ql-editor a.ql-font-times { font-family: "Times New Roman", serif !important; }
+.ql-editor a.ql-font-georgia { font-family: Georgia, serif !important; }
+.ql-editor a.ql-font-helvetica { font-family: Helvetica, Arial, sans-serif !important; }
+.ql-editor a.ql-font-comic { font-family: "Comic Sans MS", cursive !important; }
+.ql-editor a.ql-font-impact { font-family: Impact, sans-serif !important; }
+.ql-editor a.ql-font-verdana { font-family: Verdana, sans-serif !important; }
+.ql-editor a.ql-font-tahoma { font-family: Tahoma, sans-serif !important; }
+.ql-editor a.ql-font-trebuchet { font-family: "Trebuchet MS", sans-serif !important; }
+.ql-editor a.ql-font-palatino { font-family: Palatino, serif !important; }
+.ql-editor a.ql-font-courier { font-family: "Courier New", monospace !important; }
+.ql-editor a.ql-font-lucida { font-family: "Lucida Console", monospace !important; }
+
+/* Apply size formats to links when explicitly set */
+.ql-editor a.ql-size-small { font-size: 0.75em !important; }
+.ql-editor a.ql-size-large { font-size: 1.5em !important; }
+.ql-editor a.ql-size-huge { font-size: 2.5em !important; }
+
+/* Reset any parent font styling that might interfere */
+.ql-editor [class*="ql-font"] a,
+.ql-editor [class*="ql-size"] a {
+    font-family: unset !important;
+    font-size: unset !important;
+}
+
+/* FORCE links in content view to allow independent font styling */
+.prose a,
+.prose-sm a,
+.note-content a,
+.content-display a,
+.text-gray-600 a {
+    font-size: unset !important;
+    font-family: unset !important;
+    font-weight: unset !important;
+    line-height: unset !important;
+}
+
+/* Apply font formats to links in content view when explicitly set */
+.prose a.ql-font-serif,
+.prose-sm a.ql-font-serif,
+.note-content a.ql-font-serif,
+.content-display a.ql-font-serif,
+.text-gray-600 a.ql-font-serif { font-family: Georgia, "Times New Roman", serif !important; }
+
+.prose a.ql-font-monospace,
+.prose-sm a.ql-font-monospace,
+.note-content a.ql-font-monospace,
+.content-display a.ql-font-monospace,
+.text-gray-600 a.ql-font-monospace { font-family: Monaco, "Courier New", monospace !important; }
+
+.prose a.ql-font-arial,
+.prose-sm a.ql-font-arial,
+.note-content a.ql-font-arial,
+.content-display a.ql-font-arial,
+.text-gray-600 a.ql-font-arial { font-family: Arial, sans-serif !important; }
+
+.prose a.ql-font-times,
+.prose-sm a.ql-font-times,
+.note-content a.ql-font-times,
+.content-display a.ql-font-times,
+.text-gray-600 a.ql-font-times { font-family: "Times New Roman", serif !important; }
+
+.prose a.ql-font-georgia,
+.prose-sm a.ql-font-georgia,
+.note-content a.ql-font-georgia,
+.content-display a.ql-font-georgia,
+.text-gray-600 a.ql-font-georgia { font-family: Georgia, serif !important; }
+
+.prose a.ql-font-helvetica,
+.prose-sm a.ql-font-helvetica,
+.note-content a.ql-font-helvetica,
+.content-display a.ql-font-helvetica,
+.text-gray-600 a.ql-font-helvetica { font-family: Helvetica, Arial, sans-serif !important; }
+
+.prose a.ql-font-comic,
+.prose-sm a.ql-font-comic,
+.note-content a.ql-font-comic,
+.content-display a.ql-font-comic,
+.text-gray-600 a.ql-font-comic { font-family: "Comic Sans MS", cursive !important; }
+
+.prose a.ql-font-impact,
+.prose-sm a.ql-font-impact,
+.note-content a.ql-font-impact,
+.content-display a.ql-font-impact,
+.text-gray-600 a.ql-font-impact { font-family: Impact, sans-serif !important; }
+
+.prose a.ql-font-verdana,
+.prose-sm a.ql-font-verdana,
+.note-content a.ql-font-verdana,
+.content-display a.ql-font-verdana,
+.text-gray-600 a.ql-font-verdana { font-family: Verdana, sans-serif !important; }
+
+.prose a.ql-font-tahoma,
+.prose-sm a.ql-font-tahoma,
+.note-content a.ql-font-tahoma,
+.content-display a.ql-font-tahoma,
+.text-gray-600 a.ql-font-tahoma { font-family: Tahoma, sans-serif !important; }
+
+.prose a.ql-font-trebuchet,
+.prose-sm a.ql-font-trebuchet,
+.note-content a.ql-font-trebuchet,
+.content-display a.ql-font-trebuchet,
+.text-gray-600 a.ql-font-trebuchet { font-family: "Trebuchet MS", sans-serif !important; }
+
+.prose a.ql-font-palatino,
+.prose-sm a.ql-font-palatino,
+.note-content a.ql-font-palatino,
+.content-display a.ql-font-palatino,
+.text-gray-600 a.ql-font-palatino { font-family: Palatino, serif !important; }
+
+.prose a.ql-font-courier,
+.prose-sm a.ql-font-courier,
+.note-content a.ql-font-courier,
+.content-display a.ql-font-courier,
+.text-gray-600 a.ql-font-courier { font-family: "Courier New", monospace !important; }
+
+.prose a.ql-font-lucida,
+.prose-sm a.ql-font-lucida,
+.note-content a.ql-font-lucida,
+.content-display a.ql-font-lucida,
+.text-gray-600 a.ql-font-lucida { font-family: "Lucida Console", monospace !important; }
+
+/* Apply size formats to links in content view when explicitly set */
+.prose a.ql-size-small,
+.prose-sm a.ql-size-small,
+.note-content a.ql-size-small,
+.content-display a.ql-size-small,
+.text-gray-600 a.ql-size-small { font-size: 0.75em !important; }
+
+.prose a.ql-size-large,
+.prose-sm a.ql-size-large,
+.note-content a.ql-size-large,
+.content-display a.ql-size-large,
+.text-gray-600 a.ql-size-large { font-size: 1.5em !important; }
+
+.prose a.ql-size-huge,
+.prose-sm a.ql-size-huge,
+.note-content a.ql-size-huge,
+.content-display a.ql-size-huge,
+.text-gray-600 a.ql-size-huge { font-size: 2.5em !important; }
 
 
