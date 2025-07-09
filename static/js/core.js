@@ -10,8 +10,10 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Tag input system ready');
     } catch (error) {
         window.appLogger?.error('Error setting up tag input system:', error.message);
-        console.error('Error setting up tag input system:', error);
-    }
+        console.error('Error setting up tag input system:', error)        // Create and submit a form programmatically to delete the AND tag
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/and-tags/delete?state=${window.currentState || ''}&${params.toString()}`;   }
 
     // Setup file input handlers
     const docxInput = document.getElementById('docx-file-input');
@@ -466,6 +468,14 @@ window.showTagContextMenu = function(event, tagName) {
         message: 'Setting context menu content'
     });
     
+    // Check if this is an AND tag (contains '&' character)
+    const isAndTag = tagName.includes('&');
+    
+    // Use appropriate delete function based on tag type
+    const deleteFunction = isAndTag ? 
+        `deleteAndTagFromContextMenu('${tagName}')` : 
+        `deleteGlobalTag('${tagName}')`;
+    
     contextMenu.innerHTML = `
         <div class="px-3 py-1 text-sm font-medium text-gray-800 border-b mb-1">${tagName}</div>
         <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
@@ -473,7 +483,7 @@ window.showTagContextMenu = function(event, tagName) {
            Rename Tag
         </a>
         <a href="#" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-           onclick="event.preventDefault(); deleteGlobalTag('${tagName}'); hideContextMenu();">
+           onclick="event.preventDefault(); ${deleteFunction}; hideContextMenu();">
            Delete Tag
         </a>
     `;
@@ -569,7 +579,7 @@ window.deleteGlobalTag = function(tagName) {
         const params = new URLSearchParams(currentUrl.search);
         
         // Build the delete tag URL
-        form.action = `/tags/delete?state=${window.CURRENT_STATE || ''}&${params.toString()}`;
+        form.action = `/tags/delete?state=${window.currentState || ''}&${params.toString()}`;
         
         // Add the tag to delete
         const input = document.createElement('input');
@@ -580,6 +590,41 @@ window.deleteGlobalTag = function(tagName) {
         form.appendChild(input);
         document.body.appendChild(form);
         form.submit();
+    }
+};
+
+// Helper function to delete an AND tag from context menu
+window.deleteAndTagFromContextMenu = function(tagName) {
+    console.log('deleteAndTagFromContextMenu called for:', tagName);
+    
+    if (confirm(`Are you sure you want to delete the AND tag '${tagName}'?`)) {
+        console.log('User confirmed deletion, submitting form...');
+        
+        // Log the deletion event
+        window.appLogger?.action('AND_TAG_DELETED_FROM_CONTEXT_MENU', {
+            tagName: tagName,
+            timestamp: Date.now()
+        });
+        
+        // Get the current URL parameters
+        const currentUrl = new URL(window.location.href);
+        const params = new URLSearchParams(currentUrl.search);
+        
+        // Create and submit a form programmatically to delete the AND tag
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/and-tags/delete?state=${window.CURRENT_STATE || ''}&${params.toString()}`;
+        
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'and_tag_to_delete';
+        input.value = tagName;
+        
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+    } else {
+        console.log('User cancelled deletion');
     }
 };
 
