@@ -1835,4 +1835,8 @@ div[class*="content"] blockquote {
     font-size: 0.875rem;
 }
 
+.note-completed {
+  background: #e5e7eb !important; /* Tailwind gray-200 */
+}
+
 

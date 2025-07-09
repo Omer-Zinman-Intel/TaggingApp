@@ -2,7 +2,7 @@
 import uuid
 import os
 from typing import Optional, Dict
-from flask import render_template, request, redirect, url_for, flash, jsonify, current_app
+from flask import render_template, request, redirect, url_for, flash, jsonify, current_app, abort
 import py.core as core
 import py.state_manager as state_manager
 import py.tag_manager as tag_manager
@@ -265,6 +265,18 @@ def delete_note(section_id: str, note_id: str):
     else:
         flash("Could not find note or section to delete from.", "error")
     return redirect(get_redirect_url())
+
+def toggle_note_completed(section_id: str, note_id: str):
+    state_name = request.args.get('state') or request.json.get('state')
+    if not state_name:
+        return jsonify({'success': False, 'message': 'Missing state'}), 400
+    section, note = content_processor.find_section_and_note(section_id, note_id)
+    if not note:
+        return jsonify({'success': False, 'message': 'Note not found'}), 404
+    # Toggle completed
+    note['completed'] = not note.get('completed', False)
+    state_manager.save_state(state_name)
+    return jsonify({'success': True, 'completed': note['completed']})
 
 # --- Tag Management Routes ---
 

@@ -471,12 +471,19 @@ before being sent to the browser as valid HTML/JavaScript.
                      ondragover="onNoteListDragOver(event, '{{ section.id }}')"
                      ondrop="onNoteListDrop(event, '{{ section.id }}')">
                     {% for note in section.notes %}
-                    <div id="note-{{ note.id }}" data-note-id="{{ note.id }}" class="bg-white p-4 rounded-md shadow-sm group/note note-draggable" draggable="false" ondragstart="onNoteDragStart(event, '{{ section.id }}')" ondragover="onNoteDragOver(event)" ondrop="onNoteDrop(event, '{{ section.id }}')" ondragend="onNoteDragEnd(event)">
+                    <div id="note-{{ note.id }}" data-note-id="{{ note.id }}" class="p-4 rounded-md shadow-sm group/note note-draggable{% if note.completed %} note-completed{% else %} bg-white{% endif %}" draggable="false" ondragstart="onNoteDragStart(event, '{{ section.id }}')" ondragover="onNoteDragOver(event)" ondrop="onNoteDrop(event, '{{ section.id }}')" ondragend="onNoteDragEnd(event)">
                         <div class="flex justify-between items-start">
                             <div class="flex items-center">
                                 <span class="note-drag-handle hidden mr-2 cursor-move select-none text-gray-400" title="Drag to reorder">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="6" cy="7" r="1.5"/><circle cx="6" cy="12" r="1.5"/><circle cx="6" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/><circle cx="18" cy="7" r="1.5"/><circle cx="18" cy="12" r="1.5"/><circle cx="18" cy="17" r="1.5"/></svg>
                                 </span>
+                                <button onclick="toggleNoteCompleted('{{ section.id }}', '{{ note.id }}')" class="mr-2 p-1.5 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-400 transition" title="Mark as complete/incomplete">
+                                    {% if note.completed %}
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="text-green-600"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                    {% else %}
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="text-gray-400"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                                    {% endif %}
+                                </button>
                                 <h3 class="text-lg font-semibold text-gray-700">{{ note.noteTitle }}</h3>
                             </div>
                             <div class="flex items-center space-x-2 opacity-0 group-hover/note:opacity-100 transition-opacity">
@@ -1246,7 +1253,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Observe all modal elements
-   
     document.querySelectorAll('.modal').forEach(modal => {
         observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
     });

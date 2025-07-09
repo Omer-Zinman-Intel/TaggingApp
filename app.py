@@ -2,7 +2,7 @@ import os
 import json
 import datetime
 from flask import Flask, request, jsonify
-import py.views as views
+from py import views
 import py.core as core
 import py.state_manager as state_manager
 
@@ -102,6 +102,7 @@ app.add_url_rule("/tag/remove_globally", 'remove_tag_globally', views.remove_tag
 app.add_url_rule("/tag/rename_globally", 'rename_tag_globally', views.rename_tag_globally, methods=["POST"])
 app.add_url_rule("/import", 'import_html', views.import_html, methods=["POST"])
 app.add_url_rule('/section/reorder_notes/<section_id>', 'reorder_notes', views.reorder_notes, methods=["POST"])
+app.add_url_rule('/note/toggle_completed/<section_id>/<note_id>', 'toggle_note_completed', views.toggle_note_completed, methods=["POST"])
 
 
 # --- Initial State Loading and Main Execution ---
