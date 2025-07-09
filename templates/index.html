@@ -344,6 +344,7 @@ before being sent to the browser as valid HTML/JavaScript.
                     <div id="uncategorized-content" class="tag-category-content dropzone flex flex-wrap gap-2 p-2 mt-2"
                          ondragover="allowDrop(event)" ondrop="drop(event)" ondragleave="leaveDrop(event)" data-category-id="uncategorized">
                         {% for tag in uncategorized_tags %}
+                            {% if not tag.startswith('CATEGORY:') %}
                             <span class="tag-bubble {% if tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
                                draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}" ondragstart="drag(event)" ondragend="dragEnd(event)" ondrop="drop(event)" data-tag-name="{{ tag }}" data-source-category-id="uncategorized">
                                 <span onclick='handleTagClick(event, {{ tag|tojson|safe }})' oncontextmenu='window.appLogger?.action("TAG_CONTEXT_MENU_TRIGGERED", {tag: {{ tag|tojson|safe }}, message: "Context menu triggered"}); testContextMenu(); showTagContextMenu(event, {{ tag|tojson|safe }}); return false;'>{{ tag }}</span>
@@ -359,6 +360,7 @@ before being sent to the browser as valid HTML/JavaScript.
                                     </form>
                                 </div>
                             </span>
+                            {% endif %}
                         {% endfor %}
                         {% if not uncategorized_tags %}
                             <span class="text-sm text-gray-500 italic">No uncategorized tags. Drag tags here to unassign them from categories.</span>
@@ -389,6 +391,7 @@ before being sent to the browser as valid HTML/JavaScript.
                         <div id="category-{{ category.id }}-content" class="tag-category-content dropzone flex flex-wrap gap-2 p-2 mt-2"
                              ondragover="allowDrop(event)" ondrop="drop(event)" ondragleave="leaveDrop(event)" data-category-id="{{ category.id }}">
                             {% for tag in category.tags %}
+                                {% if not tag.startswith('CATEGORY:') %}
                                 <span class="tag-bubble {% if tag in and_tags %}and-tag{% elif tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
                                    draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}" ondragstart="drag(event)" ondragend="dragEnd(event)" ondrop="drop(event)" data-tag-name="{{ tag }}" data-source-category-id="{{ category.id }}">
                                     <span onclick='handleTagClick(event, {{ tag|tojson|safe }})' oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }}); return false;'>{{ tag }}</span>
@@ -404,6 +407,7 @@ before being sent to the browser as valid HTML/JavaScript.
                                         </form>
                                     </div>
                                 </span>
+                                {% endif %}
                             {% endfor %}
                             {% if not category.tags %}
                                 <span class="text-sm text-gray-500 italic">Drag tags here.</span>
@@ -443,12 +447,18 @@ before being sent to the browser as valid HTML/JavaScript.
                 <div class="flex flex-wrap mb-4">
                     {% for tag in section.tags %}
                         <span class="text-xs font-semibold mr-2 mb-1 px-2.5 py-1 rounded-full 
-                            {% if tag.lower() == 'all' %}
+                            {% if tag.startswith('CATEGORY:') %}
+                                bg-green-100 text-green-800
+                            {% elif tag.lower() == 'all' %}
                                 bg-purple-200 text-purple-800
                             {% else %}
                                 bg-blue-100 text-blue-800
                             {% endif %}">
-                            {{ tag }}
+                            {% if tag.startswith('CATEGORY:') %}
+                                📁 {{ tag[9:] }}
+                            {% else %}
+                                {{ tag }}
+                            {% endif %}
                         </span>
                     {% endfor %}
                 </div>
@@ -474,12 +484,18 @@ before being sent to the browser as valid HTML/JavaScript.
                         <div class="flex flex-wrap my-2">
                             {% for tag in note.tags %}
                                 <span class="text-xs font-semibold mr-2 mb-1 px-2.5 py-1 rounded-full 
-                                    {% if tag.lower() == 'all' %}
+                                    {% if tag.startswith('CATEGORY:') %}
+                                        bg-green-100 text-green-800
+                                    {% elif tag.lower() == 'all' %}
                                         bg-purple-200 text-purple-800
                                     {% else %}
                                         bg-blue-100 text-blue-800
                                     {% endif %}">
-                                    {{ tag }}
+                                    {% if tag.startswith('CATEGORY:') %}
+                                        📁 {{ tag[9:] }}
+                                    {% else %}
+                                        {{ tag }}
+                                    {% endif %}
                                 </span>
                             {% endfor %}
                         </div>
@@ -847,11 +863,13 @@ before being sent to the browser as valid HTML/JavaScript.
     // Expose global variables from Flask to the window object for your JS modules
     // Note: This script must remain inline as it contains server-side template variables
     window.ALL_TAGS = JSON.parse('{{ all_tags | tojson | safe }}');
+    window.TAG_CATEGORIES = JSON.parse('{{ tag_categories | tojson | safe }}');
     window.CURRENT_STATE = '{{ current_state | safe }}';
     window.ACTIVE_FILTERS_LOWER = JSON.parse('{{ active_filters_lower | tojson | safe }}');
     
     console.log('Global variables set:', {
         ALL_TAGS: window.ALL_TAGS?.length || 0,
+        TAG_CATEGORIES: window.TAG_CATEGORIES?.length || 0,
         CURRENT_STATE: window.CURRENT_STATE,
         ACTIVE_FILTERS_LOWER: window.ACTIVE_FILTERS_LOWER?.length || 0,
         Quill: typeof Quill !== 'undefined'

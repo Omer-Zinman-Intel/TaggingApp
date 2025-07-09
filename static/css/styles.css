@@ -1770,4 +1770,35 @@ div[class*="content"] blockquote {
     color: inherit !important;
 }
 
+/* Category tag styling */
+.tag-bubble.category-tag {
+    background-color: #ecfdf5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+    font-weight: 600;
+}
+
+.tag-bubble.category-tag:hover {
+    background-color: #d1fae5;
+    border-color: #6ee7b7;
+}
+
+.tag-bubble.category-tag.active-filter {
+    background-color: #059669;
+    color: white;
+    border-color: #047857;
+}
+
+.tag-bubble.category-tag.inactive-filter {
+    background-color: #ecfdf5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+}
+
+/* Category tag icon */
+.category-tag-icon {
+    margin-right: 0.25rem;
+    font-size: 0.875rem;
+}
+
 

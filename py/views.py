@@ -542,9 +542,20 @@ def rename_category():
         flash("The 'Uncategorized' category cannot be renamed.", "error")
     else:
         old_name = category['name']
+        
+        # Update associated CATEGORY tags in content before renaming the category
+        category_rename_result = tag_manager.rename_category_and_associated_tags(old_name, new_name)
+        
+        # Rename the category
         category['name'] = new_name
         state_manager.save_state(state_name)
-        flash(f"Category '{old_name}' renamed to '{new_name}'.", "success")
+        
+        # Build comprehensive success message
+        success_message = f"Category '{old_name}' renamed to '{new_name}'."
+        if category_rename_result['success'] and "CATEGORY tags updated" in category_rename_result['message']:
+            success_message += " Associated CATEGORY tags have been updated in all content."
+        
+        flash(success_message, "success")
     return redirect(get_redirect_url())
 
 def delete_category():
@@ -578,13 +589,23 @@ def delete_category():
         uncategorized_category['tags'].extend(category_to_delete.get('tags', []))
         uncategorized_category['tags'] = sorted(list(dict.fromkeys(uncategorized_category['tags'])), key=str.lower) # Deduplicate and sort
 
+    # Remove any CATEGORY tags associated with this category from all content
+    category_deletion_result = tag_manager.delete_category_and_associated_tags(category_to_delete['name'])
+
     # Remove the category from the list
     core.document_state["tag_categories"] = [c for c in core.document_state.get("tag_categories", []) if c["id"] != category_id]
     
     # Cleanup tags and save
     tag_manager.cleanup_orphan_tags() # Ensure known_tags is consistent
     state_manager.save_state(state_name)
-    flash(f"Category '{category_to_delete['name']}' deleted and its tags moved to 'Uncategorized'.", "success")
+    
+    # Build comprehensive success message
+    success_message = f"Category '{category_to_delete['name']}' deleted and its tags moved to 'Uncategorized'."
+    if category_deletion_result['success']:
+        if "CATEGORY:" in category_deletion_result['message']:
+            success_message += f" {category_deletion_result['message'].split('. ', 1)[1] if '. ' in category_deletion_result['message'] else category_deletion_result['message']}"
+    
+    flash(success_message, "success")
     return redirect(get_redirect_url())
 
 def remove_tag_globally():

@@ -10,10 +10,8 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Tag input system ready');
     } catch (error) {
         window.appLogger?.error('Error setting up tag input system:', error.message);
-        console.error('Error setting up tag input system:', error)        // Create and submit a form programmatically to delete the AND tag
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/and-tags/delete?state=${window.currentState || ''}&${params.toString()}`;   }
+        console.error('Error setting up tag input system:', error);
+    }
 
     // Setup file input handlers
     const docxInput = document.getElementById('docx-file-input');

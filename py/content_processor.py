@@ -51,23 +51,14 @@ def get_filtered_sections(active_filters: List[str]) -> List[Dict]:
 def _matches_filters(content_tags: Set[str], active_filters: List[str]) -> bool:
     """
     Check if content tags match any of the active filters.
-    - For singular filters: OR logic (any tag matches)
-    - For AND filters: ALL components must be present in content tags
+    Enhanced to support CATEGORY tags - content with category tags will be shown
+    when filtering by any tag in that category.
     """
-    and_tags = core.document_state.get("and_tags", [])
-    and_tags_lower = {tag.lower() for tag in and_tags}
+    import py.tag_manager as tag_manager
     
     for filter_tag in active_filters:
-        filter_tag_lower = filter_tag.lower()
-        if filter_tag_lower in and_tags_lower:
-            # This is an AND tag - check if ALL components are present
-            components = [comp.strip().lower() for comp in filter_tag.split('&')]
-            if all(comp in content_tags for comp in components):
-                return True
-        else:
-            # This is a singular tag - check if it's present
-            if filter_tag_lower in content_tags:
-                return True
+        if tag_manager.should_show_content_for_filter(content_tags, filter_tag):
+            return True
     return False
 
 def find_item(item_id: str, item_type: str) -> Optional[Dict]:

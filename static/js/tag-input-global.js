@@ -65,11 +65,26 @@
                     bubble.classList.remove('inactive-filter');
                     bubble.style.backgroundColor = '#e9d5ff';
                     bubble.style.color = '#5b21b6';
+                } 
+                // Handle category tags
+                else if (tag.startsWith('CATEGORY:')) {
+                    bubble.classList.add('tag-bubble-category');
+                    bubble.classList.remove('inactive-filter');
+                    bubble.style.backgroundColor = '#f0fdf4'; // bg-green-100
+                    bubble.style.color = '#166534'; // text-green-800
+                    bubble.style.fontWeight = '600';
+                    bubble.style.border = '1px solid #bbf7d0'; // border-green-200
                 }
                 
-                // Regular tag - create proper structure
+                // Create proper tag content structure
                 const tagText = document.createElement('span');
-                tagText.textContent = tag;
+                if (tag.startsWith('CATEGORY:')) {
+                    // Display category tags with folder emoji and clean name
+                    const categoryName = tag.replace('CATEGORY:', '');
+                    tagText.innerHTML = `📁 ${categoryName}`;
+                } else {
+                    tagText.textContent = tag;
+                }
                 bubble.appendChild(tagText);
                 
                 // Add remove button
@@ -148,14 +163,17 @@
             
             const filtered = window.ALL_TAGS.filter(tag => 
                 tag.toLowerCase().includes(value) && !currentTagsLower.includes(tag.toLowerCase())
-            ).slice(0, 8); // Limit to 8 suggestions
+            ).slice(0, 5); // Reduced to 5 to leave more room for category suggestions
             
-            console.log(`[TAG INPUT] Filtered suggestions:`, filtered);
+            console.log(`[TAG INPUT] Filtered regular suggestions:`, filtered);
             
             // Clear previous suggestions
             suggestionsContainer.innerHTML = '';
             
-            // Add filtered tag suggestions
+            // Add category suggestions first (higher priority)
+            addCategoryTagSuggestions(value, currentTagsLower);
+            
+            // Add filtered regular tag suggestions
             if (filtered.length > 0) {
                 filtered.forEach(tag => suggestionsContainer.appendChild(createSuggestionItem(tag)));
             }
@@ -178,7 +196,80 @@
             }
         }
         
-        function createSuggestionItem(tag, isNew = false) {
+        function addCategoryTagSuggestions(value, currentTagsLower) {
+            // Check if TAG_CATEGORIES is available
+            if (!window.TAG_CATEGORIES || !Array.isArray(window.TAG_CATEGORIES)) {
+                console.warn('[TAG INPUT] TAG_CATEGORIES not available for category suggestions');
+                return;
+            }
+            
+            console.log(`[TAG INPUT] Adding category suggestions for:`, value);
+            console.log(`[TAG INPUT] Available categories:`, window.TAG_CATEGORIES.length);
+            
+            // Create category tag suggestions based on available categories
+            window.TAG_CATEGORIES.forEach(category => {
+                const categoryTagName = `CATEGORY:${category.name}`;
+                const categoryTagLower = categoryTagName.toLowerCase();
+                
+                // Skip if already selected
+                if (currentTagsLower.includes(categoryTagLower)) {
+                    return;
+                }
+                
+                // Enhanced matching logic - show CATEGORY tag if:
+                // 1. User types "CATEGORY:" prefix (exact match)
+                // 2. User types partial "category" keywords
+                // 3. Category name contains the search value
+                // 4. Search value contains part of category name
+                // 5. User types "cat" or similar shortcuts
+                
+                const valueLower = value.toLowerCase();
+                const categoryNameLower = category.name.toLowerCase();
+                
+                let shouldShow = false;
+                
+                // Direct CATEGORY: prefix matching
+                if (valueLower.startsWith('category:')) {
+                    const afterPrefix = valueLower.substring(9); // Remove "category:"
+                    if (categoryNameLower.includes(afterPrefix) || afterPrefix === '') {
+                        shouldShow = true;
+                    }
+                }
+                // Category keyword matching
+                else if (valueLower === 'cat' || 
+                         valueLower === 'category' || 
+                         valueLower.includes('categ') ||
+                         valueLower === 'categories') {
+                    shouldShow = true;
+                }
+                // Category name partial matching (both directions)
+                else if (categoryNameLower.includes(valueLower) || 
+                         valueLower.includes(categoryNameLower)) {
+                    shouldShow = true;
+                }
+                // Fuzzy matching for category names (check if user input matches beginning of category)
+                else if (categoryNameLower.startsWith(valueLower) && valueLower.length >= 2) {
+                    shouldShow = true;
+                }
+                // Word boundary matching within category names
+                else if (valueLower.length >= 2) {
+                    const categoryWords = categoryNameLower.split(/[\s\-_]/);
+                    for (const word of categoryWords) {
+                        if (word.startsWith(valueLower)) {
+                            shouldShow = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (shouldShow) {
+                    console.log(`[TAG INPUT] Adding category suggestion:`, categoryTagName);
+                    suggestionsContainer.appendChild(createSuggestionItem(categoryTagName, false, true));
+                }
+            });
+        }
+        
+        function createSuggestionItem(tag, isNew = false, isCategory = false) {
             const item = document.createElement('div');
             item.className = 'suggestion-item';
             
@@ -186,20 +277,51 @@
                 item.innerHTML = `Create new tag: <strong style="color: #2563eb; margin-left: 0.25rem;">"${tag}"</strong>`;
                 item.style.fontStyle = 'italic';
                 item.style.backgroundColor = '#f8fafc';
+            } else if (isCategory) {
+                // Special styling for category tags to match main content view
+                const categoryName = tag.replace('CATEGORY:', '');
+                item.innerHTML = `📁 ${categoryName}`;
+                item.style.backgroundColor = '#f0fdf4 !important'; // bg-green-100
+                item.style.color = '#166534 !important'; // text-green-800
+                item.style.fontWeight = '600 !important';
+                item.style.border = '1px solid #bbf7d0 !important'; // border-green-200
+                item.style.borderRadius = '9999px !important'; // rounded-full
+                item.style.padding = '0.25rem 0.625rem !important'; // px-2.5 py-1
+                item.style.margin = '0.25rem !important';
+                item.style.display = 'inline-block !important';
             } else {
                 item.textContent = tag;
                 if (tag.toLowerCase() === 'all') {
                     item.style.color = '#7c3aed';
                     item.style.fontWeight = 'bold';
+                } else if (tag.startsWith('CATEGORY:')) {
+                    // Handle existing category tags in regular suggestions to match main content view
+                    const categoryName = tag.replace('CATEGORY:', '');
+                    item.innerHTML = `📁 ${categoryName}`;
+                    item.style.backgroundColor = '#f0fdf4 !important'; // bg-green-100
+                    item.style.color = '#166534 !important'; // text-green-800
+                    item.style.fontWeight = '600 !important';
+                    item.style.border = '1px solid #bbf7d0 !important'; // border-green-200
+                    item.style.borderRadius = '9999px !important'; // rounded-full
+                    item.style.padding = '0.25rem 0.625rem !important'; // px-2.5 py-1
+                    item.style.margin = '0.25rem !important';
+                    item.style.display = 'inline-block !important';
                 }
             }
             
             // Enhanced hover effect
+            const originalBgColor = isNew ? '#f8fafc' : 
+                                  (isCategory || tag.startsWith('CATEGORY:')) ? '#f0fdf4' : '';
+            
             item.addEventListener('mouseenter', () => {
-                item.style.backgroundColor = '#e5e7eb';
+                if (isCategory || tag.startsWith('CATEGORY:')) {
+                    item.style.backgroundColor = '#dcfce7 !important'; // darker green on hover
+                } else {
+                    item.style.backgroundColor = '#e5e7eb !important';
+                }
             });
             item.addEventListener('mouseleave', () => {
-                item.style.backgroundColor = isNew ? '#f8fafc' : '';
+                item.style.backgroundColor = originalBgColor + ' !important';
             });
             
             // Click handling - use mousedown to prevent blur from hiding suggestions
