@@ -93,11 +93,24 @@ document.addEventListener('DOMContentLoaded', function() {
             // Prevent default submission to capture content first
             e.preventDefault();
             
+            // Store scroll position and note ID for restoration after page reload
+            const scrollPosition = window.pageYOffset || document.documentElement.scrollTop;
+            
+            // Extract note ID from form action URL (format: /note/update/section_id/note_id)
+            const actionUrl = editNoteForm.action;
+            const urlParts = actionUrl.split('/');
+            const noteId = urlParts[urlParts.length - 1].split('?')[0]; // Remove query parameters
+            
+            sessionStorage.setItem('scrollPosition', scrollPosition);
+            sessionStorage.setItem('editedNoteId', noteId);
+            
             window.appLogger?.action('NOTE_FORM_SUBMISSION_START', {
                 formAction: editNoteForm.action,
                 formMethod: editNoteForm.method,
                 hasNoteEditor: !!window.noteEditor,
-                hasQuill: !!(window.noteEditor && window.noteEditor.quill)
+                hasQuill: !!(window.noteEditor && window.noteEditor.quill),
+                scrollPosition: scrollPosition,
+                noteId: noteId
             });
             
             // Get HTML content using multiple methods for debugging
@@ -211,6 +224,52 @@ document.addEventListener('DOMContentLoaded', function() {
     
     window.appLogger?.action('CORE_INITIALIZATION_COMPLETE');
     console.log('TaggingApp initialization complete');
+    
+    // Restore scroll position after note editing
+    setTimeout(() => {
+        const savedScrollPosition = sessionStorage.getItem('scrollPosition');
+        const editedNoteId = sessionStorage.getItem('editedNoteId');
+        
+        if (savedScrollPosition && editedNoteId) {
+            window.appLogger?.action('SCROLL_POSITION_RESTORE_ATTEMPT', {
+                savedScrollPosition: parseInt(savedScrollPosition),
+                editedNoteId: editedNoteId
+            });
+            
+            // First try to scroll to the specific note
+            const noteElement = document.querySelector(`[data-note-id="${editedNoteId}"]`) || 
+                               document.querySelector(`#note-${editedNoteId}`) ||
+                               document.querySelector(`[id*="${editedNoteId}"]`);
+            
+            if (noteElement) {
+                // Scroll to the note with some offset
+                const elementTop = noteElement.offsetTop - 100; // 100px offset from top
+                window.scrollTo({
+                    top: elementTop,
+                    behavior: 'smooth'
+                });
+                
+                window.appLogger?.action('SCROLL_TO_NOTE_SUCCESS', {
+                    noteId: editedNoteId,
+                    elementTop: elementTop
+                });
+            } else {
+                // Fallback to saved scroll position
+                window.scrollTo({
+                    top: parseInt(savedScrollPosition),
+                    behavior: 'smooth'
+                });
+                
+                window.appLogger?.action('SCROLL_TO_POSITION_FALLBACK', {
+                    scrollPosition: parseInt(savedScrollPosition)
+                });
+            }
+            
+            // Clear the stored values
+            sessionStorage.removeItem('scrollPosition');
+            sessionStorage.removeItem('editedNoteId');
+        }
+    }, 100); // Small delay to ensure page is fully loaded
 });
 
 // Core application functions
@@ -407,17 +466,6 @@ window.showTagContextMenu = function(event, tagName) {
         message: 'Setting context menu content'
     });
     
-    // Determine if this is an AND tag (contains '&')
-    const isAndTag = tagName.includes('&');
-    const deleteFunction = isAndTag ? 'deleteAndTagFromContext' : 'deleteGlobalTag';
-    
-    window.appLogger?.action('TAG_TYPE_DETECTED', { 
-        tag: tagName,
-        isAndTag: isAndTag,
-        deleteFunction: deleteFunction,
-        message: 'Tag type detected for context menu'
-    });
-    
     contextMenu.innerHTML = `
         <div class="px-3 py-1 text-sm font-medium text-gray-800 border-b mb-1">${tagName}</div>
         <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
@@ -425,7 +473,7 @@ window.showTagContextMenu = function(event, tagName) {
            Rename Tag
         </a>
         <a href="#" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-           onclick="event.preventDefault(); ${deleteFunction}('${tagName}'); hideContextMenu();">
+           onclick="event.preventDefault(); deleteGlobalTag('${tagName}'); hideContextMenu();">
            Delete Tag
         </a>
     `;
@@ -532,56 +580,6 @@ window.deleteGlobalTag = function(tagName) {
         form.appendChild(input);
         document.body.appendChild(form);
         form.submit();
-    }
-};
-
-// Helper function to delete an AND tag from context menu
-window.deleteAndTagFromContext = function(tagName) {
-    window.appLogger?.action('AND_TAG_DELETE_FROM_CONTEXT', { 
-        tag: tagName,
-        message: 'AND tag deletion initiated from context menu'
-    });
-    
-    if (confirm(`Are you sure you want to delete the AND tag '${tagName}'?`)) {
-        // Create and submit a form to delete the AND tag
-        const form = document.createElement('form');
-        form.method = 'POST';
-        
-        // Build the delete AND tag URL (no query parameters needed)
-        form.action = '/and-tags/delete';
-        
-        // Get current state
-        const currentUrl = new URL(window.location.href);
-        const params = new URLSearchParams(currentUrl.search);
-        const state = params.get('state');
-        
-        if (state) {
-            const stateInput = document.createElement('input');
-            stateInput.type = 'hidden';
-            stateInput.name = 'state';
-            stateInput.value = state;
-            form.appendChild(stateInput);
-        }
-        
-        // Add the AND tag to delete
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'and_tag_to_delete';
-        input.value = tagName;
-        
-        form.appendChild(input);
-        document.body.appendChild(form);
-        form.submit();
-        
-        window.appLogger?.action('AND_TAG_DELETE_FORM_SUBMITTED', { 
-            tag: tagName,
-            message: 'AND tag deletion form submitted from context menu'
-        });
-    } else {
-        window.appLogger?.action('AND_TAG_DELETE_CANCELLED', { 
-            tag: tagName,
-            message: 'AND tag deletion cancelled by user'
-        });
     }
 };
 

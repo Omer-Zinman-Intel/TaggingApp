@@ -456,7 +456,7 @@ before being sent to the browser as valid HTML/JavaScript.
 
                 <div class="space-y-4 pl-4 border-l-2 border-gray-200">
                     {% for note in section.notes %}
-                    <div class="bg-white p-4 rounded-md shadow-sm group/note">
+                    <div id="note-{{ note.id }}" data-note-id="{{ note.id }}" class="bg-white p-4 rounded-md shadow-sm group/note">
                         <div class="flex justify-between items-start">
                             <h3 class="text-lg font-semibold text-gray-700">{{ note.noteTitle }}</h3>
                              <div class="flex items-center space-x-2 opacity-0 group-hover/note:opacity-100 transition-opacity">
