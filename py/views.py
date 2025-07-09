@@ -151,10 +151,32 @@ def update_title():
 
 def add_section():
     state_name = request.args.get('state')
+    after_section_id = request.form.get('after_section_id', '')
     new_section = {"id": str(uuid.uuid4()), "sectionTitle": "New Section", "tags": [], "notes": []}
-    core.document_state.setdefault("sections", []).append(new_section)
+    sections = core.document_state.setdefault("sections", [])
+
+    if after_section_id:
+        # Find the index of the section to insert after
+        for idx, section in enumerate(sections):
+            if section["id"] == after_section_id:
+                sections.insert(idx + 1, new_section)
+                break
+        else:
+            # If not found, append at the end
+            sections.append(new_section)
+    else:
+        # Insert at the beginning
+        sections.insert(0, new_section)
+
     state_manager.save_state(state_name)
-    return redirect(get_redirect_url())
+
+    # Pass new_section_id as a query param for scroll restoration
+    redirect_url = get_redirect_url()
+    if '?' in redirect_url:
+        redirect_url += f'&new_section_id={new_section["id"]}'
+    else:
+        redirect_url += f'?new_section_id={new_section["id"]}'
+    return redirect(redirect_url)
 
 def update_section(section_id: str):
     state_name = request.args.get('state')
@@ -182,14 +204,34 @@ def update_section(section_id: str):
 
 def delete_section(section_id: str):
     state_name = request.args.get('state')
-    original_count = len(core.document_state.get("sections", []))
-    core.document_state["sections"] = [s for s in core.document_state.get("sections", []) if s["id"] != section_id]
-    if len(core.document_state["sections"]) < original_count:
+    sections = core.document_state.get("sections", [])
+    # Find the index of the section to be deleted
+    idx_to_delete = None
+    for idx, s in enumerate(sections):
+        if s["id"] == section_id:
+            idx_to_delete = idx
+            break
+    scroll_to_section_id = None
+    if idx_to_delete is not None:
+        # Prefer to scroll to the next section, or previous if last
+        if idx_to_delete < len(sections) - 1:
+            scroll_to_section_id = sections[idx_to_delete + 1]["id"]
+        elif idx_to_delete > 0:
+            scroll_to_section_id = sections[idx_to_delete - 1]["id"]
+        # Remove the section
+        del sections[idx_to_delete]
         tag_manager.cleanup_orphan_tags()
         state_manager.save_state(state_name)
     else:
-        flash("Section not found.", "error") # Added flash message for consistency
-    return redirect(get_redirect_url())
+        flash("Section not found.", "error")
+    # Redirect with scroll target if possible
+    redirect_url = get_redirect_url()
+    if scroll_to_section_id:
+        if '?' in redirect_url:
+            redirect_url += f'&new_section_id={scroll_to_section_id}'
+        else:
+            redirect_url += f'?new_section_id={scroll_to_section_id}'
+    return redirect(redirect_url)
 
 def add_note(section_id: str):
     state_name = request.args.get('state')

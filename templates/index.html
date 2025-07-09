@@ -1,3 +1,99 @@
+<script>
+// --- Scroll to new section if new_section_id is present in URL ---
+(function() {
+    function getQueryParam(name) {
+        const url = new URL(window.location.href);
+        return url.searchParams.get(name);
+    }
+    const newSectionId = getQueryParam('new_section_id');
+    if (newSectionId) {
+        // Wait for the section to exist, then scroll to it
+        function waitForSectionAndScroll(id, maxWait = 2000) {
+            const start = Date.now();
+            (function check() {
+                const el = document.getElementById('section-' + id);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else if (Date.now() - start < maxWait) {
+                    setTimeout(check, 30);
+                }
+            })();
+        }
+        waitForSectionAndScroll(newSectionId);
+        // Optionally, clean up the URL
+        if (window.history && window.history.replaceState) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('new_section_id');
+            window.history.replaceState({}, document.title, url.pathname + url.search);
+        }
+    }
+})();
+</script>
+<script>
+// Unified reload/scroll restoration utility
+// Unified scroll/selection context utility for sections/notes
+function saveReloadContext(context = {}) {
+    // context: { scrollToNewSectionAfter: <sectionId|null> }
+    if (context.scrollToNewSectionAfter !== undefined) {
+        sessionStorage.setItem('scrollToNewSectionAfter', context.scrollToNewSectionAfter);
+    }
+}
+
+function waitForElement(selector, callback, maxWait = 1000) {
+    const start = Date.now();
+    (function check() {
+        const el = document.querySelector(selector);
+        if (el) {
+            callback(el);
+        } else if (Date.now() - start < maxWait) {
+            setTimeout(check, 30);
+        }
+    })();
+}
+
+function restoreReloadContext() {
+    const afterId = sessionStorage.getItem('scrollToNewSectionAfter');
+    if (afterId !== null) {
+        // If afterId is '', scroll to the first section (added at top)
+        if (afterId === '') {
+            waitForElement('.group\\/section', function(el) {
+                el.scrollIntoView({ behavior: 'auto', block: 'center' });
+            });
+        } else {
+            // Find the section that comes after the given id
+            const allSections = Array.from(document.querySelectorAll('.group\\/section'));
+            let found = false;
+            for (let i = 0; i < allSections.length; ++i) {
+                if (allSections[i].id === 'section-' + afterId && allSections[i+1]) {
+                    waitForElement('#' + allSections[i+1].id, function(el) {
+                        el.scrollIntoView({ behavior: 'auto', block: 'center' });
+                    });
+                    found = true;
+                    break;
+                }
+            }
+            if (!found && allSections.length > 0) {
+                // Fallback: scroll to last section
+                waitForElement('#' + allSections[allSections.length-1].id, function(el) {
+                    el.scrollIntoView({ behavior: 'auto', block: 'center' });
+                });
+            }
+        }
+        sessionStorage.removeItem('scrollToNewSectionAfter');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    restoreReloadContext();
+    // Attach to all Add Section forms
+    document.querySelectorAll('form[action$="/add_section"]').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            const afterId = form.querySelector('input[name="after_section_id"]').value;
+            saveReloadContext({ scrollToNewSectionAfter: afterId });
+        });
+    });
+});
+</script>
 <!-- 
 This is a Jinja2 HTML template file.
 The {{ template_expressions }} are processed server-side by Flask/Jinja2
@@ -396,7 +492,7 @@ before being sent to the browser as valid HTML/JavaScript.
                                    draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}" ondragstart="drag(event)" ondragend="dragEnd(event)" ondrop="drop(event)" data-tag-name="{{ tag }}" data-source-category-id="{{ category.id }}">
                                     <span onclick='handleTagClick(event, {{ tag|tojson|safe }})' oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }}); return false;'>{{ tag }}</span>
                                     <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white shadow-lg rounded-md p-1 flex items-center z-20 opacity-0 group-hover/tag:opacity-100 transition-opacity pointer-events-none group-hover/tag:pointer-events-auto">
-                                        <button onclick='console.log("Button clicked for tag:", {{ tag|tojson|safe }}); event.preventDefault(); event.stopPropagation(); showRenameModal({{ tag|tojson|safe }})' class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md">
+                                        <button onclick='console.log("Button clicked for tag:", {{ tag|tojson|safe }}); event.preventDefault(); event.stopPropagation(); showRenameModal({{ tag }})' class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                         </button>
                                         <form action="{{ url_for('delete_global_tag', filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete the tag ' + {{ tag|tojson }} + ' everywhere?');" class="inline">
@@ -427,118 +523,186 @@ before being sent to the browser as valid HTML/JavaScript.
         </div>
         
         <div id="content-to-export" class="space-y-6">
+        <div id="content-to-export" class="space-y-6">
+            {% if sections|length > 0 %}
+                {# Add Section button at top #}
+                <div class="group relative flex justify-center mb-2">
+                  <form action="{{ url_for('add_section', filter=request.args.getlist('filter'), state=current_state) }}" method="post" class="transition-opacity opacity-0 group-hover:opacity-100">
+                    <input type="hidden" name="after_section_id" value="">
+                    <button type="submit" class="flex items-center justify-center px-2 py-1 bg-blue-600 text-white font-semibold rounded-full shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-all text-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        Add Section
+                    </button>
+                  </form>
+                </div>
+            {% endif %}
             {% for section in sections %}
-            <div class="bg-gray-50/70 border border-gray-200/80 p-5 rounded-lg group/section">
-                <div class="flex justify-between items-start mb-3">
-                    <h2 class="text-xl font-semibold text-gray-800">{{ section.sectionTitle }}</h2>
-                    <div class="flex items-center space-x-2 opacity-0 group-hover/section:opacity-100 transition-opacity">
-                        <button type="button" class="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-100 rounded-full" onclick="toggleNoteReorderMode('{{ section.id }}')" title="Reorder Notes">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9h8M8 15h8M10 5h4M10 19h4" /></svg>
-                        </button>
-                        <button onclick="showEditSectionModal('{{ section.id }}', '{{ section.sectionTitle }}', '{% for tag in section.tags %}{{ tag }}{% if not loop.last %}, {% endif %}{% endfor %}')" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-gray-200 rounded-full">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                        </button>
-                        <form action="{{ url_for('delete_section', section_id=section.id, filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="return confirm('Are you sure you want to delete this section and all its notes?');" class="inline">
-                            <button type="submit" class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-gray-200 rounded-full">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                <div id="section-{{ section.id }}" class="bg-gray-50/70 border border-gray-200/80 p-5 rounded-lg group/section">
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Restore scroll position or scroll to new section if marker exists
+    if (window.localStorage) {
+        const scrollTarget = localStorage.getItem('scrollTargetSectionId');
+        if (scrollTarget) {
+            const el = document.getElementById('section-' + scrollTarget);
+            if (el) {
+                el.scrollIntoView({behavior: 'auto', block: 'center'});
+            }
+            localStorage.removeItem('scrollTargetSectionId');
+        } else if (localStorage.getItem('scrollY')) {
+            window.scrollTo(0, parseInt(localStorage.getItem('scrollY'), 10));
+            localStorage.removeItem('scrollY');
+        }
+    }
+    // Attach to all Add Section forms
+    document.querySelectorAll('form[action$="/section/add"]').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            if (window.localStorage) {
+                // Try to find the section after which we're adding
+                var afterId = form.querySelector('input[name="after_section_id"]').value;
+                if (afterId) {
+                    localStorage.setItem('scrollTargetSectionId', afterId);
+                } else {
+                    // If adding at the top, scroll to the first section if it exists
+                    var firstSection = document.querySelector('.group\\/section');
+                    if (firstSection && firstSection.id) {
+                        localStorage.setItem('scrollTargetSectionId', firstSection.id.replace('section-',''));
+                    } else {
+                        localStorage.setItem('scrollY', window.scrollY);
+                    }
+                }
+            }
+        });
+    });
+});
+</script>
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-xl font-semibold text-gray-800">{{ section.sectionTitle }}</h2>
+                        <div class="section-action-buttons opacity-0 group-hover/section:opacity-100 transition-opacity">
+                            <button type="button" class="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-100 rounded-full" onclick="toggleNoteReorderMode('{{ section.id }}')" title="Reorder Notes">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9h8M8 15h8M10 5h4M10 19h4" /></svg>
+                            </button>
+                            <button onclick="showEditSectionModal('{{ section.id }}', '{{ section.sectionTitle }}', '{% for tag in section.tags %}{{ tag }}{% if not loop.last %}, {% endif %}{% endfor %}')" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-gray-200 rounded-full">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            </button>
+                            <form action="{{ url_for('delete_section', section_id=section.id, filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="return confirm('Are you sure you want to delete this section and all its notes?');" class="inline">
+                                <button type="submit" class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-gray-200 rounded-full">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    {% if section.tags %}
+                    <div class="flex flex-wrap mb-4">
+                        {% for tag in section.tags %}
+                            <span class="text-xs font-semibold mr-2 mb-1 px-2.5 py-1 rounded-full 
+                                {% if tag.startswith('CATEGORY:') %}
+                                    bg-green-100 text-green-800
+                                {% elif tag.lower() == 'all' %}
+                                    bg-purple-200 text-purple-800
+                                {% else %}
+                                    bg-blue-100 text-blue-800
+                                {% endif %}">
+                                {% if tag.startswith('CATEGORY:') %}
+                                    📁 {{ tag[9:] }}
+                                {% else %}
+                                    {{ tag }}
+                                {% endif %}
+                            </span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="space-y-4 pl-4 border-l-2 border-gray-200 note-list" id="note-list-{{ section.id }}"
+                         ondragover="onNoteListDragOver(event, '{{ section.id }}')"
+                         ondrop="onNoteListDrop(event, '{{ section.id }}')">
+                        {% for note in section.notes %}
+                        <div id="note-{{ note.id }}" data-note-id="{{ note.id }}" class="p-4 rounded-md shadow-sm group/note note-draggable{% if note.completed %} note-completed{% else %} bg-white{% endif %}" draggable="false" ondragstart="onNoteDragStart(event, '{{ section.id }}')" ondragover="onNoteDragOver(event, '{{ section.id }}')" ondrop="onNoteDrop(event, '{{ section.id }}')" ondragend="onNoteDragEnd(event)">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center">
+                                    <span class="note-drag-handle hidden mr-2 cursor-move select-none text-gray-400" title="Drag to reorder">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="6" cy="7" r="1.5"/><circle cx="6" cy="12" r="1.5"/><circle cx="6" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/><circle cx="18" cy="7" r="1.5"/><circle cx="18" cy="12" r="1.5"/><circle cx="18" cy="17" r="1.5"/></svg>
+                                    </span>
+                                    <button onclick="toggleNoteCompleted('{{ section.id }}', '{{ note.id }}')" class="mr-2 p-1.5 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-400 transition" title="Mark as complete/incomplete">
+                                        {% if note.completed %}
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="text-green-600"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                        {% else %}
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="text-gray-400"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                                        {% endif %}
+                                    </button>
+                                    <h3 class="text-lg font-semibold text-gray-700">{{ note.noteTitle }}</h3>
+                                </div>
+                                <div class="note-action-buttons opacity-0 group-hover/note:opacity-100 transition-opacity">
+                                    <button onclick="showEditNoteModal('{{ section.id }}', '{{ note.id }}', '{{ note.noteTitle }}', `{{ note.content | e }}`, '{% for tag in note.tags %}{{ tag }}{% if not loop.last %}, {% endif %}{% endfor %}')" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-gray-200 rounded-full">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                    </button>
+                                    <form action="{{ url_for('delete_note', section_id=section.id, note_id=note.id, filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="return confirm('Are you sure?');" class="inline">
+                                        <button type="submit" class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-gray-200 rounded-full">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            {% if note.tags %}
+                            <div class="flex flex-wrap my-2">
+                                {% for tag in note.tags %}
+                                    <span class="text-xs font-semibold mr-2 mb-1 px-2.5 py-1 rounded-full 
+                                        {% if tag.startswith('CATEGORY:') %}
+                                            bg-green-100 text-green-800
+                                        {% elif tag.lower() == 'all' %}
+                                            bg-purple-200 text-purple-800
+                                        {% else %}
+                                            bg-blue-100 text-blue-800
+                                        {% endif %}">
+                                        {% if tag.startswith('CATEGORY:') %}
+                                            📁 {{ tag[9:] }}
+                                        {% else %}
+                                            {{ tag }}
+                                        {% endif %}
+                                    </span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            <div class="prose prose-sm max-w-none mt-2 text-gray-600">
+                                {{ note.content | safe }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                        <form action="{{ url_for('add_note', section_id=section.id, filter=request.args.getlist('filter'), state=current_state) }}" method="post">
+                            <button type="submit" class="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                Add Note
                             </button>
                         </form>
                     </div>
                 </div>
-
-                {% if section.tags %}
-                <div class="flex flex-wrap mb-4">
-                    {% for tag in section.tags %}
-                        <span class="text-xs font-semibold mr-2 mb-1 px-2.5 py-1 rounded-full 
-                            {% if tag.startswith('CATEGORY:') %}
-                                bg-green-100 text-green-800
-                            {% elif tag.lower() == 'all' %}
-                                bg-purple-200 text-purple-800
-                            {% else %}
-                                bg-blue-100 text-blue-800
-                            {% endif %}">
-                            {% if tag.startswith('CATEGORY:') %}
-                                📁 {{ tag[9:] }}
-                            {% else %}
-                                {{ tag }}
-                            {% endif %}
-                        </span>
-                    {% endfor %}
+                {# Add Section button between sections, but not after the last section #}
+                {% if not loop.last %}
+                <div class="group relative flex justify-center my-2">
+                  <form action="{{ url_for('add_section', filter=request.args.getlist('filter'), state=current_state) }}" method="post" class="transition-opacity opacity-0 group-hover:opacity-100">
+                    <input type="hidden" name="after_section_id" value="{{ section.id }}">
+                    <button type="submit" class="flex items-center justify-center px-2 py-1 bg-blue-600 text-white font-semibold rounded-full shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-all text-sm">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                      Add Section
+                    </button>
+                  </form>
                 </div>
                 {% endif %}
-
-                <div class="space-y-4 pl-4 border-l-2 border-gray-200 note-list" id="note-list-{{ section.id }}"
-                     ondragover="onNoteListDragOver(event, '{{ section.id }}')"
-                     ondrop="onNoteListDrop(event, '{{ section.id }}')">
-                    {% for note in section.notes %}
-                    <div id="note-{{ note.id }}" data-note-id="{{ note.id }}" class="p-4 rounded-md shadow-sm group/note note-draggable{% if note.completed %} note-completed{% else %} bg-white{% endif %}" draggable="false" ondragstart="onNoteDragStart(event, '{{ section.id }}')" ondragover="onNoteDragOver(event)" ondrop="onNoteDrop(event, '{{ section.id }}')" ondragend="onNoteDragEnd(event)">
-                        <div class="flex justify-between items-start">
-                            <div class="flex items-center">
-                                <span class="note-drag-handle hidden mr-2 cursor-move select-none text-gray-400" title="Drag to reorder">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="6" cy="7" r="1.5"/><circle cx="6" cy="12" r="1.5"/><circle cx="6" cy="17" r="1.5"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="17" r="1.5"/><circle cx="18" cy="7" r="1.5"/><circle cx="18" cy="12" r="1.5"/><circle cx="18" cy="17" r="1.5"/></svg>
-                                </span>
-                                <button onclick="toggleNoteCompleted('{{ section.id }}', '{{ note.id }}')" class="mr-2 p-1.5 rounded-full focus:outline-none focus:ring-2 focus:ring-gray-400 transition" title="Mark as complete/incomplete">
-                                    {% if note.completed %}
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="text-green-600"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
-                                    {% else %}
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="text-gray-400"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-                                    {% endif %}
-                                </button>
-                                <h3 class="text-lg font-semibold text-gray-700">{{ note.noteTitle }}</h3>
-                            </div>
-                            <div class="flex items-center space-x-2 opacity-0 group-hover/note:opacity-100 transition-opacity">
-                                <button onclick="showEditNoteModal('{{ section.id }}', '{{ note.id }}', '{{ note.noteTitle }}', `{{ note.content | e }}`, '{% for tag in note.tags %}{{ tag }}{% if not loop.last %}, {% endif %}{% endfor %}')" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-gray-200 rounded-full">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                                </button>
-                                <form action="{{ url_for('delete_note', section_id=section.id, note_id=note.id, filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="return confirm('Are you sure?');" class="inline">
-                                    <button type="submit" class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-gray-200 rounded-full">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                        {% if note.tags %}
-                        <div class="flex flex-wrap my-2">
-                            {% for tag in note.tags %}
-                                <span class="text-xs font-semibold mr-2 mb-1 px-2.5 py-1 rounded-full 
-                                    {% if tag.startswith('CATEGORY:') %}
-                                        bg-green-100 text-green-800
-                                    {% elif tag.lower() == 'all' %}
-                                        bg-purple-200 text-purple-800
-                                    {% else %}
-                                        bg-blue-100 text-blue-800
-                                    {% endif %}">
-                                    {% if tag.startswith('CATEGORY:') %}
-                                        📁 {{ tag[9:] }}
-                                    {% else %}
-                                        {{ tag }}
-                                    {% endif %}
-                                </span>
-                            {% endfor %}
-                        </div>
-                        {% endif %}
-                        <div class="prose prose-sm max-w-none mt-2 text-gray-600">
-                            {{ note.content | safe }}
-                        </div>
-                    </div>
-                    {% endfor %}
-                    <form action="{{ url_for('add_note', section_id=section.id, filter=request.args.getlist('filter'), state=current_state) }}" method="post">
-                        <button type="submit" class="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                            Add Note
-                        </button>
-                    </form>
-                </div>
-            </div>
             {% endfor %}
+            {# Add Section button below the last section, or as the only button if no sections exist #}
+            <div class="group relative flex justify-center mt-2">
+              <form action="{{ url_for('add_section', filter=request.args.getlist('filter'), state=current_state) }}" method="post" class="transition-opacity opacity-0 group-hover:opacity-100">
+                <input type="hidden" name="after_section_id" value="{{ sections|length > 0 and sections[-1].id or '' }}">
+                <button type="submit" class="flex items-center justify-center px-2 py-1 bg-blue-600 text-white font-semibold rounded-full shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-all text-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  Add Section
+                </button>
+              </form>
+            </div>
         </div>
 
         <div class="mt-8 pt-6 border-t flex items-center justify-end space-x-3">
-             <form action="{{ url_for('add_section', filter=request.args.getlist('filter'), state=current_state) }}" method="post">
-                 <button type="submit" class="flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-all">
-                    Add New Section
-                </button>
-             </form>
             <button onclick="showImportModal()" class="flex items-center justify-center px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75 transition-all">
                 Manual Import Content
             </button>
@@ -1820,6 +1984,11 @@ function updateAndTagFromComponents() {
         alert('Please remove duplicate components.');
         return false;
     }
+    
+    // Check if new AND tag already exists (excluding the current one being edited)
+    const oldTag = document.getElementById('editAndTagOldTag').value;
+    const newAndTagString = components.join(' & ');
+    const existingAndTags = {{ and_tags | tojson | safe }};
     
     // Check if new AND tag already exists (excluding the current one being edited)
     const oldTag = document.getElementById('editAndTagOldTag').value;

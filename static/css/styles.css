@@ -1,3 +1,43 @@
+/* ================================
+   Section & Note Action Button Alignment Fix
+   ================================ */
+.section-action-buttons, .note-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.section-action-buttons button, .section-action-buttons form,
+.note-action-buttons button, .note-action-buttons form {
+  vertical-align: middle !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.section-action-buttons svg, .note-action-buttons svg {
+  display: block;
+  vertical-align: middle;
+}
+
+/* ================================
+   Section Card Styling
+   ================================ */
+.group\/section {
+  margin-bottom: 2.5rem !important;
+  border: 2.5px solid #bfc9d1 !important;
+  box-shadow: 0 2px 12px 0 rgba(80, 100, 140, 0.07);
+  background: #f8fafc;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.group\/section:hover {
+  border-color: #2563eb !important;
+  box-shadow: 0 4px 24px 0 rgba(37, 99, 235, 0.10);
+  background: #f1f5fa;
+}
+
+/* Add more vertical gap between sections */
+#content-to-export > .group\/section + .group\/section {
+  margin-top: 2.5rem !important;
+}
 /* --- Note Drag-and-Drop Visual Cues --- */
 .note-draggable {
   transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
