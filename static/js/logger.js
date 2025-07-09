@@ -24,6 +24,7 @@
         info: (...args) => log('info', ...args),
         warn: (...args) => log('warn', ...args),
         error: (...args) => log('error', ...args),
+        debug: (...args) => log('info', ...args), // Add debug method that logs as info
         
         // Action tracking methods
         action: (actionType, details) => {

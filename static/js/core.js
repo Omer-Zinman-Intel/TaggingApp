@@ -316,61 +316,173 @@ window.handleTagClick = function(event, tagName) {
 };
 
 // Handle right-click context menu for tags
+// Test function to debug context menu
+window.testContextMenu = function() {
+    window.appLogger?.action('TEST_CONTEXT_MENU', { message: 'Context menu test function called' });
+    return false;
+};
+
 window.showTagContextMenu = function(event, tagName) {
-    console.log(`Tag context menu requested for: ${tagName}`);
-    window.appLogger?.action('TAG_CONTEXT_MENU', { tag: tagName });
+    // Fire a dedicated context menu opened event for future logging/analytics
+    window.appLogger?.action('CONTEXT_MENU_OPENED', {
+        type: 'tag_context_menu',
+        tag: tagName,
+        position: { x: event.clientX, y: event.clientY },
+        timestamp: Date.now(),
+        url: window.location.href
+    });
+    
+    window.appLogger?.action('TAG_CONTEXT_MENU_START', { 
+        tag: tagName,
+        message: 'Tag context menu requested'
+    });
+    
+    window.appLogger?.action('TAG_CONTEXT_MENU_EVENT', { 
+        tag: tagName,
+        eventType: event.type,
+        target: event.target.tagName,
+        mouseX: event.clientX,
+        mouseY: event.clientY,
+        message: 'Event details captured'
+    });
+    
+    window.appLogger?.action('TAG_CONTEXT_MENU', { 
+        tag: tagName,
+        eventType: event.type,
+        target: event.target.tagName,
+        mouseX: event.clientX,
+        mouseY: event.clientY
+    });
     
     // Prevent the default context menu
     event.preventDefault();
+    event.stopPropagation();
     
     // Get existing or create a new context menu
+    window.appLogger?.action('TAG_CONTEXT_MENU_CREATE', { 
+        tag: tagName,
+        message: 'Creating or finding context menu'
+    });
+    
     let contextMenu = document.getElementById('tag-context-menu');
     if (!contextMenu) {
+        window.appLogger?.action('TAG_CONTEXT_MENU_NEW', { 
+            tag: tagName,
+            message: 'Context menu not found, creating new one'
+        });
+        
         contextMenu = document.createElement('div');
         contextMenu.id = 'tag-context-menu';
-        contextMenu.className = 'absolute z-50 bg-white shadow-lg rounded-md py-2 w-48';
+        contextMenu.className = 'absolute bg-white shadow-lg rounded-md py-2 w-48 border';
         contextMenu.style.display = 'none';
+        contextMenu.style.zIndex = '9999';
+        contextMenu.style.position = 'fixed';
         document.body.appendChild(contextMenu);
+        
+        window.appLogger?.action('TAG_CONTEXT_MENU_APPENDED', { 
+            tag: tagName,
+            message: 'New context menu created and appended to body'
+        });
+    } else {
+        window.appLogger?.action('TAG_CONTEXT_MENU_FOUND', { 
+            tag: tagName,
+            message: 'Existing context menu found'
+        });
     }
     
     // Position the context menu at the mouse position
-    contextMenu.style.top = `${event.pageY}px`;
-    contextMenu.style.left = `${event.pageX}px`;
+    window.appLogger?.action('TAG_CONTEXT_MENU_POSITION', { 
+        tag: tagName,
+        x: event.clientX,
+        y: event.clientY,
+        message: 'Positioning context menu at mouse position'
+    });
+    
+    contextMenu.style.top = `${event.clientY}px`;
+    contextMenu.style.left = `${event.clientX}px`;
     
     // Update the context menu content based on the tag
+    window.appLogger?.action('TAG_CONTEXT_MENU_CONTENT', { 
+        tag: tagName,
+        message: 'Setting context menu content'
+    });
+    
+    // Determine if this is an AND tag (contains '&')
+    const isAndTag = tagName.includes('&');
+    const deleteFunction = isAndTag ? 'deleteAndTagFromContext' : 'deleteGlobalTag';
+    
+    window.appLogger?.action('TAG_TYPE_DETECTED', { 
+        tag: tagName,
+        isAndTag: isAndTag,
+        deleteFunction: deleteFunction,
+        message: 'Tag type detected for context menu'
+    });
+    
     contextMenu.innerHTML = `
         <div class="px-3 py-1 text-sm font-medium text-gray-800 border-b mb-1">${tagName}</div>
         <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
            onclick="event.preventDefault(); showRenameModal('${tagName}'); hideContextMenu();">
            Rename Tag
         </a>
-        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-           onclick="event.preventDefault(); copyToClipboard('${tagName}'); hideContextMenu();">
-           Copy Tag
-        </a>
         <a href="#" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-           onclick="event.preventDefault(); deleteGlobalTag('${tagName}'); hideContextMenu();">
+           onclick="event.preventDefault(); ${deleteFunction}('${tagName}'); hideContextMenu();">
            Delete Tag
         </a>
     `;
     
     // Show the context menu
+    window.appLogger?.action('TAG_CONTEXT_MENU_SHOW', { 
+        tag: tagName,
+        message: 'Showing context menu'
+    });
+    
     contextMenu.style.display = 'block';
+    
+    window.appLogger?.action('TAG_CONTEXT_MENU_DISPLAYED', { 
+        tag: tagName,
+        message: 'Context menu display set to block'
+    });
+    
+    // Log final state
+    window.appLogger?.action('TAG_CONTEXT_MENU_FINAL_STATE', { 
+        tag: tagName,
+        display: contextMenu.style.display,
+        position: `${contextMenu.style.left}, ${contextMenu.style.top}`,
+        hasContent: contextMenu.innerHTML.length > 0,
+        message: 'Final context menu state logged'
+    });
     
     // Add a click event listener to the document to hide the context menu when clicking outside
     setTimeout(() => {
         document.addEventListener('click', hideContextMenu);
     }, 10);
     
+    window.appLogger?.action('TAG_CONTEXT_MENU_COMPLETE', { 
+        tag: tagName,
+        message: 'Context menu setup complete'
+    });
+    
     return false;
 };
 
 // Helper function to hide the context menu
 window.hideContextMenu = function() {
+    window.appLogger?.action('TAG_CONTEXT_MENU_HIDE', { 
+        message: 'Hiding context menu'
+    });
+    
     const contextMenu = document.getElementById('tag-context-menu');
     if (contextMenu) {
         contextMenu.style.display = 'none';
+        window.appLogger?.action('TAG_CONTEXT_MENU_HIDDEN', { 
+            message: 'Context menu hidden successfully'
+        });
+    } else {
+        window.appLogger?.action('TAG_CONTEXT_MENU_NOT_FOUND', { 
+            message: 'Context menu not found when trying to hide'
+        });
     }
+    
     document.removeEventListener('click', hideContextMenu);
 };
 
@@ -409,7 +521,7 @@ window.deleteGlobalTag = function(tagName) {
         const params = new URLSearchParams(currentUrl.search);
         
         // Build the delete tag URL
-        form.action = `/tag/delete?state=${window.CURRENT_STATE || ''}&${params.toString()}`;
+        form.action = `/tags/delete?state=${window.CURRENT_STATE || ''}&${params.toString()}`;
         
         // Add the tag to delete
         const input = document.createElement('input');
@@ -420,6 +532,56 @@ window.deleteGlobalTag = function(tagName) {
         form.appendChild(input);
         document.body.appendChild(form);
         form.submit();
+    }
+};
+
+// Helper function to delete an AND tag from context menu
+window.deleteAndTagFromContext = function(tagName) {
+    window.appLogger?.action('AND_TAG_DELETE_FROM_CONTEXT', { 
+        tag: tagName,
+        message: 'AND tag deletion initiated from context menu'
+    });
+    
+    if (confirm(`Are you sure you want to delete the AND tag '${tagName}'?`)) {
+        // Create and submit a form to delete the AND tag
+        const form = document.createElement('form');
+        form.method = 'POST';
+        
+        // Build the delete AND tag URL (no query parameters needed)
+        form.action = '/and-tags/delete';
+        
+        // Get current state
+        const currentUrl = new URL(window.location.href);
+        const params = new URLSearchParams(currentUrl.search);
+        const state = params.get('state');
+        
+        if (state) {
+            const stateInput = document.createElement('input');
+            stateInput.type = 'hidden';
+            stateInput.name = 'state';
+            stateInput.value = state;
+            form.appendChild(stateInput);
+        }
+        
+        // Add the AND tag to delete
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'and_tag_to_delete';
+        input.value = tagName;
+        
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+        
+        window.appLogger?.action('AND_TAG_DELETE_FORM_SUBMITTED', { 
+            tag: tagName,
+            message: 'AND tag deletion form submitted from context menu'
+        });
+    } else {
+        window.appLogger?.action('AND_TAG_DELETE_CANCELLED', { 
+            tag: tagName,
+            message: 'AND tag deletion cancelled by user'
+        });
     }
 };
 

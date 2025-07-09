@@ -715,7 +715,12 @@ def delete_and_tag():
     state_name = request.args.get('state')
     and_tag = request.form.get("and_tag_to_delete")
     
+    # Log the request details
+    current_app.logger.info(f"Delete AND tag request: {and_tag}")
+    current_app.logger.info(f"Current active filters: {request.args.getlist('filter')}")
+    
     if not and_tag:
+        current_app.logger.warning("Missing AND tag to delete")
         flash("Missing AND tag to delete.", "error")
         return redirect(get_redirect_url())
     
@@ -727,8 +732,15 @@ def delete_and_tag():
         active_filters = request.args.getlist('filter')
         updated_filters = [filter_tag for filter_tag in active_filters if filter_tag.lower() != and_tag.lower()]
         
+        current_app.logger.info(f"AND tag '{and_tag}' deleted successfully")
+        current_app.logger.info(f"Filters before: {active_filters}")
+        current_app.logger.info(f"Filters after: {updated_filters}")
+        
         # Build redirect URL with updated filters (remove the deleted AND tag from filters)
-        return redirect(url_for('index', state=state_name, filter=updated_filters))
+        redirect_url = url_for('index', state=state_name, filter=updated_filters)
+        current_app.logger.info(f"Redirecting to: {redirect_url}")
+        return redirect(redirect_url)
     else:
+        current_app.logger.error(f"Failed to delete AND tag '{and_tag}'")
         flash("Failed to delete AND tag.", "error")
         return redirect(get_redirect_url())
