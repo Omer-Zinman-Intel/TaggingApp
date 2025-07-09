@@ -26,6 +26,34 @@ def get_filename_from_state_name(state_name: str) -> str:
     return f"{sanitized_name}.json"
 
 def save_state(state_name: str) -> bool:
+    import time
+
+    def retry_os_replace(src, dst, retries=5, delay=0.1):
+        for i in range(retries):
+            try:
+                os.replace(src, dst)
+                return
+            except FileNotFoundError:
+                # Temp file is gone, nothing to do
+                print(f"Temp file {src} not found during replace.")
+                return
+            except PermissionError as e:
+                if i == retries - 1:
+                    raise
+                time.sleep(delay)
+
+    def retry_os_remove(path, retries=5, delay=0.1):
+        for i in range(retries):
+            try:
+                os.remove(path)
+                return
+            except FileNotFoundError:
+                # Already deleted, nothing to do
+                return
+            except PermissionError as e:
+                if i == retries - 1:
+                    raise
+                time.sleep(delay)
     """
     Saves the current in-memory core.document_state to its JSON file atomically.
     It writes to a temporary file first and then replaces the original to prevent
@@ -63,23 +91,36 @@ def save_state(state_name: str) -> bool:
                 category['tags'] = sorted(list(category['tags']))
 
     try:
+        import getpass
+        print(f"Saving as user: {getpass.getuser()}, file: {filepath}")
+        import py.filelock_util as filelock_util
+        # Write with file lock
         with open(temp_filepath, 'w', encoding='utf-8') as f:
-            json.dump(state_to_save, f, indent=4)
-        # Atomically replace the old file with the new one.
-        os.replace(temp_filepath, filepath)
+            filelock_util.lock_file(f)
+            try:
+                json.dump(state_to_save, f, indent=4)
+            finally:
+                filelock_util.unlock_file(f)
+        # Atomically replace the old file with the new one (robust on Windows)
+        retry_os_replace(temp_filepath, filepath)
         print(f"✅ State '{state_name}' saved successfully to {filepath}")
-        
-        # Verify the save by reading it back
+        # Verify the save by reading it back (with lock)
         with open(filepath, 'r', encoding='utf-8') as f:
-            verification_data = json.load(f)
-            print(f"🔍 DEBUG: Verification - File contains {len(verification_data.get('sections', []))} sections")
-            
+            filelock_util.lock_file(f)
+            try:
+                verification_data = json.load(f)
+                print(f"🔍 DEBUG: Verification - File contains {len(verification_data.get('sections', []))} sections")
+            finally:
+                filelock_util.unlock_file(f)
         return True
     except Exception as e:
         print(f"❌ Error saving state '{state_name}': {e}")
         # Clean up the temporary file if it exists
         if os.path.exists(temp_filepath):
-            os.remove(temp_filepath)
+            retry_os_remove(temp_filepath)
+        # Save error for frontend to display
+        global last_save_error
+        last_save_error = str(e)
         return False
 
 def load_state(state_name: str) -> bool:

@@ -1,3 +1,21 @@
+/* --- Note Drag-and-Drop Visual Cues --- */
+.note-draggable {
+  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.note-draggable.drag-over-top {
+  transform: translateY(-18px);
+  z-index: 1;
+}
+
+.note-draggable.drag-over-bottom {
+  transform: translateY(18px);
+  z-index: 1;
+}
+
+.note-draggable.opacity-50 {
+  opacity: 0.5;
+}
 /* ================================
    TaggingApp - Consolidated Styles
    ================================ */
@@ -689,6 +707,22 @@
 .dropzone.drag-over {
     border-color: #2563eb;
     background-color: #eff6ff;
+}
+
+/* --- Note Drag-and-Drop Animation --- */
+.note-draggable {
+  transition: transform 0.18s cubic-bezier(0.4,0,0.2,1), box-shadow 0.18s;
+  will-change: transform;
+}
+.note-draggable.drag-over-top {
+  transform: translateY(12px);
+  box-shadow: 0 8px 16px -8px #a7f3d0;
+  z-index: 2;
+}
+.note-draggable.drag-over-bottom {
+  transform: translateY(-12px);
+  box-shadow: 0 -8px 16px -8px #a7f3d0;
+  z-index: 2;
 }
 
 /* ===================

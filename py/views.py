@@ -765,3 +765,39 @@ def delete_and_tag():
         current_app.logger.error(f"Failed to delete AND tag '{and_tag}'")
         flash("Failed to delete AND tag.", "error")
         return redirect(get_redirect_url())
+
+# Register in app.py:
+# app.add_url_rule('/section/reorder_notes/<section_id>', 'reorder_notes', views.reorder_notes, methods=["POST"])
+
+def reorder_notes(section_id):
+    data = request.get_json()
+    note_ids = data.get('note_ids')
+    state_name = data.get('state')
+    if not note_ids or not state_name:
+        return jsonify({'success': False, 'message': 'Missing note_ids or state'}), 400
+    if not state_manager.load_state(state_name):
+        # Try to return last error if available
+        last_error = getattr(state_manager, 'last_save_error', None)
+        return jsonify({'success': False, 'message': 'State not found', 'error': last_error}), 404
+    # Find the section
+    for section in core.document_state.get('sections', []):
+        if section.get('id') == section_id:
+            notes_by_id = {n['id']: n for n in section.get('notes', [])}
+            new_notes = []
+            for nid in note_ids:
+                note = notes_by_id.get(nid)
+                if note:
+                    new_notes.append(note)
+            # Optionally, append any notes not in the new order (shouldn't happen)
+            for note in section.get('notes', []):
+                if note['id'] not in note_ids:
+                    new_notes.append(note)
+            section['notes'] = new_notes
+            ok = state_manager.save_state(state_name)
+            if ok:
+                return jsonify({'success': True})
+            else:
+                # Return last error if available
+                last_error = getattr(state_manager, 'last_save_error', None)
+                return jsonify({'success': False, 'message': 'Failed to save state', 'error': last_error}), 500
+    return jsonify({'success': False, 'message': 'Section not found'}), 404

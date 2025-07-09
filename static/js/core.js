@@ -708,3 +708,208 @@ window.cleanActiveEditorContent = function(editorType) {
         console.error(`❌ ${editorType} editor not available for cleaning`);
     }
 };
+
+// --- Native Note Reordering ---
+let reorderModeSections = new Set();
+let draggedNoteId = null;
+
+window.toggleNoteReorderMode = function(sectionId) {
+    const noteList = document.getElementById('note-list-' + sectionId);
+    if (!noteList) {
+        console.warn('No note-list found for section', sectionId);
+        return;
+    }
+    const notes = noteList.querySelectorAll('.note-draggable');
+    const handles = noteList.querySelectorAll('.note-drag-handle');
+    const enable = !reorderModeSections.has(sectionId);
+    console.log('toggleNoteReorderMode', { sectionId, enable, notes: notes.length, handles: handles.length });
+    if (enable) {
+        reorderModeSections.add(sectionId);
+        notes.forEach(note => {
+            note.setAttribute('draggable', 'true');
+            note.classList.add('drag-enabled');
+            note.style.boxShadow = '0 0 0 2px #bbf7d0'; // subtle highlight
+        });
+        handles.forEach(h => h.classList.remove('hidden'));
+    } else {
+        reorderModeSections.delete(sectionId);
+        notes.forEach(note => {
+            note.setAttribute('draggable', 'false');
+            note.classList.remove('drag-enabled');
+            note.style.boxShadow = '';
+        });
+        handles.forEach(h => h.classList.add('hidden'));
+    }
+    // Log reorder mode toggle to logger (file), with fallback to backend if logger is missing or not working
+    const logPayload = {
+        sectionId,
+        enable,
+        notesCount: notes.length,
+        handlesCount: handles.length,
+        timestamp: Date.now(),
+        url: window.location.href
+    };
+    let loggerWorked = false;
+    try {
+        if (window.appLogger && typeof window.appLogger.action === 'function') {
+            window.appLogger.action('TOGGLE_NOTE_REORDER_MODE', logPayload);
+            loggerWorked = true;
+        }
+    } catch (e) {
+        loggerWorked = false;
+    }
+    if (!loggerWorked) {
+        // Fallback: POST to main backend logging endpoint
+        fetch('/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                event: 'TOGGLE_NOTE_REORDER_MODE',
+                data: logPayload
+            })
+        }).catch(err => {
+            console.warn('Failed to log reorder mode toggle to backend:', err);
+        });
+        console.warn('window.appLogger not available or failed, used backend logging fallback.');
+    }
+};
+
+window.onNoteDragStart = function(event, sectionId) {
+    if (!reorderModeSections.has(sectionId)) {
+        event.preventDefault();
+        return;
+    }
+    draggedNoteId = event.currentTarget.dataset.noteId;
+    event.dataTransfer.effectAllowed = 'move';
+    event.currentTarget.classList.add('opacity-50');
+};
+
+// --- Enhanced drag-over animation for notes ---
+window.onNoteDragOver = function(event) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const target = event.currentTarget;
+    // Remove drag-over classes from all siblings
+    const siblings = target.parentElement.querySelectorAll('.note-draggable');
+    siblings.forEach(sib => {
+        sib.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+    // Add class to show where the dragged note will go
+    const rect = target.getBoundingClientRect();
+    const before = (event.clientY - rect.top) < (rect.height / 2);
+    if (before) {
+        target.classList.add('drag-over-top');
+    } else {
+        target.classList.add('drag-over-bottom');
+    }
+};
+
+window.onNoteDrop = function(event, sectionId) {
+    event.preventDefault();
+    if (!reorderModeSections.has(sectionId)) return;
+    const noteList = document.getElementById('note-list-' + sectionId);
+    const target = event.currentTarget;
+    if (!draggedNoteId || !target || !noteList) return;
+    const draggedElem = document.getElementById('note-' + draggedNoteId);
+    if (draggedElem === target) return;
+    // Insert before or after depending on mouse position
+    const rect = target.getBoundingClientRect();
+    const before = (event.clientY - rect.top) < (rect.height / 2);
+    // Remove drag-over classes from all siblings
+    const siblings = target.parentElement.querySelectorAll('.note-draggable');
+    siblings.forEach(sib => {
+        sib.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+    if (before) {
+        noteList.insertBefore(draggedElem, target);
+    } else {
+        noteList.insertBefore(draggedElem, target.nextSibling);
+    }
+    // Save new order
+    saveNoteOrder(sectionId);
+};
+
+window.onNoteDragEnd = function(event) {
+    event.currentTarget.classList.remove('opacity-50');
+    // Remove drag-over classes from all notes
+    document.querySelectorAll('.note-draggable').forEach(n => n.classList.remove('drag-over-top', 'drag-over-bottom'));
+    draggedNoteId = null;
+};
+
+function saveNoteOrder(sectionId) {
+    const noteList = document.getElementById('note-list-' + sectionId);
+    if (!noteList) return;
+    const noteIds = Array.from(noteList.querySelectorAll('.note-draggable')).map(n => n.dataset.noteId);
+    fetch('/section/reorder_notes/' + sectionId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note_ids: noteIds, state: window.CURRENT_STATE })
+    })
+    .then(async res => {
+        const contentType = res.headers.get('content-type');
+        const text = await res.text();
+        if (!res.ok) {
+            console.error('Server error response:', text);
+            throw new Error('Server error: ' + res.status + ' - ' + text);
+        }
+        if (!contentType || !contentType.includes('application/json')) {
+            console.error('Non-JSON response:', text);
+            throw new Error('Expected JSON, got: ' + text.substring(0, 200));
+        }
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            console.error('JSON parse error. Raw response:', text);
+            throw new Error('Invalid JSON: ' + e.message + '\nRaw: ' + text.substring(0, 200));
+        }
+    })
+    .then(data => {
+        if (!data.success) {
+            let msg = 'Failed to save note order: ' + (data.message || 'Unknown error');
+            if (data.error) {
+                msg += '\n\nError details (copyable):\n' + data.error;
+            }
+            // Show error in a prompt for easy copying
+            window.prompt(msg + '\n\nCopy this error if you need to report it:', msg);
+        }
+    })
+    .catch(err => {
+        // Show error in a prompt for easy copying
+        window.prompt('Error saving note order: ' + err.message + '\n\nCopy this error if you need to report it:', err.message);
+    });
+}
+
+// --- Allow dropping on the note-list container for easier drop ---
+window.onNoteListDragOver = function(event, sectionId) {
+    if (!reorderModeSections.has(sectionId)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    // Remove drag-over classes from all notes
+    const noteList = document.getElementById('note-list-' + sectionId);
+    noteList.querySelectorAll('.note-draggable').forEach(n => n.classList.remove('drag-over-top', 'drag-over-bottom'));
+};
+
+// --- Improved: Only drop at end if not hovering a note ---
+window.onNoteListDrop = function(event, sectionId) {
+    if (!reorderModeSections.has(sectionId)) return;
+    event.preventDefault();
+    const noteList = document.getElementById('note-list-' + sectionId);
+    if (!draggedNoteId || !noteList) return;
+    // Only append to end if not hovering a note
+    const notes = Array.from(noteList.querySelectorAll('.note-draggable'));
+    const mouseY = event.clientY;
+    let inserted = false;
+    for (const note of notes) {
+        const rect = note.getBoundingClientRect();
+        if (mouseY < rect.top + rect.height / 2) {
+            noteList.insertBefore(document.getElementById('note-' + draggedNoteId), note);
+            inserted = true;
+            break;
+        }
+    }
+    if (!inserted) {
+        noteList.appendChild(document.getElementById('note-' + draggedNoteId));
+    }
+    saveNoteOrder(sectionId);
+    noteList.querySelectorAll('.note-draggable').forEach(n => n.classList.remove('drag-over-top', 'drag-over-bottom'));
+};

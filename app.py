@@ -1,4 +1,3 @@
-# app.py
 import os
 import json
 import datetime
@@ -9,6 +8,27 @@ import py.state_manager as state_manager
 
 app = Flask(__name__)
 app.secret_key = core.SECRET_KEY
+
+# --- API endpoint for frontend logging fallback ---
+@app.route('/api/log', methods=['POST'])
+def api_log():
+    try:
+        data = request.get_json(force=True)
+        event = data.get('event', 'UNKNOWN_EVENT')
+        payload = data.get('data', {})
+        # Compose log line
+        now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        log_line = f"[{now}] [FRONTEND_LOG] {event}: {payload}\n"
+        # Write to today's log file
+        log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        log_file = os.path.join(log_dir, f'frontend_{datetime.datetime.now().strftime('%Y-%m-%d')}.log')
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(log_line)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # Create logs directory if it doesn't exist
 if not os.path.exists('logs'):
@@ -81,6 +101,7 @@ app.add_url_rule("/tag/remove_and_component", 'remove_and_tag_component', views.
 app.add_url_rule("/tag/remove_globally", 'remove_tag_globally', views.remove_tag_globally, methods=["POST"])
 app.add_url_rule("/tag/rename_globally", 'rename_tag_globally', views.rename_tag_globally, methods=["POST"])
 app.add_url_rule("/import", 'import_html', views.import_html, methods=["POST"])
+app.add_url_rule('/section/reorder_notes/<section_id>', 'reorder_notes', views.reorder_notes, methods=["POST"])
 
 
 # --- Initial State Loading and Main Execution ---
