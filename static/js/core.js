@@ -471,16 +471,22 @@ window.showTagContextMenu = function(event, tagName) {
     // Check if this is an AND tag (contains '&' character)
     const isAndTag = tagName.includes('&');
     
-    // Use appropriate delete function based on tag type
+    // Use appropriate functions based on tag type
     const deleteFunction = isAndTag ? 
         `deleteAndTagFromContextMenu('${tagName}')` : 
         `deleteGlobalTag('${tagName}')`;
     
+    const editFunction = isAndTag ? 
+        `showEditAndTagModal('${tagName}')` : 
+        `showRenameModal('${tagName}')`;
+    
+    const editLabel = isAndTag ? 'Edit Components' : 'Rename Tag';
+    
     contextMenu.innerHTML = `
         <div class="px-3 py-1 text-sm font-medium text-gray-800 border-b mb-1">${tagName}</div>
         <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
-           onclick="event.preventDefault(); showRenameModal('${tagName}'); hideContextMenu();">
-           Rename Tag
+           onclick="event.preventDefault(); ${editFunction}; hideContextMenu();">
+           ${editLabel}
         </a>
         <a href="#" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
            onclick="event.preventDefault(); ${deleteFunction}; hideContextMenu();">
