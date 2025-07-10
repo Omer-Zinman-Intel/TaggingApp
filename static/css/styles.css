@@ -1,3 +1,137 @@
+/* Style for CURRENT STATE dropdown */
+.current-state-dropdown {
+    font-size: 0.8rem !important;
+    min-width: 400px;
+    width: auto;
+    max-width: 260px;
+    padding-left: 3rem;
+    padding-right: 9em;
+    height: 2.2rem;
+    line-height: 1.2;
+}
+/* Consistent styling for state tag pills (CURRENT STATE dropdown options) */
+.state-tag-pill, .delete-state-btn {
+  display: inline-block;
+  min-width: 80px;
+  max-width: 220px;
+  padding: 0.25rem 1rem !important;
+  box-sizing: border-box !important;
+  border-radius: 9999px !important;
+  font-size: 0.92rem !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+  margin-right: 8px !important;
+  border: none;
+}
+/* Match "+ New Category" and "+ New AND Tag" button styling to state management buttons */
+.new-category-btn,
+.new-and-tag-btn {
+  min-width: 120px !important;
+  max-width: 220px !important;
+  padding: 0.5rem 1.5rem !important;
+  box-sizing: border-box !important;
+  border-radius: 9999px !important;
+  font-size: 0.92rem !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+  margin-right: 10px !important;
+}
+/* Make "+ New State" and "Rename Current State" a little wider */
+.new-state-btn,
+ .rename-state-btn {
+  min-width: 120px !important;
+  max-width: 220px !important;
+  padding: 0.5rem 1.5rem !important;
+  box-sizing: border-box !important;
+  border-radius: 9999px !important;
+  font-size: 0.5rem !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+  margin-right: 10px !important;
+}
+/* Make all state management buttons in the top bar the same height */
+.bg-gray-100 .flex.flex-wrap.items-center.gap-4.mb-4.pb-4.border-b button,
+.bg-gray-100 .flex.flex-wrap.items-center.gap-4.mb-4.pb-4.border-b form > button {
+    min-height: 32px !important;
+    height: 32px !important;
+    box-sizing: border-box !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    padding-left: 0.75rem !important; 
+    padding-right: 0.75rem !important;  
+    font-size: 0.8rem !important;
+    line-height: 1.2 !important;
+}
+/* Enforce strict horizontal alignment for state management buttons in the top bar */
+.bg-gray-100 .flex.flex-wrap.items-center.gap-4.mb-4.pb-4.border-b {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 0.5rem !important;
+    justify-content: flex-start !important;
+}
+.bg-gray-100 .flex.flex-wrap.items-center.gap-4.mb-4.pb-4.border-b > * {
+    margin: 0 !important;
+    padding: 0 !important;
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+}
+.bg-gray-100 .flex.flex-wrap.items-center.gap-4.mb-4.pb-4.border-b form {
+    display: flex !important;
+    align-items: center !important;
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+/* State management buttons strict alignment */
+.state-management-buttons {
+    display: table !important;
+    width: auto !important;
+    border-spacing: 12px 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.state-management-buttons > button,
+.state-management-buttons > form {
+    display: table-cell !important;
+    vertical-align: middle !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    float: none !important;
+}
+
+.state-management-buttons > form {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+/* Align singular tag hover menu buttons horizontally like AND tags */
+.group\/tag .group-hover\/tag\:opacity-100 {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.25rem !important;
+    flex-direction: row !important;
+    justify-content: center !important;
+    min-width: 70px;
+    min-height: 32px;
+    padding: 0 !important;
+}
+.group\/tag .group-hover\/tag\:opacity-100 button,
+.group\/tag .group-hover\/tag\:opacity-100 form {
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex;
+    align-items: center;
+}
+.group\/tag .group-hover\/tag\:opacity-100 svg {
+    display: block;
+    vertical-align: middle;
+}
 /* ================================
    Section & Note Action Button Alignment Fix
    ================================ */

@@ -364,14 +364,14 @@ before being sent to the browser as valid HTML/JavaScript.
         <div class="bg-gray-100 p-4 rounded-lg mb-6">
             <div class="flex flex-wrap items-center gap-4 mb-4 pb-4 border-b">
                 <h3 class="text-sm font-semibold text-gray-600">CURRENT STATE:</h3>
-                <select onchange="window.location.href = this.value" class="p-2 border border-gray-300 rounded-md text-sm font-medium">
+                <select onchange="window.location.href = this.value" class="current-state-dropdown p-2 border border-gray-300 rounded-md text-sm font-medium">
                     {% for state_name in available_states %}
                         <option value="{{ url_for('index', state=state_name) }}" {% if state_name == current_state %}selected{% endif %}>
                             {{ state_name }}
                         </option>
                     {% endfor %}
                 </select>
-                <button onclick="showModal('createStateModal')" class="text-sm font-medium text-green-600 bg-green-100 hover:bg-green-200 px-3 py-1.5 rounded-full transition-colors">
+                <button onclick="showModal('createStateModal')" class="text-sm font-medium text-green-600 bg-green-100 hover:bg-green-200 px-3 py-1.5 rounded-full transition-colors new-state-btn px-3 py-1.5">
                     + New State
                 </button>
                 <button onclick="showRenameStateModal('{{ current_state }}')" class="text-sm font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded-full transition-colors">
@@ -492,7 +492,7 @@ before being sent to the browser as valid HTML/JavaScript.
                                    draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}" ondragstart="drag(event)" ondragend="dragEnd(event)" ondrop="drop(event)" data-tag-name="{{ tag }}" data-source-category-id="{{ category.id }}">
                                     <span onclick='handleTagClick(event, {{ tag|tojson|safe }})' oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }}); return false;'>{{ tag }}</span>
                                     <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white shadow-lg rounded-md p-1 flex items-center z-20 opacity-0 group-hover/tag:opacity-100 transition-opacity pointer-events-none group-hover/tag:pointer-events-auto">
-                                        <button onclick='console.log("Button clicked for tag:", {{ tag|tojson|safe }}); event.preventDefault(); event.stopPropagation(); showRenameModal({{ tag }})' class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md">
+                                        <button onclick='console.log("Button clicked for tag:", {{ tag|tojson|safe }}); event.preventDefault(); event.stopPropagation(); showRenameModal({{ tag|tojson|safe }})' class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                         </button>
                                         <form action="{{ url_for('delete_global_tag', filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete the tag ' + {{ tag|tojson }} + ' everywhere?');" class="inline">
@@ -702,14 +702,14 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         </div>
 
-        <div class="mt-8 pt-6 border-t flex items-center justify-end space-x-3">
-            <button onclick="showImportModal()" class="flex items-center justify-center px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75 transition-all">
-                Manual Import Content
-            </button>
-            <button onclick="exportPdf()" class="flex items-center justify-center px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75 transition-all">
-                Save as PDF
-            </button>
-        </div>
+    <div class="mt-8 pt-6 border-t flex flex-row items-center justify-end gap-3">
+        <button onclick="showImportModal()" class="flex items-center justify-center px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75 transition-all">
+            Manual Import Content
+        </button>
+        <button onclick="exportPdf()" class="flex items-center justify-center px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75 transition-all">
+            Save as PDF
+        </button>
+    </div>
     </div>
 
     <div id="addTagModal" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 hidden opacity-0">
@@ -1299,10 +1299,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         console.log('Modal system initialized with fallbacks');
         
-        // Make showAddAndTagModal available globally after it's defined
-        if (typeof showAddAndTagModal !== 'undefined') {
-            window.showAddAndTagModal = showAddAndTagModal;
-        }
+        // (moved: showAddAndTagModal will be assigned after its definition)
+// Make showAddAndTagModal available globally after it's defined
+if (typeof showAddAndTagModal !== 'undefined') {
+    window.showAddAndTagModal = showAddAndTagModal;
+}
     });
 </script>
 
@@ -1984,11 +1985,6 @@ function updateAndTagFromComponents() {
         alert('Please remove duplicate components.');
         return false;
     }
-    
-    // Check if new AND tag already exists (excluding the current one being edited)
-    const oldTag = document.getElementById('editAndTagOldTag').value;
-    const newAndTagString = components.join(' & ');
-    const existingAndTags = {{ and_tags | tojson | safe }};
     
     // Check if new AND tag already exists (excluding the current one being edited)
     const oldTag = document.getElementById('editAndTagOldTag').value;
