@@ -116,29 +116,31 @@ document.addEventListener('DOMContentLoaded', function() {
     // DEBUG: Log what is being searched
     console.log('[FindInText] Searching for:', phrase);
     if (window.appLogger) window.appLogger.action('FIND_IN_TEXT_SEARCH_INPUT', { value: phrase });
-    // Search inside all visible text nodes in the main content area
-    // This includes: section/note content, section titles, note titles
-    const contentNodes = Array.from(document.querySelectorAll('.group\\/section .prose, .group\\/section .note-list .prose'));
-    const sectionTitles = Array.from(document.querySelectorAll('.group\\/section h2.text-xl.font-semibold'));
-    const noteTitles = Array.from(document.querySelectorAll('.group\\/section h3.text-lg.font-semibold'));
-    const extraNodes = Array.from(document.querySelectorAll('.group\\/section'))
-      .map(sec => Array.from(sec.childNodes))
-      .flat()
-      .filter(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 0);
-    const allNodes = [...contentNodes, ...sectionTitles, ...noteTitles, ...extraNodes];
-    debugOverlay.textContent = `Searching: "${phrase}"\nNodes: ${allNodes.length}`;
+    // Restrict search to only the main note/section content (not filter menu, categories, tags, etc.)
+    // Use '#content-to-export' as the main content container
+    let mainContent = document.querySelector('#content-to-export');
+    if (!mainContent) {
+      // fallback: try #main-content, .main-content, .content, or body
+      mainContent = document.querySelector('#main-content') || document.querySelector('.main-content') || document.querySelector('.content') || document.body;
+    }
+    let nodeCount = 0;
+    function walkAndHighlight(node) {
+      // Skip script/style/hidden
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const style = window.getComputedStyle(node);
+        if (node.tagName === 'SCRIPT' || node.tagName === 'STYLE' || style.display === 'none' || style.visibility === 'hidden') return;
+        Array.from(node.childNodes).forEach(child => walkAndHighlight(child));
+      } else if (node.nodeType === Node.TEXT_NODE) {
+        if (node.textContent.trim().length > 0) {
+          nodeCount++;
+          highlightAllInNode(node, phrase);
+        }
+      }
+    }
+    walkAndHighlight(mainContent);
+    debugOverlay.textContent = `Searching: "${phrase}"\nText nodes: ${nodeCount}`;
     debugOverlay.style.display = 'block';
     setTimeout(() => { debugOverlay.style.display = 'none'; }, 2000);
-    let foundAny = false;
-    allNodes.forEach(container => {
-      try {
-        let before = matches.length;
-        highlightAllInNode(container, phrase);
-        if (matches.length > before) foundAny = true;
-      } catch (e) {
-        if (window.appLogger) window.appLogger.error('FindInText highlightMatches error:', e);
-      }
-    });
     console.log('[FindInText] Matches found:', matches.length);
     if (matches.length > 0) {
       currentIdx = 0;
@@ -219,8 +221,11 @@ document.addEventListener('DOMContentLoaded', function() {
   prevBtn.addEventListener('click', prev);
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
-      doSearchImmediate();
-      next();
+      if (e.shiftKey) {
+        prev();
+      } else {
+        next();
+      }
       e.preventDefault();
     }
   });

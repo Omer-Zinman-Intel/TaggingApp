@@ -69,7 +69,8 @@ TaggingApp/
 │       ├── editors.js          # Rich text/HTML editor logic
 │       ├── logger.js           # Client-side logging system
 │       ├── modals.js           # Modal dialog management
-│       └── tag-input-global.js # Global tag input and suggestion system
+│       ├── tag-input-global.js # Global tag input and suggestion system
+│       └── find-in-text.js     # Floating Find in Text widget logic
 ├── py/
 │   ├── __init__.py
 │   ├── core.py                 # Configuration and global state
@@ -89,6 +90,7 @@ TaggingApp/
 - `py/register_toggle_note_completed.py`: Handles toggling note completion state, ensuring UI and backend stay in sync.
 - `logs/js_errors_YYYY-MM-DD.log`: Dedicated log files for JavaScript errors, separate from general client logs.
 - `states/Space_Exploration.json` (and others): Each state is stored as a separate JSON file for modular state management.
+- `static/js/find-in-text.js`: Logic for the new Find in Text widget, providing a floating search panel for navigating document content.
 
 See each file for more details on its responsibilities. The expanded structure supports better modularity, reliability, and debugging.
 
@@ -769,3 +771,41 @@ See the `index.html` template for the latest markup and button placement. These 
 
 *Last updated: July 10, 2025*
 *Version: 2.0.1*
+
+---
+
+## Find in Text Widget (Floating Search)
+
+### Overview
+The Find in Text widget is a powerful, always-accessible floating search tool for instantly finding and navigating any text within your document’s main content (sections and notes). It is designed for speed, accuracy, and accessibility, and is fully decoupled from the rest of the UI (menus, filters, tag categories, etc.).
+
+### Search Capabilities
+- **Full-Content Search**: Instantly searches all visible text in the main document area, including section titles, note titles, and note text. The search is not limited by content type or structure—if it’s visible in the main content, it’s searchable.
+- **Visual Order Traversal**: Matches are found and highlighted in the exact order they appear on the screen, regardless of whether they are titles, subtitles, or body text. This ensures navigation is intuitive and matches user expectations.
+- **Live, Responsive Highlighting**: As you type, all matches are highlighted in real time. The widget uses a robust algorithm to avoid overlapping or broken highlights, even with complex or repeated search phrases.
+- **Scoped to Main Content**: The search is strictly limited to the main content area (`#content-to-export`), so it will never match text in menus, tag/category lists, toolbars, or modals. This keeps results relevant and avoids confusion.
+- **Case-Insensitive**: Search is always case-insensitive, so you can find matches regardless of capitalization.
+- **Non-Destructive**: Highlighting is non-destructive and reversible—closing the widget or clearing the search will restore the original content without any loss or corruption.
+- **Handles Dynamic Content**: The widget is robust to DOM changes; if you add, remove, or edit content, the search and highlights will update accordingly on the next search.
+- **Edge Case Handling**: Handles adjacent, nested, and overlapping matches without breaking the DOM or user experience. Special care is taken to avoid highlighting inside hidden elements, scripts, or styles.
+- **No Performance Lag**: Even with large documents, the search and highlight logic is optimized for speed and responsiveness.
+
+### Navigation & Usability
+- **Keyboard Navigation**: Press Enter to jump to the next match, Shift+Enter for the previous match. Navigation wraps around at the end/beginning.
+- **UI Navigation**: Use the next/previous buttons in the widget for mouse-based navigation.
+- **Match Counter**: The widget displays the current match number and total matches (e.g., `3 / 7`).
+- **Open/Close**: Open with Ctrl+F (Cmd+F on Mac) or the floating button. Close with Escape or by clicking outside the panel.
+- **Focus Management**: The input is auto-focused when the panel opens, and keyboard navigation is always available.
+
+### Implementation Details
+- **All logic is in `static/js/find-in-text.js` for maintainability.**
+- **Widget UI is in `index.html`, with search scope defined by `#main-content` and `#content-to-export`.**
+- **Debug overlays and logging are included for troubleshooting and analytics.**
+
+### Example Use Cases
+- Quickly find a keyword, phrase, or tag anywhere in your notes or sections.
+- Navigate through all occurrences of a term, even if it appears in both titles and body text.
+- Use keyboard shortcuts for rapid review or editing workflows.
+- Confidently search large documents without worrying about performance or UI clutter.
+
+---
