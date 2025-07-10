@@ -68,16 +68,7 @@ def save_state(state_name: str) -> bool:
     filepath = os.path.join(core.STATES_DIR, filename)
     temp_filepath = filepath + ".tmp"
 
-    print(f"🔍 DEBUG: Saving state '{state_name}' to {filepath}")
-    print(f"🔍 DEBUG: Current document_state structure:")
-    print(f"  - Document title: {core.document_state.get('documentTitle', 'N/A')}")
-    print(f"  - Sections count: {len(core.document_state.get('sections', []))}")
-    
-    # Log details about each section and its notes
-    for i, section in enumerate(core.document_state.get('sections', [])):
-        print(f"  - Section {i}: {section.get('sectionTitle', 'N/A')} ({len(section.get('notes', []))} notes)")
-        for j, note in enumerate(section.get('notes', [])):
-            print(f"    - Note {j}: {note.get('noteTitle', 'N/A')} ({len(note.get('content', ''))} chars)")
+    # Debug print statements removed for production
 
     # Create a serializable copy of the state, converting the 'known_tags' set to a list.
     state_to_save = copy.deepcopy(core.document_state)
@@ -109,7 +100,7 @@ def save_state(state_name: str) -> bool:
             filelock_util.lock_file(f)
             try:
                 verification_data = json.load(f)
-                print(f"🔍 DEBUG: Verification - File contains {len(verification_data.get('sections', []))} sections")
+                # Debug print statement removed for production
             finally:
                 filelock_util.unlock_file(f)
         return True

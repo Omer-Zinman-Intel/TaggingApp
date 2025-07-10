@@ -809,3 +809,39 @@ The Find in Text widget is a powerful, always-accessible floating search tool fo
 - Confidently search large documents without worrying about performance or UI clutter.
 
 ---
+
+## Content Menu (Floating Table of Contents)
+
+### Overview
+The Content Menu is a floating, always-accessible table of contents for your document. It provides instant navigation to any section or note, mirroring the true visual order of your content. The menu is designed for clarity, speed, and seamless integration with the Find in Text widget.
+
+### UI & Access
+- **Location**: Top left corner, next to the Search (Find in Text) button.
+- **Toggle**: Click the "Contents" button to open the menu. Only one of the Search or Contents panels can be open at a time—opening one will close the other.
+- **Scrollable**: If the menu is taller than the viewport, it becomes scrollable for easy access to all items.
+- **Keyboard Accessible**: All menu items are focusable and can be activated with Enter or Space.
+
+### Menu Structure
+- **Sections**: Each section title appears as a top-level item in the menu, in the same order as in the main content.
+- **Notes**: Each note title is indented under its parent section, also in visual order.
+- **Live Updates**: The menu updates instantly whenever you add, remove, or rename sections or notes—no refresh required.
+
+### Navigation
+- **Click or Keyboard**: Click a section or note title, or focus and press Enter/Space, to scroll smoothly to that item in the main content.
+- **Highlight on Jump**: The target section or note is briefly highlighted for visual feedback.
+
+### Mutual Exclusion with Search
+- **One Panel at a Time**: Opening the Contents menu will automatically close the Search panel, and vice versa, ensuring a clean and focused UI.
+
+### Implementation Details
+- **All logic is in `static/js/content-menu.js` for maintainability.**
+- **Menu UI is in `index.html`, next to the Search widget.**
+- **Uses a `MutationObserver` to detect and reflect live changes in the main content.**
+- **No backend calls required; the menu is built entirely from the DOM.**
+
+### Example Use Cases
+- Instantly jump to any section or note in a large document.
+- Use as a live outline while editing or reviewing content.
+- Quickly verify the structure and order of your document.
+
+---

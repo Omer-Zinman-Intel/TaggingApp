@@ -198,6 +198,9 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   toggleBtn.addEventListener('click', () => {
+    // Hide content menu if open
+    const contentMenuPanel = document.getElementById('content-menu-panel');
+    if (contentMenuPanel) contentMenuPanel.style.display = 'none';
     if (panel.style.display === 'none' || panel.style.display === '') {
       openPanel();
     } else {

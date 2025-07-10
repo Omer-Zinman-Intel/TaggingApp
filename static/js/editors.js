@@ -1771,34 +1771,40 @@ class ContentPreservation {
     }
     
     setupAutoSave() {
+        // Track last saved content for each editor
+        this.lastSavedContent = {
+            note: null,
+            import: null
+        };
         this.autoSaveTimer = setInterval(() => {
             this.performAutoSave();
         }, this.autoSaveInterval);
-        
         console.log(`⏱️ Auto-save enabled (every ${this.autoSaveInterval/1000}s)`);
     }
-    
+
     performAutoSave() {
         let saved = false;
-        
-        // Auto-save note editor
+
+        // Auto-save note editor only if changed
         if (window.noteEditor && window.noteEditor.quill) {
             const content = window.noteEditor.getContent();
-            if (content && content.trim() && content !== '<p><br></p>') {
+            if (content && content.trim() && content !== '<p><br></p>' && content !== this.lastSavedContent.note) {
                 this.saveContent('note', content, 'editNoteForm', 'auto-save');
+                this.lastSavedContent.note = content;
                 saved = true;
             }
         }
-        
-        // Auto-save import editor
+
+        // Auto-save import editor only if changed
         if (window.importEditor && window.importEditor.quill) {
             const content = window.importEditor.getContent();
-            if (content && content.trim() && content !== '<p><br></p>') {
+            if (content && content.trim() && content !== '<p><br></p>' && content !== this.lastSavedContent.import) {
                 this.saveContent('import', content, 'importForm', 'auto-save');
+                this.lastSavedContent.import = content;
                 saved = true;
             }
         }
-        
+
         if (saved) {
             console.log('💾 Auto-save completed');
         }
