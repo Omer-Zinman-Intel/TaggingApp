@@ -54,32 +54,43 @@ TaggingApp is a comprehensive document management system that allows users to cr
 
 ## File Structure
 
+
 ```
 TaggingApp/
 ├── app.py                      # Main Flask application
 ├── templates/
-│   └── index.html             # Main HTML template
+│   └── index.html              # Main HTML template (all UI/UX changes here)
 ├── static/
 │   ├── css/
-│   │   └── styles.css         # Consolidated CSS (295 lines)
+│   │   └── styles.css          # Main stylesheet (minimal, utility-first, includes button/tag layout)
 │   └── js/
-│       ├── core.js            # Core application logic
-│       ├── drag_drop.js       # Drag and drop functionality
-│       ├── editors.js         # Editor management
-│       ├── logger.js          # Comprehensive logging system
-│       ├── modals.js          # Modal management
-│       └── tag-input-global.js # Tag input system
+│       ├── core.js             # Core application logic
+│       ├── drag_drop.js        # Drag and drop for tags and notes
+│       ├── editors.js          # Rich text/HTML editor logic
+│       ├── logger.js           # Client-side logging system
+│       ├── modals.js           # Modal dialog management
+│       └── tag-input-global.js # Global tag input and suggestion system
 ├── py/
 │   ├── __init__.py
-│   ├── core.py                # Configuration and global state
-│   ├── content_processor.py   # Content filtering and processing
-│   ├── state_manager.py       # State persistence and management
-│   ├── tag_manager.py         # Tag operations and management
-│   └── views.py               # Flask routes and view logic
-├── states/                    # Document state files (JSON)
-├── logs/                      # Application logs
-└── README.md                  # This documentation
+│   ├── core.py                 # Configuration and global state
+│   ├── content_processor.py    # Content filtering, import/export, and processing
+│   ├── filelock_util.py        # File locking utility for safe concurrent writes
+│   ├── register_toggle_note_completed.py # Handles note completion toggling
+│   ├── state_manager.py        # State persistence and management
+│   ├── tag_manager.py          # Tag/category operations and management
+│   └── views.py                # Flask routes and view logic
+├── states/                     # Document state files (JSON, one per state)
+├── logs/                       # Application logs (client, js_errors, etc.)
+└── README.md                   # This documentation
 ```
+
+**New/Notable Files:**
+- `py/filelock_util.py`: Ensures safe concurrent file access for state/log writes (prevents data corruption).
+- `py/register_toggle_note_completed.py`: Handles toggling note completion state, ensuring UI and backend stay in sync.
+- `logs/js_errors_YYYY-MM-DD.log`: Dedicated log files for JavaScript errors, separate from general client logs.
+- `states/Space_Exploration.json` (and others): Each state is stored as a separate JSON file for modular state management.
+
+See each file for more details on its responsibilities. The expanded structure supports better modularity, reliability, and debugging.
 
 ### File Consolidation Benefits
 1. **Reduced HTTP Requests**: Single CSS file instead of multiple
@@ -212,30 +223,38 @@ Example: Select "Python", "JavaScript", "Database&API"
 
 ### Post-Consolidation State
 
+
 #### CSS Consolidation
-- **Merged**: `style.css` + `template-specific.css` → `styles.css`
-- **Organized**: Styles grouped by functionality
-- **Reduced**: 419 lines → 295 lines (organized and deduplicated)
-- **Maintained**: All original functionality preserved
+- **Merged**: `style.css` + `template-specific.css` → `styles.css` (now just `styles.css`)
+- **Organized**: Styles grouped by functionality; most button and tag layout is now handled by Tailwind utility classes directly in `index.html`.
+- **Reduced**: 419 lines → ~295 lines (organized and deduplicated; may change as new features are added)
+- **Maintained**: All original functionality preserved; most UI spacing and appearance is now controlled in the template, not in custom CSS.
+
 
 #### JavaScript Consolidation
 - **Merged**: `main.js` functionality → `core.js`
 - **Removed**: Debug code and redundant functions
 - **Maintained**: Logical separation by functionality
 - **Updated**: HTML template references
+- **Note**: All tag input, modal, and drag-and-drop logic is now modularized. No inline JavaScript remains in the template except for initialization and event hooks.
+
 
 #### Python Consolidation
 - **Merged**: `config.py` + `global_state.py` → `core.py`
 - **Updated**: All import statements across modules
 - **Maintained**: Clean architecture and separation of concerns
-- **Reduced**: 7 files → 5 files
+- **Expanded**: New modules added for file locking (`filelock_util.py`) and note completion toggling (`register_toggle_note_completed.py`).
+- **Reduced**: 7 files → 8+ files (due to new modular utilities and features).
+
 
 ### Benefits Achieved
-1. **Reduced Complexity**: Fewer files to maintain
-2. **Better Performance**: Fewer HTTP requests
-3. **Improved Maintainability**: Cleaner organization
-4. **Consistent Styling**: Unified CSS approach
-5. **Reduced Duplication**: Eliminated redundant code
+1. **Reduced Complexity**: Fewer, more focused files to maintain
+2. **Better Performance**: Fewer HTTP requests and more efficient file access
+3. **Improved Maintainability**: Cleaner, more modular organization
+4. **Consistent Styling**: Unified CSS approach, with most layout now handled by Tailwind utility classes in the template
+5. **Reduced Duplication**: Eliminated redundant code and markup
+6. **Minimal UI**: Action buttons are now minimal, icon-only, and tightly aligned for a modern look
+7. **No Duplicates**: All major action buttons (import, export) appear only once in the UI, in a logical location
 
 ---
 
@@ -731,5 +750,22 @@ For additional support or feature requests, please refer to the development guid
 
 ---
 
-*Last updated: July 6, 2025*
-*Version: 2.0.0*
+
+---
+
+## Recent UI/UX Improvements (July 2025)
+
+- **Manual Import Content** and **Save as PDF** buttons are now located directly below all tag categories and above the main content area for improved workflow. No duplicate buttons remain.
+- **Category, Section, and Note Action Buttons** (edit/delete):
+  - Strict, single-line alignment enforced for all action buttons, matching the alignment used in sections and notes.
+  - The gap between edit and delete buttons is now as tight as possible, with no extra margin or flex gap.
+  - All extra padding and circular backgrounds have been removed for a minimal, icon-only look.
+  - These changes apply to all category, section, and note action buttons for a consistent, modern UI.
+- **Relevant CSS/Tailwind classes**: Button appearance and spacing are now controlled by removing `p-1.5`, `rounded-full`, and any flex gap/margin classes from action buttons. No custom CSS is required for the minimal look.
+
+See the `index.html` template for the latest markup and button placement. These changes improve clarity, reduce visual clutter, and ensure a consistent, professional appearance across all interactive elements.
+
+---
+
+*Last updated: July 10, 2025*
+*Version: 2.0.1*
