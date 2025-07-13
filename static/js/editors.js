@@ -2339,7 +2339,9 @@ function cleanActiveEditorContent(editorType) {
     }
     if (!editor) return;
     
-    const cleaned = (editor.getContent() || '').replace(/(<p>\s*<\/p>)+/g, '<p></p>');
+    let content = editor.getContent() || '';
+    // Remove all <p> elements that are empty or contain only whitespace
+    const cleaned = content.replace(/<p>(\s|&nbsp;|<br\s*\/?>)*<\/p>/gi, '');
     editor.setContent(cleaned);
     if (htmlEditor) htmlEditor.value = cleaned;
 }
