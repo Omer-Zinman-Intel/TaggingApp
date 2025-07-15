@@ -101,6 +101,8 @@ app.add_url_rule("/tag/remove_and_component", 'remove_and_tag_component', views.
 app.add_url_rule("/tag/remove_globally", 'remove_tag_globally', views.remove_tag_globally, methods=["POST"])
 app.add_url_rule("/tag/rename_globally", 'rename_tag_globally', views.rename_tag_globally, methods=["POST"])
 app.add_url_rule("/import", 'import_html', views.import_html, methods=["POST"])
+app.add_url_rule("/import/clear", 'import_clear', views.import_clear, methods=["POST"])
+app.add_url_rule("/import/add", 'import_add', views.import_add, methods=["POST"])
 app.add_url_rule('/section/reorder_notes/<section_id>', 'reorder_notes', views.reorder_notes, methods=["POST"])
 app.add_url_rule('/note/toggle_completed/<section_id>/<note_id>', 'toggle_note_completed', views.toggle_note_completed, methods=["POST"])
 

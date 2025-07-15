@@ -1085,6 +1085,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M19 21V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v14"/><path d="M9 10l6 6"/><path d="M15 10l-6 6"/></svg>
                         </button>
                     </div>
+                    <div id="import-progress-bar-container" class="w-full mb-4 hidden">
+                        <div class="w-full bg-gray-200 rounded-full h-4">
+                            <div id="import-progress-bar" class="bg-blue-600 h-4 rounded-full transition-all duration-300 ease-in-out" style="width: 0%"></div>
+                        </div>
+                        <div id="import-progress-label" class="text-sm text-blue-700 mt-2 text-center font-semibold tracking-wide"></div>
+                    </div>
                     <div id="import-editor-container">
                         <div id="import-editor"></div>
                     </div>

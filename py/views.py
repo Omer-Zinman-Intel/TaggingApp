@@ -855,3 +855,41 @@ def reorder_notes(section_id):
                 last_error = getattr(state_manager, 'last_save_error', None)
                 return jsonify({'success': False, 'message': 'Failed to save state', 'error': last_error}), 500
     return jsonify({'success': False, 'message': 'Section not found'}), 404
+
+def import_clear():
+    state_name = request.args.get('state') or request.json.get('state')
+    if not state_name:
+        return jsonify({'success': False, 'message': 'Missing state'}), 400
+    if not state_manager.load_state(state_name):
+        return jsonify({'success': False, 'message': 'State not found'}), 404
+    core.document_state['sections'] = []
+    core.document_state['known_tags'] = set(['All'])
+    core.document_state['tag_categories'] = [{"id": str(uuid.uuid4()), "name": "Uncategorized", "tags": ["All"]}]
+    state_manager.save_state(state_name)
+    return jsonify({'success': True})
+
+def import_add():
+    state_name = request.args.get('state') or request.json.get('state')
+    section = request.json.get('section')
+    if not state_name or not section:
+        return jsonify({'success': False, 'message': 'Missing state or section'}), 400
+    if not state_manager.load_state(state_name):
+        return jsonify({'success': False, 'message': 'State not found'}), 404
+    # Add section
+    core.document_state.setdefault('sections', []).append(section)
+    # Update known_tags and tag_categories
+    tags = set(section.get('tags', []))
+    for note in section.get('notes', []):
+        tags.update(note.get('tags', []))
+    core.document_state.setdefault('known_tags', set()).update(tags)
+    # Add new tags to Uncategorized if not present
+    if 'tag_categories' not in core.document_state or not core.document_state['tag_categories']:
+        core.document_state['tag_categories'] = [{"id": str(uuid.uuid4()), "name": "Uncategorized", "tags": ["All"]}]
+    uncategorized = next((cat for cat in core.document_state['tag_categories'] if cat['name'].lower() == 'uncategorized'), None)
+    if uncategorized:
+        for tag in tags:
+            if tag not in uncategorized['tags']:
+                uncategorized['tags'].append(tag)
+        uncategorized['tags'] = sorted(list(set(uncategorized['tags'])), key=str.lower)
+    state_manager.save_state(state_name)
+    return jsonify({'success': True})
