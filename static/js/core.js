@@ -47,29 +47,129 @@ document.addEventListener('DOMContentLoaded', function() {
     // Setup import form handler
     const importForm = document.getElementById('importForm');
     if(importForm) {
-        importForm.addEventListener('submit', () => {
-            console.log('📥 Import form submission - Direct WYSIWYG mode');
-            
+        importForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
             const contentHolder = document.getElementById('import_html_content');
             const currentView = document.getElementById('html-import-editor').classList.contains('hidden');
-            
+            let htmlContent = '';
             if(currentView) {
-                // Rich text view is active
                 if (window.importEditor && window.importEditor.quill) {
-                    const content = window.importEditor.quill.root.innerHTML;
-                    contentHolder.value = content;
-                    console.log('✅ Import content from rich text editor:', content.length, 'characters');
+                    htmlContent = window.importEditor.quill.root.innerHTML;
                 } else {
                     console.error('❌ Import editor not available');
+                    return;
                 }
             } else {
-                // HTML view is active
                 const htmlEditor = document.getElementById('html-import-editor');
-                contentHolder.value = htmlEditor.value;
-                console.log('✅ Import content from HTML editor:', htmlEditor.value.length, 'characters');
+                htmlContent = htmlEditor.value;
             }
-            
-            console.log('📤 Final import content length:', contentHolder.value.length);
+            function parseSectionsFromHTML(html) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const NOTE_TAGS = ['h2', 'h3'];
+                const ALL_TAGS = ['h1', 'h2', 'h3', 'p', 'ul', 'ol', 'div', 'pre', 'blockquote', 'h4', 'h5', 'h6'];
+                let sections = [];
+                let currentSection = null;
+                let pendingContent = '';
+                function extractTags(text) {
+                    const matches = [...text.matchAll(/\[([^\]]+)\]/g)];
+                    return matches.map(m => m[1]);
+                }
+                function cleanTitle(text) {
+                    return text.replace(/\[([^\]]+)\]/g, '').trim();
+                }
+                const elements = Array.from(doc.body.querySelectorAll(ALL_TAGS.join(',')));
+                elements.forEach((el, idx) => {
+                    if (el.tagName.toLowerCase() === 'h1') {
+                        // Before starting a new section, if there is pending content and no notes, create a blank note
+                        if (currentSection && pendingContent && (!currentSection.notes || currentSection.notes.length === 0)) {
+                            currentSection.notes = currentSection.notes || [];
+                            currentSection.notes.push({ id: crypto.randomUUID(), noteTitle: '', content: pendingContent, tags: [] });
+                        }
+                        pendingContent = '';
+                        if (currentSection) sections.push(currentSection);
+                        const tags = extractTags(el.textContent);
+                        currentSection = { id: crypto.randomUUID(), sectionTitle: cleanTitle(el.textContent), tags, notes: [] };
+                    } else if (NOTE_TAGS.includes(el.tagName.toLowerCase())) {
+                        // Before starting a new note, if there is pending content and no notes, create a blank note
+                        if (currentSection && pendingContent && (!currentSection.notes || currentSection.notes.length === 0)) {
+                            currentSection.notes = currentSection.notes || [];
+                            currentSection.notes.push({ id: crypto.randomUUID(), noteTitle: '', content: pendingContent, tags: [] });
+                            pendingContent = '';
+                        }
+                        const tags = extractTags(el.textContent);
+                        const note = { id: crypto.randomUUID(), noteTitle: cleanTitle(el.textContent), content: '', tags };
+                        currentSection.notes.push(note);
+                    } else if (currentSection) {
+                        if (currentSection.notes && currentSection.notes.length > 0) {
+                            const lastNote = currentSection.notes[currentSection.notes.length - 1];
+                            lastNote.content += el.outerHTML;
+                            const tags = extractTags(el.textContent);
+                            lastNote.tags = Array.from(new Set([...lastNote.tags, ...tags]));
+                        } else {
+                            pendingContent += el.outerHTML;
+                        }
+                    }
+                });
+                // At the end, if there is pending content and no notes, create a blank note
+                if (currentSection && pendingContent && (!currentSection.notes || currentSection.notes.length === 0)) {
+                    currentSection.notes = currentSection.notes || [];
+                    currentSection.notes.push({ id: crypto.randomUUID(), noteTitle: '', content: pendingContent, tags: [] });
+                }
+                if (currentSection) sections.push(currentSection);
+                return sections;
+            }
+            const sections = parseSectionsFromHTML(htmlContent);
+            const importMode = importForm.querySelector('input[name="import_mode"]:checked').value;
+            const state = window.CURRENT_STATE;
+            async function clearState() {
+                await fetch(`/import/clear?state=${encodeURIComponent(state)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+            }
+            async function addSection(section) {
+                await fetch(`/import/add?state=${encodeURIComponent(state)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ section })
+                });
+            }
+            // Progress bar logic
+            const progressBarContainer = document.getElementById('import-progress-bar-container');
+            const progressBar = document.getElementById('import-progress-bar');
+            const progressLabel = document.getElementById('import-progress-label');
+            function showProgressBar() {
+                progressBarContainer.classList.remove('hidden');
+                progressBar.style.width = '0%';
+                progressLabel.textContent = '';
+            }
+            function updateProgressBar(current, total) {
+                const percent = Math.round((current / total) * 100);
+                progressBar.style.width = percent + '%';
+                progressLabel.textContent = `Importing section ${current} of ${total} (${percent}%)`;
+            }
+            function hideProgressBar() {
+                progressBarContainer.classList.add('hidden');
+                progressBar.style.width = '0%';
+                progressLabel.textContent = '';
+            }
+            showProgressBar();
+            try {
+                if (importMode === 'overwrite') {
+                    await clearState();
+                }
+                for (let i = 0; i < sections.length; i++) {
+                    await addSection(sections[i]);
+                    updateProgressBar(i + 1, sections.length);
+                }
+                setTimeout(() => {
+                    hideProgressBar();
+                    window.location.reload();
+                }, 400);
+            } catch (err) {
+                progressLabel.textContent = 'Error during import.';
+                progressBar.style.backgroundColor = '#dc2626'; // Tailwind red-600
+                setTimeout(hideProgressBar, 2000);
+                throw err;
+            }
         });
     }
 

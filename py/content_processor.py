@@ -98,32 +98,59 @@ def _parse_imported_html(html_content: str) -> tuple[List[Dict], Set[str]]:
     def clean_title(text: str) -> str: return re.sub(r'\[([^\]]+)\]', '', text).strip()
 
     # Define which HTML tags can become notes (headers) vs. content
-    NOTE_TAGS = ['h2', 'h3', 'h4', 'h5', 'h6']
-    ALL_TAGS = ['h1'] + NOTE_TAGS + ['p', 'ul', 'ol', 'div', 'pre', 'blockquote']
+    NOTE_TAGS = ['h2', 'h3']
+    ALL_TAGS = ['h1'] + NOTE_TAGS + ['p', 'ul', 'ol', 'div', 'pre', 'blockquote', 'h4', 'h5', 'h6']
 
+    pending_content = ''
     for el in soup.find_all(ALL_TAGS):
         # H1 creates a new section
         if el.name == 'h1':
+            # Before starting a new section, if there is pending content and no notes, create a blank note
+            if current_section and pending_content and (not current_section.get('notes') or len(current_section['notes']) == 0):
+                current_section.setdefault('notes', []).append({
+                    'id': str(uuid.uuid4()),
+                    'noteTitle': '',
+                    'content': pending_content,
+                    'tags': []
+                })
+            pending_content = ''
             if current_section: new_sections.append(current_section)
             tags = extract_tags(el.get_text())
             new_known_tags.update(tags)
             current_section = {"id": str(uuid.uuid4()), "sectionTitle": clean_title(el.get_text()), "tags": tags, "notes": []}
-        # H2-H6 create a new note within the current section
+        # H2-H3 create a new note within the current section
         elif el.name in NOTE_TAGS:
-            if not current_section:
-                current_section = {"id": str(uuid.uuid4()), "sectionTitle": "Imported Content", "tags": [], "notes": []}
+            # Before starting a new note, if there is pending content and no notes, create a blank note
+            if current_section and pending_content and (not current_section.get('notes') or len(current_section['notes']) == 0):
+                current_section.setdefault('notes', []).append({
+                    'id': str(uuid.uuid4()),
+                    'noteTitle': '',
+                    'content': pending_content,
+                    'tags': []
+                })
+                pending_content = ''
             tags = extract_tags(el.get_text())
             new_known_tags.update(tags)
             note_content = {"id": str(uuid.uuid4()), "noteTitle": clean_title(el.get_text()), "content": '', "tags": tags}
             current_section.setdefault("notes", []).append(note_content)
-        # Other tags are appended as content to the most recent note
-        elif current_section and current_section.get("notes"):
-            last_note = current_section["notes"][-1]
-            last_note["content"] += str(el)
-            tags = extract_tags(el.get_text())
-            new_known_tags.update(tags)
-            last_note["tags"].extend(tags)
-            last_note["tags"] = list(dict.fromkeys(last_note["tags"])) # Deduplicate
-
+        # Other tags are appended as content to the most recent note or as pending content
+        elif current_section:
+            if current_section.get("notes"):
+                last_note = current_section["notes"][-1]
+                last_note["content"] += str(el)
+                tags = extract_tags(el.get_text())
+                new_known_tags.update(tags)
+                last_note["tags"].extend(tags)
+                last_note["tags"] = list(dict.fromkeys(last_note["tags"])) # Deduplicate
+            else:
+                pending_content += str(el)
+    # At the end, if there is pending content and no notes, create a blank note
+    if current_section and pending_content and (not current_section.get('notes') or len(current_section['notes']) == 0):
+        current_section.setdefault('notes', []).append({
+            'id': str(uuid.uuid4()),
+            'noteTitle': '',
+            'content': pending_content,
+            'tags': []
+        })
     if current_section: new_sections.append(current_section)
     return new_sections, new_known_tags
