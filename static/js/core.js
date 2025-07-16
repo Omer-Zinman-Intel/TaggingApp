@@ -1,3 +1,96 @@
+// Utility: Wrap code blocks between triple quotes with <pre class='ql-syntax'>...</pre>
+function wrapCodeBlocks(text) {
+    // Match triple straight or curly single/double quotes (including mixed)
+    // ['\"] = straight, [‘’“”] = curly
+    return text.replace(/((['\"‘’“”]){3})([\s\S]*?)(\1)/g, function(match, p1, code) {
+        return `<pre class="ql-syntax">${code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`;
+    });
+}
+
+function stripHtmlTags(html) {
+    // Create a temporary element and get only the text content (preserves line breaks for <br> and <p>)
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n');
+    return tmp.textContent || tmp.innerText || '';
+}
+
+function insertHtmlAndCodeBlocksToQuill(quill, html) {
+    // Regex for triple straight or curly quotes
+    const regex = /((['\"‘’“”]){3})([\s\S]*?)(\1)/g;
+    let lastIndex = 0;
+    let match;
+    quill.setText(''); // Clear editor
+    while ((match = regex.exec(html)) !== null) {
+        // Insert HTML before code block
+        if (match.index > lastIndex) {
+            const htmlSegment = html.slice(lastIndex, match.index);
+            quill.clipboard.dangerouslyPasteHTML(quill.getLength() - 1, htmlSegment);
+        }
+        // Insert code block (as plain text, with line breaks preserved)
+        const codeText = stripHtmlTags(match[3]);
+        quill.insertText(quill.getLength() - 1, codeText, { 'code-block': true });
+        lastIndex = regex.lastIndex;
+    }
+    // Insert any remaining HTML
+    if (lastIndex < html.length) {
+        const htmlSegment = html.slice(lastIndex);
+        quill.clipboard.dangerouslyPasteHTML(quill.getLength() - 1, htmlSegment);
+    }
+}
+
+function nestQuillLists(flatListHtml) {
+    const temp = document.createElement('div');
+    temp.innerHTML = flatListHtml;
+    const list = temp.querySelector('ul, ol');
+    if (!list) return flatListHtml;
+
+    const stack = [{ level: 0, list: document.createElement(list.tagName.toLowerCase()) }];
+    Array.from(list.children).forEach(li => {
+        const match = (li.className || '').match(/ql-indent-(\d+)/);
+        const level = match ? parseInt(match[1], 10) : 0;
+        while (stack.length > 1 && stack[stack.length - 1].level >= level) {
+            stack.pop();
+        }
+        if (level > stack[stack.length - 1].level) {
+            const sublist = document.createElement(list.tagName.toLowerCase());
+            stack[stack.length - 1].list.lastElementChild.appendChild(sublist);
+            stack.push({ level, list: sublist });
+        }
+        const newLi = li.cloneNode(true);
+        newLi.className = (newLi.className || '').replace(/ql-indent-\d+/g, '').trim();
+        stack[stack.length - 1].list.appendChild(newLi);
+    });
+    return stack[0].list.outerHTML;
+}
+
+function nestAllQuillListsInContainer(container) {
+    // For every flat list in the container
+    container.querySelectorAll('ul, ol').forEach(list => {
+        // Only process lists that have ql-indent classes
+        if (!list.querySelector('li.ql-indent-1, li.ql-indent-2, li.ql-indent-3, li.ql-indent-4, li.ql-indent-5, li.ql-indent-6, li.ql-indent-7, li.ql-indent-8')) return;
+
+        // Build a stack for nested lists
+        const stack = [{ level: 0, list: document.createElement(list.tagName.toLowerCase()) }];
+        Array.from(list.children).forEach(li => {
+            const match = (li.className || '').match(/ql-indent-(\d+)/);
+            const level = match ? parseInt(match[1], 10) : 0;
+            while (stack.length > 1 && stack[stack.length - 1].level >= level) {
+                stack.pop();
+            }
+            if (level > stack[stack.length - 1].level) {
+                const sublist = document.createElement(list.tagName.toLowerCase());
+                stack[stack.length - 1].list.lastElementChild.appendChild(sublist);
+                stack.push({ level, list: sublist });
+            }
+            const newLi = li.cloneNode(true);
+            newLi.className = (newLi.className || '').replace(/ql-indent-\d+/g, '').trim();
+            stack[stack.length - 1].list.appendChild(newLi);
+        });
+        // Replace the old list with the new nested one
+        list.parentNode.replaceChild(stack[0].list, list);
+    });
+}
+
 // Main application initialization
 document.addEventListener('DOMContentLoaded', function() {
     window.appLogger?.action('CORE_INITIALIZATION_START');
@@ -34,7 +127,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             contentLength: result.value.length 
                         });
                         if (window.importEditorQuill) {
-                            window.importEditorQuill.root.innerHTML = result.value;
+                            //window.importEditorQuill.root.innerHTML = result.value;
+                            insertHtmlAndCodeBlocksToQuill(window.importEditorQuill, result.value);
                             toggleImportEditorView('richtext');
                         }
                     })
@@ -103,9 +197,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     } else if (currentSection) {
                         if (currentSection.notes && currentSection.notes.length > 0) {
                             const lastNote = currentSection.notes[currentSection.notes.length - 1];
-                            lastNote.content += el.outerHTML;
-                            const tags = extractTags(el.textContent);
-                            lastNote.tags = Array.from(new Set([...lastNote.tags, ...tags]));
+                            if (!lastNote.blocks) lastNote.blocks = [];
+                            // For lists, preserve the entire list structure (including nested lists)
+                            if (el.tagName.toLowerCase() === 'ul' || el.tagName.toLowerCase() === 'ol') {
+                                lastNote.blocks.push(el.outerHTML);
+                            } else {
+                                lastNote.blocks.push(el.outerHTML);
+                            }
                         } else {
                             pendingContent += el.outerHTML;
                         }
@@ -117,9 +215,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     currentSection.notes.push({ id: crypto.randomUUID(), noteTitle: '', content: pendingContent, tags: [] });
                 }
                 if (currentSection) sections.push(currentSection);
+            
+                // Join blocks for each note
+                sections.forEach(section => {
+                    section.notes.forEach(note => {
+                        if (note.blocks) {
+                            note.content = note.blocks.join('');
+                            delete note.blocks;
+                        }
+                    });
+                });
+            
                 return sections;
             }
             const sections = parseSectionsFromHTML(htmlContent);
+            // Wrap code blocks in each note's content
+            sections.forEach(section => {
+                section.notes.forEach(note => {
+                    note.content = wrapCodeBlocks(note.content);
+                });
+            });
             const importMode = importForm.querySelector('input[name="import_mode"]:checked').value;
             const state = window.CURRENT_STATE;
             async function clearState() {
@@ -370,6 +485,13 @@ document.addEventListener('DOMContentLoaded', function() {
             sessionStorage.removeItem('editedNoteId');
         }
     }, 100); // Small delay to ensure page is fully loaded
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    // For each note content block in the main content view
+    document.querySelectorAll('#main-content .prose').forEach(block => {
+        nestAllQuillListsInContainer(block);
+    });
 });
 
 // Core application functions
@@ -1052,3 +1174,46 @@ window.toggleNoteCompleted = function(sectionId, noteId) {
         alert('Error toggling completed: ' + err.message);
     });
 };
+function nestQuillListsInBlock(block) {
+    block.querySelectorAll('ul, ol').forEach(list => {
+        // Only process lists with ql-indent classes
+        if (!Array.from(list.children).some(li => li.className && li.className.match(/ql-indent-\d+/))) return;
+
+        // Gather all <li> and their indent levels
+        const items = Array.from(list.children).map(li => {
+            const match = (li.className || '').match(/ql-indent-(\d+)/);
+            const level = match ? parseInt(match[1], 10) : 0;
+            const newLi = li.cloneNode(true);
+            newLi.className = (newLi.className || '').replace(/ql-indent-\d+/g, '').trim();
+            return { level, li: newLi };
+        });
+
+        // Build the nested list structure
+        const root = document.createElement(list.tagName.toLowerCase());
+        let parents = [root];
+        let lastLevel = 0;
+
+        items.forEach(({ level, li }) => {
+            if (level > lastLevel) {
+                // Create a new sublist and append to previous <li>
+                const sublist = document.createElement(list.tagName.toLowerCase());
+                parents[parents.length - 1].lastElementChild.appendChild(sublist);
+                parents.push(sublist);
+            } else if (level < lastLevel) {
+                // Go up to the correct parent
+                parents = parents.slice(0, level + 1);
+            }
+            parents[parents.length - 1].appendChild(li);
+            lastLevel = level;
+        });
+
+        // Replace the old list with the new nested one
+        list.parentNode.replaceChild(root, list);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('#main-content .prose').forEach(block => {
+        nestQuillListsInBlock(block);
+    });
+});
