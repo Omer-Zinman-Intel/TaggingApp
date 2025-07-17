@@ -1,3 +1,4 @@
+<!-- Documentation is current as of July 10, 2025. All features, file structure, and UI/UX improvements are reflected below. -->
 # TaggingApp - Comprehensive Documentation
 
 ## Table of Contents
@@ -71,6 +72,7 @@ TaggingApp/
 │       ├── modals.js           # Modal dialog management
 │       ├── tag-input-global.js # Global tag input and suggestion system
 │       └── find-in-text.js     # Floating Find in Text widget logic
+│       └── content-menu.js     # Floating Table of Contents widget logic
 ├── py/
 │   ├── __init__.py
 │   ├── core.py                 # Configuration and global state
@@ -91,6 +93,7 @@ TaggingApp/
 - `logs/js_errors_YYYY-MM-DD.log`: Dedicated log files for JavaScript errors, separate from general client logs.
 - `states/Space_Exploration.json` (and others): Each state is stored as a separate JSON file for modular state management.
 - `static/js/find-in-text.js`: Logic for the new Find in Text widget, providing a floating search panel for navigating document content.
+- `static/js/content-menu.js`: Logic for the new Content Menu widget, offering a floating table of contents for quick navigation.
 
 See each file for more details on its responsibilities. The expanded structure supports better modularity, reliability, and debugging.
 

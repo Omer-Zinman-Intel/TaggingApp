@@ -2013,4 +2013,27 @@ div[class*="content"] blockquote {
   background: #e5e7eb !important; /* Tailwind gray-200 */
 }
 
+.ql-editor ul, .ql-editor ol {
+    margin-left: 1.5em;
+    padding-left: 1.5em;
+}
 
+.ql-editor ul ul,
+.ql-editor ul ol,
+.ql-editor ol ul,
+.ql-editor ol ol {
+    margin-left: 2em;
+    padding-left: 2em;
+}
+
+#main-content ul, #main-content ol {
+    padding-left: 0 !important;
+    margin-left: 1.5em !important;
+    list-style-position: inside !important;
+}
+
+#main-content li:not([class*="ql-indent-"]) { margin-left: 0; }
+#main-content li.ql-indent-1 { margin-left: 2em; }
+#main-content li.ql-indent-2 { margin-left: 4em; }
+#main-content li.ql-indent-3 { margin-left: 6em; }
+#main-content li.ql-indent-4 { margin-left: 8em; }

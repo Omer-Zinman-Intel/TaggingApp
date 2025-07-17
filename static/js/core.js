@@ -890,6 +890,9 @@ window.toggleEditorView = function(viewType) {
             previewContainer.classList.remove('hidden');
             if (window.noteEditor && window.noteEditor.quill) {
                 previewContainer.innerHTML = window.noteEditor.quill.root.innerHTML;
+                if (window.updateOrderedListStarts) {
+                    window.updateOrderedListStarts(previewContainer);
+                }
             }
             document.querySelector('button[onclick="toggleEditorView(\'preview\')"]').classList.add('bg-blue-500', 'text-white');
             document.querySelector('button[onclick="toggleEditorView(\'preview\')"]').classList.remove('bg-gray-200', 'text-gray-700');

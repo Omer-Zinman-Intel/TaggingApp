@@ -225,6 +225,81 @@ class RichTextEditor {
 
         // Patch code block and clear formatting behavior
         this.patchCodeBlockAndClearFormatting();
+        
+        // Add right-click handler for ordered lists in the editor
+        if (this.containerId === 'quill-editor') {
+            const editorRoot = this.quill.root;
+            let currentOl = null;
+            // Helper to update all <ol> start attributes based on data-ol-start and continuity
+            function updateOrderedListStarts(container) {
+                let lastNumber = 0;
+                let lastWasOl = false;
+                let lastOl = null;
+                Array.from(container.childNodes).forEach(node => {
+                    if (node.nodeType === 1 && node.tagName === 'OL') {
+                        let start = 1;
+                        if (node.hasAttribute('data-ol-start')) {
+                            start = parseInt(node.getAttribute('data-ol-start'), 10) || 1;
+                        } else if (lastWasOl && lastOl) {
+                            // Continue numbering if previous sibling was <ol>
+                            const prevLis = lastOl.querySelectorAll('li');
+                            start = lastNumber + prevLis.length;
+                        }
+                        node.setAttribute('start', start);
+                        lastNumber = start;
+                        lastWasOl = true;
+                        lastOl = node;
+                    } else if (node.nodeType === 1 && (node.tagName === 'IMG' || node.tagName === 'P' || node.tagName === 'DIV' || node.tagName === 'UL' || node.tagName === 'PRE' || node.tagName === 'BLOCKQUOTE')) {
+                        lastWasOl = false;
+                        lastOl = null;
+                        lastNumber = 0;
+                    }
+                });
+            }
+            // Expose for preview use
+            window.updateOrderedListStarts = updateOrderedListStarts;
+            editorRoot.addEventListener('contextmenu', (e) => {
+                let ol = e.target.closest('ol');
+                if (ol && editorRoot.contains(ol)) {
+                    e.preventDefault();
+                    currentOl = ol;
+                    // Show modal
+                    const modal = document.getElementById('olStartFromModal');
+                    const input = document.getElementById('olStartFromInput');
+                    input.value = ol.hasAttribute('data-ol-start') ? ol.getAttribute('data-ol-start') : (ol.getAttribute('start') || 1);
+                    modal.classList.remove('hidden', 'opacity-0');
+                    setTimeout(() => { input.focus(); }, 100);
+                }
+            });
+            // Handle modal form submit
+            const form = document.getElementById('olStartFromForm');
+            form.addEventListener('submit', (ev) => {
+                ev.preventDefault();
+                const input = document.getElementById('olStartFromInput');
+                const value = parseInt(input.value, 10) || 1;
+                if (currentOl) {
+                    if (value === 1) {
+                        currentOl.removeAttribute('data-ol-start');
+                    } else {
+                        currentOl.setAttribute('data-ol-start', value);
+                    }
+                    // Update Quill Delta by replacing the ol's outerHTML
+                    // Find the index in Quill corresponding to this ol
+                    const html = editorRoot.innerHTML;
+                    this.quill.root.innerHTML = html; // Force Quill to reparse
+                    updateOrderedListStarts(editorRoot);
+                }
+                // Hide modal
+                document.getElementById('olStartFromModal').classList.add('hidden', 'opacity-0');
+                currentOl = null;
+            });
+            // Update starts after every change
+            this.quill.on('text-change', () => {
+                updateOrderedListStarts(editorRoot);
+            });
+            // Initial update
+            updateOrderedListStarts(editorRoot);
+        }
     }
     
     // Patch Quill to clean all formatting when code block is removed or clear formatting is used
