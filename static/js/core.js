@@ -1,3 +1,33 @@
+// Reset completion status for all notes in current state
+window.resetCompletionStatus = function() {
+    fetch(`/reset_completion_status?state=${encodeURIComponent(window.CURRENT_STATE)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: window.CURRENT_STATE })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            // Update all notes in DOM
+            document.querySelectorAll('.note-draggable[data-completed="true"]').forEach(noteElem => {
+                noteElem.classList.remove('note-completed');
+                noteElem.classList.add('bg-white');
+                noteElem.removeAttribute('data-completed');
+                // Update checkmark button
+                const btn = noteElem.querySelector('button[onclick^="toggleNoteCompleted"]');
+                if (btn) {
+                    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="text-gray-400"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="2"/></svg>`;
+                }
+            });
+            // Update Content Menu immediately
+            if (window.renderContentMenu) {
+                window.renderContentMenu();
+            } else if (typeof renderContentMenu === 'function') {
+                renderContentMenu();
+            }
+        }
+    });
+}
 // Utility: Wrap code blocks between triple quotes with <pre class='ql-syntax'>...</pre>
 function wrapCodeBlocks(text) {
     // Match triple straight or curly single/double quotes (including mixed)

@@ -9,6 +9,10 @@ import py.state_manager as state_manager
 app = Flask(__name__)
 app.secret_key = core.SECRET_KEY
 
+# Register note completion and reset completion status routes
+from py.register_toggle_note_completed import register_toggle_note_completed
+register_toggle_note_completed(app)
+
 # --- API endpoint for frontend logging fallback ---
 @app.route('/api/log', methods=['POST'])
 def api_log():

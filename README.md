@@ -760,7 +760,8 @@ For additional support or feature requests, please refer to the development guid
 
 ## Recent UI/UX Improvements (July 2025)
 
-- **Manual Import Content** and **Save as PDF** buttons are now located directly below all tag categories and above the main content area for improved workflow. No duplicate buttons remain.
+- **Manual Import Content**, **Save as PDF**, and **Reset Completion Status** buttons are now located directly below all tag categories and above the main content area for improved workflow. No duplicate buttons remain.
+- **Reset Completion Status** instantly marks all notes in the current state as incomplete, updating both the UI and backend in real time.
 - **Category, Section, and Note Action Buttons** (edit/delete):
   - Strict, single-line alignment enforced for all action buttons, matching the alignment used in sections and notes.
   - The gap between edit and delete buttons is now as tight as possible, with no extra margin or flex gap.
