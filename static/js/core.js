@@ -1,3 +1,52 @@
+// Collapse/expand section
+window.toggleSectionCollapse = function(sectionId) {
+    const sectionElem = document.getElementById('section-' + sectionId);
+    if (!sectionElem) return;
+    const noteList = sectionElem.querySelector('.note-list');
+    const collapseBtn = sectionElem.querySelector('.collapse-btn .collapse-icon');
+    const collapsed = !noteList.classList.contains('collapsed-content');
+    if (collapsed) {
+        noteList.classList.add('collapsed-content');
+        if (collapseBtn) {
+            collapseBtn.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6" />'; // right arrow
+        }
+    } else {
+        noteList.classList.remove('collapsed-content');
+        if (collapseBtn) {
+            collapseBtn.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />'; // down arrow
+        }
+    }
+    fetch(`/collapse_state?state=${encodeURIComponent(window.CURRENT_STATE)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'section', id: sectionId, collapsed })
+    });
+}
+
+// Collapse/expand note
+window.toggleNoteCollapse = function(noteId) {
+    const noteElem = document.getElementById('note-' + noteId);
+    if (!noteElem) return;
+    const contentElem = noteElem.querySelector('.note-content');
+    const collapseBtn = noteElem.querySelector('.collapse-btn .collapse-icon');
+    const collapsed = !contentElem.classList.contains('collapsed-content');
+    if (collapsed) {
+        contentElem.classList.add('collapsed-content');
+        if (collapseBtn) {
+            collapseBtn.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6" />'; // right arrow
+        }
+    } else {
+        contentElem.classList.remove('collapsed-content');
+        if (collapseBtn) {
+            collapseBtn.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />'; // down arrow
+        }
+    }
+    fetch(`/collapse_state?state=${encodeURIComponent(window.CURRENT_STATE)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'note', id: noteId, collapsed })
+    });
+}
 // Reset completion status for all notes in current state
 window.resetCompletionStatus = function() {
     fetch(`/reset_completion_status?state=${encodeURIComponent(window.CURRENT_STATE)}`, {
@@ -515,6 +564,46 @@ document.addEventListener('DOMContentLoaded', function() {
             sessionStorage.removeItem('editedNoteId');
         }
     }, 100); // Small delay to ensure page is fully loaded
+
+    // On page load, apply collapsed state to sections and notes
+    // This ensures collapse/expand state persists after reload
+
+    // Sections
+    document.querySelectorAll('[id^="section-"]').forEach(function(sectionElem) {
+        const noteList = sectionElem.querySelector('.note-list');
+        const collapseBtn = sectionElem.querySelector('.collapse-btn .collapse-icon');
+        // Always set the icon explicitly and persistently
+        if (sectionElem.classList.contains('collapsed')) {
+            if (noteList) noteList.classList.add('collapsed-content');
+            if (collapseBtn) {
+                collapseBtn.innerHTML = '';
+                collapseBtn.insertAdjacentHTML('afterbegin', '<path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6" />');
+            }
+        } else {
+            if (noteList) noteList.classList.remove('collapsed-content');
+            if (collapseBtn) {
+                collapseBtn.innerHTML = '';
+                collapseBtn.insertAdjacentHTML('afterbegin', '<path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />');
+            }
+        }
+    });
+    // Notes
+    document.querySelectorAll('.note-draggable').forEach(function(noteElem) {
+        const contentElem = noteElem.querySelector('.note-content');
+        const collapseBtn = noteElem.querySelector('.collapse-btn .collapse-icon');
+        // Always set the icon explicitly
+        if (contentElem && contentElem.classList.contains('collapsed-content')) {
+            if (collapseBtn) {
+                collapseBtn.innerHTML = '';
+                collapseBtn.insertAdjacentHTML('afterbegin', '<path stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6" />');
+            }
+        } else {
+            if (collapseBtn) {
+                collapseBtn.innerHTML = '';
+                collapseBtn.insertAdjacentHTML('afterbegin', '<path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />');
+            }
+        }
+    });
 });
 
 document.addEventListener('DOMContentLoaded', function() {

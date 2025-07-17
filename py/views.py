@@ -48,15 +48,19 @@ def index():
     active_filters = request.args.getlist('filter')
     active_filters_lower = {f.lower() for f in active_filters} # For efficient client-side checks
 
-    # Attach completed status to all notes in core.document_state for current user and state
+    # Attach completed and collapsed status to all notes/sections for current user and state
     from py import user_config_manager
     username = getattr(core, 'current_username', 'default_user')
     user_config = user_config_manager.load_user_config(username)
-    completed_notes_by_state = user_config.get('completed_notes', {})
-    user_completed_notes = set(completed_notes_by_state.get(current_state_name, []))
+    state_config = user_config.get(current_state_name, {"completed_notes": [], "collapsed_sections": [], "collapsed_notes": []})
+    user_completed_notes = set(state_config.get('completed_notes', []))
+    collapsed_sections = set(state_config.get('collapsed_sections', []))
+    collapsed_notes = set(state_config.get('collapsed_notes', []))
     for section in core.document_state.get("sections", []):
+        section['collapsed'] = section.get('id') in collapsed_sections
         for note in section.get("notes", []):
             note['completed'] = note.get('id') in user_completed_notes
+            note['collapsed'] = note.get('id') in collapsed_notes
 
     sections_to_display = content_processor.get_filtered_sections(active_filters)
 
@@ -112,10 +116,8 @@ def rename_state():
         from py import user_config_manager
         username = getattr(core, 'current_username', 'default_user')
         config = user_config_manager.load_user_config(username)
-        completed_notes = config.get('completed_notes', {})
-        if old_name in completed_notes:
-            completed_notes[new_name] = completed_notes.pop(old_name)
-            config['completed_notes'] = completed_notes
+        if old_name in config:
+            config[new_name] = config.pop(old_name)
             user_config_manager.save_user_config(username, config)
         flash(f"State '{old_name}' renamed to '{new_name}'.", "success")
         return redirect(url_for('index', state=new_name))

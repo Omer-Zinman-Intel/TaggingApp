@@ -1,3 +1,27 @@
+/* Collapsed style for notes/sections */
+/* Only hide note/section content, not the title row */
+.collapsed-content {
+  display: none !important;
+}
+.note-content {
+  display: block;
+}
+
+/* Separation between notes */
+.note-draggable {
+  margin-bottom: 1rem;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  background: #fff;
+}
+
+/* Separation between sections */
+.group\/section {
+  margin-bottom: 2.5rem;
+  border: 1.5px solid #e5e7eb;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+  background: #f9fafb;
+}
 /* Faded style for completed notes/sections in Content Menu */
 .content-menu-completed {
   color: #a3a3a3 !important;
@@ -182,6 +206,11 @@
 /* --- Note Drag-and-Drop Visual Cues --- */
 .note-draggable {
   transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-bottom: 1.25rem !important; /* Add vertical separation between notes */
+  box-shadow: 0 1px 4px 0 rgba(0,0,0,0.04);
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 0.5rem;
 }
 
 .note-draggable.drag-over-top {
