@@ -48,8 +48,18 @@ def index():
     active_filters = request.args.getlist('filter')
     active_filters_lower = {f.lower() for f in active_filters} # For efficient client-side checks
 
+    # Attach completed status to all notes in core.document_state for current user and state
+    from py import user_config_manager
+    username = getattr(core, 'current_username', 'default_user')
+    user_config = user_config_manager.load_user_config(username)
+    completed_notes_by_state = user_config.get('completed_notes', {})
+    user_completed_notes = set(completed_notes_by_state.get(current_state_name, []))
+    for section in core.document_state.get("sections", []):
+        for note in section.get("notes", []):
+            note['completed'] = note.get('id') in user_completed_notes
+
     sections_to_display = content_processor.get_filtered_sections(active_filters)
-    
+
     return render_template(
         "index.html",
         document=core.document_state,
@@ -98,6 +108,15 @@ def rename_state():
         core.document_state["documentTitle"] = new_name
         state_manager.save_state(new_name)
         os.remove(old_filepath)
+        # Update user config completed_notes key
+        from py import user_config_manager
+        username = getattr(core, 'current_username', 'default_user')
+        config = user_config_manager.load_user_config(username)
+        completed_notes = config.get('completed_notes', {})
+        if old_name in completed_notes:
+            completed_notes[new_name] = completed_notes.pop(old_name)
+            config['completed_notes'] = completed_notes
+            user_config_manager.save_user_config(username, config)
         flash(f"State '{old_name}' renamed to '{new_name}'.", "success")
         return redirect(url_for('index', state=new_name))
     
@@ -310,15 +329,16 @@ def delete_note(section_id: str, note_id: str):
 
 def toggle_note_completed(section_id: str, note_id: str):
     state_name = request.args.get('state') or request.json.get('state')
+    username = request.args.get('username') or request.json.get('username') or 'default_user'
     if not state_name:
         return jsonify({'success': False, 'message': 'Missing state'}), 400
     section, note = content_processor.find_section_and_note(section_id, note_id)
     if not note:
         return jsonify({'success': False, 'message': 'Note not found'}), 404
-    # Toggle completed
-    note['completed'] = not note.get('completed', False)
-    state_manager.save_state(state_name)
-    return jsonify({'success': True, 'completed': note['completed']})
+    # Toggle completed status in user config
+    from py import user_config_manager
+    completed = user_config_manager.toggle_note_completed(username, note_id)
+    return jsonify({'success': True, 'completed': completed})
 
 # --- Tag Management Routes ---
 

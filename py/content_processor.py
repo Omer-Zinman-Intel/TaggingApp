@@ -22,9 +22,16 @@ def get_filtered_sections(active_filters: List[str]) -> List[Dict]:
 
     filtered_sections = []
 
+    from py import user_config_manager
+    username = getattr(core, 'current_username', 'default_user')
+    from flask import request
+    state_name = request.args.get('state') or request.json.get('state') or 'Default_State'
+    user_config = user_config_manager.load_user_config(username)
+    completed_notes_by_state = user_config.get('completed_notes', {})
+    user_completed_notes = set(completed_notes_by_state.get(state_name, []))
+
     for section in core.document_state.get("sections", []):
         section_tags = {t.lower() for t in section.get("tags", [])}
-        
         # The 'All' tag on a section makes it and all its notes immune to filtering
         if 'all' in section_tags:
             filtered_sections.append(copy.deepcopy(section))
@@ -37,6 +44,8 @@ def get_filtered_sections(active_filters: List[str]) -> List[Dict]:
         visible_notes = []
         for note in section_copy.get("notes", []):
             note_tags = {t.lower() for t in note.get("tags", [])}
+            # Attach completed status from user config (per state)
+            note['completed'] = note.get('id') in user_completed_notes
             if 'all' in note_tags or _matches_filters(note_tags, active_filters):
                 visible_notes.append(note)
         
