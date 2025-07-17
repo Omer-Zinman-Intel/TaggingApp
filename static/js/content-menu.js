@@ -38,10 +38,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const ul = document.createElement('ul');
     ul.className = 'space-y-1 w-full';
     // Traverse sections
-    const sections = contentRoot.querySelectorAll('.group\\/section');
+    const sections = contentRoot.querySelectorAll('[class*="group/section"]');
     sections.forEach(section => {
       const sectionId = section.id;
       const sectionTitle = section.querySelector('h2')?.textContent?.trim() || 'Untitled Section';
+      const notes = section.querySelectorAll('.note-draggable');
+      let allNotesCompleted = true;
+      // Section row FIRST
       const liSection = document.createElement('li');
       liSection.className = 'font-semibold text-gray-800 cursor-pointer hover:text-blue-600 px-1 py-0.5 rounded';
       liSection.textContent = sectionTitle;
@@ -51,12 +54,13 @@ document.addEventListener('DOMContentLoaded', function() {
       liSection.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { scrollToId(sectionId); } });
       ul.appendChild(liSection);
       // Notes under this section
-      const notes = section.querySelectorAll('.note-draggable');
       notes.forEach(note => {
         const noteId = note.id;
         const noteTitle = note.querySelector('h3')?.textContent?.trim() || 'Untitled Note';
+        const isCompleted = note.classList.contains('completed') || note.getAttribute('data-completed') === 'true' || note.querySelector('.completed, [data-completed="true"]');
+        if (!isCompleted) allNotesCompleted = false;
         const liNote = document.createElement('li');
-        liNote.className = 'ml-5 text-gray-700 cursor-pointer hover:text-blue-600 px-1 py-0.5 rounded';
+        liNote.className = 'ml-5 text-gray-700 cursor-pointer hover:text-blue-600 px-1 py-0.5 rounded' + (isCompleted ? ' content-menu-completed' : '');
         liNote.textContent = noteTitle;
         liNote.tabIndex = 0;
         liNote.setAttribute('data-scroll-id', noteId);
@@ -64,6 +68,10 @@ document.addEventListener('DOMContentLoaded', function() {
         liNote.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { scrollToId(noteId); } });
         ul.appendChild(liNote);
       });
+      // Update section style if all notes completed
+      if (allNotesCompleted && notes.length > 0) {
+        liSection.classList.add('content-menu-completed');
+      }
     });
     menuPanel.appendChild(ul);
   }

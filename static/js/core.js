@@ -1154,9 +1154,11 @@ window.toggleNoteCompleted = function(sectionId, noteId) {
                 if (data.completed) {
                     noteElem.classList.add('note-completed');
                     noteElem.classList.remove('bg-white');
+                    noteElem.setAttribute('data-completed', 'true');
                 } else {
                     noteElem.classList.remove('note-completed');
                     noteElem.classList.add('bg-white');
+                    noteElem.removeAttribute('data-completed');
                 }
                 // Update checkmark SVG
                 // Find the checkmark button (first button in the flex row)
@@ -1167,6 +1169,12 @@ window.toggleNoteCompleted = function(sectionId, noteId) {
                     } else {
                         btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="text-gray-400"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="2"/></svg>`;
                     }
+                }
+                // Immediately update Content Menu
+                if (window.renderContentMenu) {
+                    window.renderContentMenu();
+                } else if (typeof renderContentMenu === 'function') {
+                    renderContentMenu();
                 }
             }
         } else {

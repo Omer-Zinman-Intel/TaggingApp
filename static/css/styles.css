@@ -1,3 +1,10 @@
+/* Faded style for completed notes/sections in Content Menu */
+.content-menu-completed {
+  color: #a3a3a3 !important;
+  background-color: #f3f4f6 !important;
+  opacity: 0.65 !important;
+  text-decoration: line-through !important;
+}
 /* Style for CURRENT STATE dropdown */
 .current-state-dropdown {
     font-size: 0.8rem !important;
