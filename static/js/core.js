@@ -1347,3 +1347,34 @@ document.addEventListener('DOMContentLoaded', function() {
         nestQuillListsInBlock(block);
     });
 });
+
+// Expand all notes and sections in current state
+window.expandAll = function() {
+    // Expand all sections
+    document.querySelectorAll('[id^="section-"]').forEach(function(sectionElem) {
+        sectionElem.classList.remove('collapsed');
+        const noteList = sectionElem.querySelector('.note-list');
+        if (noteList) noteList.classList.remove('collapsed-content');
+        const collapseBtn = sectionElem.querySelector('.collapse-btn .collapse-icon');
+        if (collapseBtn) {
+            collapseBtn.innerHTML = '';
+            collapseBtn.insertAdjacentHTML('afterbegin', '<path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />');
+        }
+    });
+    // Expand all notes
+    document.querySelectorAll('.note-draggable').forEach(function(noteElem) {
+        const contentElem = noteElem.querySelector('.note-content');
+        if (contentElem) contentElem.classList.remove('collapsed-content');
+        const collapseBtn = noteElem.querySelector('.collapse-btn .collapse-icon');
+        if (collapseBtn) {
+            collapseBtn.innerHTML = '';
+            collapseBtn.insertAdjacentHTML('afterbegin', '<path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />');
+        }
+    });
+    // Optionally, persist expanded state to backend
+    fetch(`/expand_all?state=${encodeURIComponent(window.CURRENT_STATE)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: window.CURRENT_STATE })
+    });
+}
