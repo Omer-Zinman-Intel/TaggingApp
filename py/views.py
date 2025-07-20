@@ -8,6 +8,7 @@ import py.core as core
 import py.state_manager as state_manager
 import py.tag_manager as tag_manager
 import py.content_processor as content_processor
+from flask import Blueprint, jsonify, request
 
 # --- Custom Jinja2 Filter ---
 def remove_case_insensitive_filter(value_list: list[str], item_to_remove: str) -> list[str]:
@@ -924,3 +925,22 @@ def import_add():
         uncategorized['tags'] = sorted(list(set(uncategorized['tags'])), key=str.lower)
     state_manager.save_state(state_name)
     return jsonify({'success': True})
+
+def expand_all():
+    """Expand all sections and notes, and persist to user config."""
+    from py import user_config_manager
+    import py.core as core
+    username = getattr(core, 'current_username', 'default_user')
+    state_name = request.args.get('state') or request.json.get('state') or 'Default_State'
+    # Update user config: clear collapsed_sections and collapsed_notes for this state
+    config = user_config_manager.load_user_config(username)
+    if state_name not in config:
+        config[state_name] = {"completed_notes": [], "collapsed_sections": [], "collapsed_notes": []}
+    config[state_name]["collapsed_sections"] = []
+    config[state_name]["collapsed_notes"] = []
+    user_config_manager.save_user_config(username, config)
+    return jsonify({"success": True})
+
+# Register route for expand_all
+from flask import current_app
+## Remove Flask route registration from this file. Route will be registered in app.py

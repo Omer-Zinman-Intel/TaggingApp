@@ -113,26 +113,19 @@ before being sent to the browser as valid HTML/JavaScript.
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
     <style>
-        /* Hide image resize toolbar */
-        .ql-editor img + div[style*="position: absolute"] {
-            display: none !important;
+        /* ...existing code... */
+        /* Ensure images in note content are always visible and not collapsed */
+        .note-content img {
+            min-width: 80px !important;
+            min-height: 60px !important;
+            display: inline-block !important;
+            object-fit: contain;
+            background: #f8fafc;
+            border-radius: 6px;
         }
-        /* Style resize handles */
-        .ql-editor img[style*="cursor"] {
-            cursor: pointer;
-        }
-        /* Hide any image toolbar that appears */
-        div[style*="position: absolute"][style*="top: -12px"] {
-            display: none !important;
-        }
-        /* Ensure editor containers have proper clipping */
-        .ql-container {
-            overflow: hidden;
-            position: relative;
-        }
-        .ql-editor {
-            overflow-y: auto;
-            position: relative;
+        /* Optionally, add a subtle border for tiny images */
+        .note-content img[width], .note-content img[height] {
+            border: 1px solid #e5e7eb;
         }
     </style>
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
@@ -770,11 +763,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                             {% endif %}
                             <div class="note-content{% if note.collapsed %} collapsed-content{% endif %}">
-                                {% if not note.collapsed %}
                                 <div class="prose prose-sm max-w-none mt-2 text-gray-600">
                                     {{ note.content | safe }}
                                 </div>
-                                {% endif %}
                             </div>
                         </div>
                         {% endfor %}

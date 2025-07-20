@@ -9,9 +9,14 @@ import py.state_manager as state_manager
 app = Flask(__name__)
 app.secret_key = core.SECRET_KEY
 
+
 # Register note completion and reset completion status routes
 from py.register_toggle_note_completed import register_toggle_note_completed
 register_toggle_note_completed(app)
+
+# Register /expand_all route using the expand_all view from py.views
+from py.views import expand_all
+app.add_url_rule('/expand_all', 'expand_all', expand_all, methods=['POST'])
 
 # --- API endpoint for frontend logging fallback ---
 @app.route('/api/log', methods=['POST'])
