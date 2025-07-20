@@ -105,6 +105,7 @@ before being sent to the browser as valid HTML/JavaScript.
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ document.documentTitle }}</title>
+    <!-- drag_drop.js will be loaded at the end of body for guaranteed handler availability -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
@@ -346,6 +347,7 @@ before being sent to the browser as valid HTML/JavaScript.
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="{{ url_for('static', filename='js/content-menu.js') }}"></script>
+    <!-- drag_drop.js will be loaded at the end of body for guaranteed handler availability -->
 </head>
 <body class="bg-gray-50">
     <!-- Floating Search and Content Menu Buttons/Widgets -->
@@ -402,6 +404,12 @@ before being sent to the browser as valid HTML/JavaScript.
         border-radius: 3px;
         padding: 0 2px;
         box-shadow: 0 0 0 2px #f59e42;
+      }
+      /* Dropzone highlight for drag-and-drop */
+      .dropzone.drag-over {
+        background: #e0e7ff !important;
+        box-shadow: 0 0 0 2px #6366f1;
+        transition: background 0.2s, box-shadow 0.2s;
       }
     </style>
 
@@ -465,10 +473,10 @@ before being sent to the browser as valid HTML/JavaScript.
                         <span class="text-xs text-gray-500">{{ and_tags|length }} tags</span>
                     </div>
                     <div id="and-tags-content" class="tag-category-content dropzone flex flex-wrap gap-2 p-2 mt-2"
-                         ondragover="allowDrop(event)" ondrop="drop(event)" ondragleave="leaveDrop(event)" data-category-id="and_tags">
+                         data-category-id="and_tags">
                         {% for tag in and_tags %}
                             <span class="tag-bubble and-tag {% if tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
-                                  draggable="true" ondragstart="drag(event)" ondragend="dragEnd(event)" ondrop="drop(event)" data-tag-name="{{ tag }}" data-source-category-id="and_tags">
+                                  draggable="true" data-tag-name="{{ tag }}" data-source-category-id="and_tags">
                                 <div class="flex flex-wrap items-center gap-1" onclick='handleTagClick(event, {{ tag|tojson|safe }})' oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }}); return false;'>
                                     {% for component in tag.split('&') %}
                                         <span class="and-tag-component bg-white bg-opacity-80 px-2 py-1 rounded text-xs border" oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }}); return false;'>
@@ -491,38 +499,38 @@ before being sent to the browser as valid HTML/JavaScript.
                 {% endif %}
                 
                 <div class="bg-white p-3 rounded-lg shadow-sm mb-3">
-                    <div class="flex justify-between items-center tag-category-header">
-                        <h4 class="font-semibold text-gray-700 flex items-center">
-                            Uncategorized Tags
-                        </h4>
-                        <span class="text-xs text-gray-500">{{ uncategorized_tags|length }} tags</span>
-                    </div>
-                    <div id="uncategorized-content" class="tag-category-content dropzone flex flex-wrap gap-2 p-2 mt-2"
-                         ondragover="allowDrop(event)" ondrop="drop(event)" ondragleave="leaveDrop(event)" data-category-id="uncategorized">
-                        {% for tag in uncategorized_tags %}
-                            {% if not tag.startswith('CATEGORY:') %}
-                            <span class="tag-bubble {% if tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
-                               draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}" ondragstart="drag(event)" ondragend="dragEnd(event)" ondrop="drop(event)" data-tag-name="{{ tag }}" data-source-category-id="uncategorized">
-                                <span onclick='handleTagClick(event, {{ tag|tojson|safe }})' oncontextmenu='window.appLogger?.action("TAG_CONTEXT_MENU_TRIGGERED", {tag: {{ tag|tojson|safe }}, message: "Context menu triggered"}); testContextMenu(); showTagContextMenu(event, {{ tag|tojson|safe }}); return false;'>{{ tag }}</span>
-                                <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white shadow-lg rounded-md p-1 flex items-center z-20 opacity-0 group-hover/tag:opacity-100 transition-opacity pointer-events-none group-hover/tag:pointer-events-auto">
-                                    <button onclick='console.log("Button clicked for tag:", {{ tag|tojson|safe }}); event.stopPropagation(); showRenameModal({{ tag|tojson|safe }})' class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md" title="Rename tag">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                                    </button>
-                                    <form action="{{ url_for('delete_global_tag', filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete the tag ' + {{ tag|tojson }} + ' everywhere?');" class="inline">
-                                        <input type="hidden" name="tag_to_delete" value="{{ tag }}">
-                                        <button type="submit" onclick="event.stopPropagation();" class="p-1 text-gray-600 hover:text-red-600 hover:bg-gray-100 rounded-md">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    {# Show all tags as a flat list #}
+                    <div class="bg-white p-3 rounded-lg shadow-sm mb-3">
+                        <div class="flex justify-between items-center tag-category-header">
+                            <h4 class="font-semibold text-gray-700 flex items-center">
+                                All Tags
+                            </h4>
+                            <span class="text-xs text-gray-500">{{ all_tags|length }} tags</span>
+                        </div>
+                        <div id="all-tags-content" class="tag-category-content dropzone flex flex-wrap gap-2 p-2 mt-2"
+                             >
+                            {% for tag in all_tags %}
+                                <span class="tag-bubble {% if tag in and_tags %}and-tag{% elif tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
+                                   draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}" data-tag-name="{{ tag }}" data-source-category-id="all_tags">
+                                    <span onclick='handleTagClick(event, {{ tag|tojson|safe }})' oncontextmenu='window.appLogger?.action("TAG_CONTEXT_MENU_TRIGGERED", {tag: {{ tag|tojson|safe }}, message: "Context menu triggered"}); testContextMenu(); showTagContextMenu(event, {{ tag|tojson|safe }}); return false;'>{{ tag }}</span>
+                                    <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white shadow-lg rounded-md p-1 flex items-center z-20 opacity-0 group-hover/tag:opacity-100 transition-opacity pointer-events-none group-hover/tag:pointer-events-auto">
+                                        <button onclick='console.log("Button clicked for tag:", {{ tag|tojson|safe }}); event.stopPropagation(); showRenameModal({{ tag|tojson|safe }})' class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md" title="Rename tag">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                         </button>
-                                    </form>
-                                </div>
-                            </span>
+                                        <form action="{{ url_for('delete_global_tag', filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="event.stopPropagation(); return confirm('Are you sure you want to delete the tag ' + {{ tag|tojson }} + ' everywhere?');" class="inline">
+                                            <input type="hidden" name="tag_to_delete" value="{{ tag }}">
+                                            <button type="submit" onclick="event.stopPropagation();" class="p-1 text-gray-600 hover:text-red-600 hover:bg-gray-100 rounded-md">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </span>
+                            {% endfor %}
+                            {% if not all_tags %}
+                                <span class="text-sm text-gray-500 italic">No tags available.</span>
                             {% endif %}
-                        {% endfor %}
-                        {% if not uncategorized_tags %}
-                            <span class="text-sm text-gray-500 italic">No uncategorized tags. Drag tags here to unassign them from categories.</span>
-                        {% endif %}
+                        </div>
                     </div>
-                </div>
 
                 {% for category in tag_categories %}
                     {% if category.name.lower() != 'uncategorized' %}
@@ -545,11 +553,11 @@ before being sent to the browser as valid HTML/JavaScript.
                             </div>
                         </div>
                         <div id="category-{{ category.id }}-content" class="tag-category-content dropzone flex flex-wrap gap-2 p-2 mt-2"
-                             ondragover="allowDrop(event)" ondrop="drop(event)" ondragleave="leaveDrop(event)" data-category-id="{{ category.id }}">
+                             data-category-id="{{ category.id }}">
                             {% for tag in category.tags %}
                                 {% if not tag.startswith('CATEGORY:') %}
                                 <span class="tag-bubble {% if tag in and_tags %}and-tag{% elif tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
-                                   draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}" ondragstart="drag(event)" ondragend="dragEnd(event)" ondrop="drop(event)" data-tag-name="{{ tag }}" data-source-category-id="{{ category.id }}">
+                                   draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}" data-tag-name="{{ tag }}" data-source-category-id="{{ category.id }}">
                                     <span onclick='handleTagClick(event, {{ tag|tojson|safe }})' oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }}); return false;'>{{ tag }}</span>
                                     <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white shadow-lg rounded-md p-1 flex items-center z-20 opacity-0 group-hover/tag:opacity-100 transition-opacity pointer-events-none group-hover/tag:pointer-events-auto">
                                         <button onclick='window.appLogger?.buttonClick("RENAME_TAG_BUTTON", { tag: {{ tag|tojson|safe }} }); event.preventDefault(); event.stopPropagation(); showRenameModal({{ tag|tojson|safe }})' class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md">
@@ -1412,7 +1420,8 @@ if (typeof showAddAndTagModal !== 'undefined') {
 <script src="{{ url_for('static', filename='js/logger.js') }}"></script>
 <script src="{{ url_for('static', filename='js/core.js') }}"></script>
 <script src="{{ url_for('static', filename='js/tag-input-global.js') }}"></script>
-<script src="{{ url_for('static', filename='js/drag_drop.js') }}"></script>
+<!-- Removed duplicate drag_drop.js script -->
+<!-- Remove duplicate drag_drop.js script at the end of body -->
 <script src="{{ url_for('static', filename='js/editors.js') }}"></script>
 <script src="{{ url_for('static', filename='js/modals.js') }}"></script>
 
@@ -2156,6 +2165,7 @@ function deleteAndTag(tagName, deleteUrl) {
 </script>
 
 </body>
+    <script src="{{ url_for('static', filename='js/drag_drop.js') }}"></script>
     <script src="{{ url_for('static', filename='js/find-in-text.js') }}"></script>
     <!-- START FROM MODAL FOR ORDERED LISTS -->
     <div id="olStartFromModal" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 hidden opacity-0">

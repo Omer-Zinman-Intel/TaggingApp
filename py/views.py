@@ -1,6 +1,7 @@
 # py/views.py
 import uuid
 import os
+import sys
 from typing import Optional, Dict
 from flask import render_template, request, redirect, url_for, flash, jsonify, current_app, abort
 import py.core as core
@@ -74,8 +75,7 @@ def index():
         active_filters_lower=list(active_filters_lower), # Pass this for client-side Jinja2 logic
         available_states=[state_manager.get_state_name_from_filename(f) for f in available_state_files],
         current_state=current_state_name,
-        tag_categories=core.document_state.get("tag_categories", []), # Pass categories
-        uncategorized_tags=tag_manager.get_uncategorized_tags() # Pass uncategorized tags
+        tag_categories=core.document_state.get("tag_categories", []) # Pass categories only
     )
 
 # --- State Management Routes ---
@@ -520,27 +520,36 @@ def move_tag():
         flash(f"New AND tag '{new_and_tag_name}' created.", "success")
 
     # If dropping onto an empty space in a category (moving a singular tag)
+    # Debug: log all category IDs in the current state
+    print(f"[DEBUG] All category IDs: {[c['id'] for c in core.document_state.get('tag_categories', [])]}", file=sys.stderr)
+    print(f"[DEBUG] source_category_id: {source_category_id}, target_category_id: {target_category_id}", file=sys.stderr)
+
+
+    # Special handling for 'all_tags' as source: treat as global tag list, not a category
+    if source_category_id == 'all_tags':
+        source_category_obj = None
     else:
         source_category_obj = find_category(source_category_id)
-        target_category_obj = find_category(target_category_id)
+    target_category_obj = find_category(target_category_id)
 
-        if not source_category_obj or not target_category_obj:
-            return jsonify({"success": False, "message": "Category not found."})
+    if not target_category_obj:
+        print(f"[DEBUG] source_category_obj: {source_category_obj}, target_category_obj: {target_category_obj}", file=sys.stderr)
+        return jsonify({"success": False, "message": "Category not found."})
 
-        # Remove tag from its original category
-        if dragged_tag_name in source_category_obj.get("tags", []):
-            source_category_obj["tags"].remove(dragged_tag_name)
-            source_category_obj["tags"].sort(key=str.lower)
-        
-        # Add tag to target category
-        if dragged_tag_name not in target_category_obj.get("tags", []):
-            target_category_obj["tags"].append(dragged_tag_name)
-            target_category_obj["tags"].sort(key=str.lower)
-        
-        flash(f"Tag '{dragged_tag_name}' moved to '{target_category_obj['name']}'.", "success")
+    # Remove tag from its original category (if not from 'all_tags')
+    if source_category_obj and dragged_tag_name in source_category_obj.get("tags", []):
+        source_category_obj["tags"].remove(dragged_tag_name)
+        source_category_obj["tags"].sort(key=str.lower)
+
+    # Add tag to target category
+    if dragged_tag_name not in target_category_obj.get("tags", []):
+        target_category_obj["tags"].append(dragged_tag_name)
+        target_category_obj["tags"].sort(key=str.lower)
+
+    flash(f"Tag '{dragged_tag_name}' moved to '{target_category_obj['name']}'.", "success")
 
     state_manager.save_state(state_name)
-    
+
     return jsonify({"success": True, "message": "Operation successful."})
 
 def import_html():

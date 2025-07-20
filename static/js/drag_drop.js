@@ -1,80 +1,85 @@
 // js/drag_drop.js
 
-let draggedTagInfo = {}; // Stores { tagName, sourceCategoryId }
-let isDragging = false; // Flag to indicate if a drag operation is in progress
+// Stores { tagName, sourceCategoryId }
+window.draggedTagInfo = {};
+window.isDragging = false;
 
 function drag(event) {
     const tagElement = event.target;
-    
     // Prevent dragging of 'All' tag or any tag without a data-tag-name
     if (!tagElement.dataset.tagName || tagElement.dataset.tagName.toLowerCase() === 'all') {
-        event.preventDefault(); // Disallow drag operation
+        event.preventDefault();
         return;
     }
-
-    draggedTagInfo = {
+    window.draggedTagInfo = {
         tagName: tagElement.dataset.tagName,
         sourceCategoryId: tagElement.dataset.sourceCategoryId
     };
-    event.dataTransfer.setData("text/plain", draggedTagInfo.tagName); // Required for Firefox
-    
-    // Set the dragging flag
-    isDragging = true;
-
-    // Add a class to indicate dragging for visual feedback (optional)
+    event.dataTransfer.setData("text/plain", window.draggedTagInfo.tagName); // Correct reference
+    window.isDragging = true;
     tagElement.classList.add('opacity-50', 'dragging');
 }
 
 function dragEnd(event) {
-    // Reset the dragging flag
-    isDragging = false;
-    // Remove dragging classes from the dragged element
+    window.isDragging = false;
     event.target.classList.remove('opacity-50', 'dragging');
 }
 
-
 function allowDrop(event) {
-    event.preventDefault(); // Necessary to allow dropping
-    // Add a visual cue to the dropzone
+    event.preventDefault();
     event.currentTarget.classList.add('drag-over');
 }
 
 function leaveDrop(event) {
-    // Remove visual cue from the dropzone
     event.currentTarget.classList.remove('drag-over');
-    // The dragged element's opacity and 'dragging' class are handled by dragEnd
 }
 
 async function drop(event) {
     event.preventDefault();
-    event.stopPropagation(); // Stop the event from bubbling up to parent dropzones
-    event.currentTarget.classList.remove('drag-over'); // Remove visual cue
+    event.stopPropagation();
+    event.currentTarget.classList.remove('drag-over');
+    let targetCategoryId = event.currentTarget.dataset.categoryId;
+    let targetTagName = event.currentTarget.dataset.tagName;
 
-    const targetCategoryId = event.currentTarget.dataset.categoryId;
-    const targetTagName = event.currentTarget.dataset.tagName; // New: get the tag name of the drop target
-    const { tagName, sourceCategoryId } = draggedTagInfo;
-    
+    // If dropping onto a tag-bubble, always get parent dropzone's categoryId
+    if (event.currentTarget.classList.contains('tag-bubble')) {
+        const parentDropzone = event.currentTarget.closest('.dropzone');
+        if (parentDropzone) {
+            targetCategoryId = parentDropzone.dataset.categoryId;
+        }
+    }
+    const { tagName, sourceCategoryId } = window.draggedTagInfo;
+
     // If dropping onto another tag, but it's the same tag, do nothing.
     if (targetTagName && targetTagName.toLowerCase() === tagName.toLowerCase()) {
         return;
     }
 
-    // If 'All' tag was somehow dragged (should be prevented by drag()), or if essential info is missing
-    if (!tagName || sourceCategoryId === undefined || (targetCategoryId === undefined && targetTagName === undefined)) {
-        return;
+    // If the drop target is a tag-bubble, get its parent dropzone's categoryId
+    if (!targetCategoryId && event.currentTarget.classList.contains('tag-bubble')) {
+        const parentDropzone = event.currentTarget.closest('.dropzone');
+        if (parentDropzone) {
+            targetCategoryId = parentDropzone.dataset.categoryId;
+        }
     }
 
+    if (!tagName || sourceCategoryId === undefined || !targetCategoryId) {
+        console.warn('Drop aborted: missing info', { tagName, sourceCategoryId, targetCategoryId });
+        return;
+    }
+    if (targetCategoryId === 'all_tags' || targetCategoryId === 'and_tags') {
+        alert('Cannot move tag to this location.');
+        return;
+    }
+    console.log('Drop: moving tag', { tagName, sourceCategoryId, targetCategoryId, targetTagName });
     const currentUrl = new URL(window.location.href);
     const queryParams = new URLSearchParams(currentUrl.search);
-    
     const formData = new FormData();
     formData.append('tag_name', tagName);
     formData.append('source_category_id', sourceCategoryId);
-    // If dropped on a tag, the category ID is the tag's container. Otherwise, it's the dropzone itself.
-    formData.append('target_category_id', event.currentTarget.closest('.dropzone').dataset.categoryId); 
+    formData.append('target_category_id', targetCategoryId);
     formData.append('target_tag_name', targetTagName || '');
-    formData.append('state', window.CURRENT_STATE); // Use global CURRENT_STATE
-
+    formData.append('state', window.currentState || window.CURRENT_STATE);
     try {
         const response = await fetch(`/tag/move?${queryParams.toString()}`, {
             method: 'POST',
@@ -82,7 +87,6 @@ async function drop(event) {
         });
         const data = await response.json();
         if (data.success) {
-            // Reload the page to reflect the updated categorization
             window.location.reload();
         } else {
             alert('Failed to move tag: ' + data.message);
@@ -93,11 +97,16 @@ async function drop(event) {
     }
 }
 
-// Make all drag and drop functions globally accessible
-window.drag = drag;
-window.dragEnd = dragEnd;
-window.allowDrop = allowDrop;
-window.leaveDrop = leaveDrop;
-window.drop = drop;
-window.isDragging = isDragging;
-window.draggedTagInfo = draggedTagInfo;
+// --- Attach drag-and-drop handlers after DOM is loaded ---
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.dropzone').forEach(function(zone) {
+        zone.classList.remove('drag-over');
+        zone.addEventListener('dragover', allowDrop);
+        zone.addEventListener('dragleave', leaveDrop);
+        zone.addEventListener('drop', drop);
+    });
+    document.querySelectorAll('.tag-bubble[draggable="true"]').forEach(function(tag) {
+        tag.addEventListener('dragstart', drag);
+        tag.addEventListener('dragend', dragEnd);
+    });
+});
