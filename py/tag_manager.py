@@ -94,7 +94,7 @@ def add_and_tag(and_tag: str) -> bool:
     
     if and_tag not in core.document_state["and_tags"]:
         core.document_state["and_tags"].append(and_tag)
-        core.document_state["and_tags"].sort(key=str.lower)
+        core.document_state["and_tags"] = sorted(list(set(core.document_state["and_tags"])), key=str.lower)
         return True
     return False
 
@@ -118,6 +118,8 @@ def update_and_tag(old_tag: str, new_tag: str) -> bool:
     """
     if remove_and_tag(old_tag):
         add_and_tag(new_tag)
+        # Ensure AND tags are unique and sorted
+        core.document_state["and_tags"] = sorted(list(set(core.document_state["and_tags"])), key=str.lower)
         return True
     return False
 
@@ -141,38 +143,7 @@ def sync_known_tags(new_tags: List[str] = None) -> None:
         # Remove tags that are no longer used and exclude CATEGORY tags
         category['tags'] = [tag for tag in category.get('tags', []) 
                            if tag in available_tags and not is_category_tag(tag)]
-        category['tags'].sort(key=str.lower)
-    
-    # Find the Uncategorized category
-    uncategorized_category = None
-    for category in core.document_state.get('tag_categories', []):
-        if category['name'].lower() == 'uncategorized':
-            uncategorized_category = category
-            break
-    
-    # If Uncategorized category doesn't exist, create it
-    if uncategorized_category is None:
-        uncategorized_category = {
-            'id': str(uuid.uuid4()),
-            'name': 'Uncategorized',
-            'tags': []
-        }
-        core.document_state.setdefault('tag_categories', []).append(uncategorized_category)
-    
-    # Find tags that are available but not in any category (excluding CATEGORY tags)
-    all_categorized = get_all_categorized_tags()
-    uncategorized_tags = available_tags - all_categorized
-    
-    # Filter out CATEGORY tags - they should not be auto-assigned to categories
-    uncategorized_tags = {tag for tag in uncategorized_tags if not is_category_tag(tag)}
-    
-    # Add uncategorized tags to the Uncategorized category
-    for tag in uncategorized_tags:
-        if tag not in uncategorized_category['tags']:
-            uncategorized_category['tags'].append(tag)
-    
-    # Sort the Uncategorized category tags
-    uncategorized_category['tags'].sort(key=str.lower)
+        category['tags'] = sorted(list(set(category['tags'])), key=str.lower)
 
 
 def get_all_categorized_tags() -> Set[str]:
@@ -180,20 +151,12 @@ def get_all_categorized_tags() -> Set[str]:
     categorized_tags = set()
     for category in core.document_state.get("tag_categories", []):
         categorized_tags.update(category.get("tags", []))
-    return categorized_tags
+    return set(categorized_tags)
 
 def get_uncategorized_tags() -> List[str]:
     """Returns a sorted list of tags specifically assigned to the 'Uncategorized' category, excluding CATEGORY tags."""
-    for category in core.document_state.get("tag_categories", []):
-        if category['name'].lower() == 'uncategorized':
-            # Get the actual manually created AND tags to exclude them
-            manual_and_tags = set(core.document_state.get("and_tags", []))
-            # Exclude 'All' tag, manually created AND tags, and CATEGORY tags from the list
-            return sorted([tag for tag in category.get('tags', []) 
-                          if tag.lower() != 'all' 
-                          and tag not in manual_and_tags 
-                          and not is_category_tag(tag)], key=str.lower)
-    return [] 
+    # Deprecated: No longer used. Return empty list.
+    return []
 
 
 
@@ -202,17 +165,27 @@ def get_primary_category_for_tag(tag_name: str) -> Optional[Dict]:
     Finds the category object that explicitly contains the given tag.
     Returns the category object or None if not found in any explicit category.
     """
+    # Deprecated: Tags can belong to multiple categories. Use get_categories_for_tag instead.
+    return None
+
+def get_categories_for_tag(tag_name: str) -> list:
+    """
+    Returns a list of category objects that contain the given tag.
+    """
+    categories = []
     for category in core.document_state.get("tag_categories", []):
         if tag_name in category.get('tags', []):
-            return category
-    return None
+            categories.append(category)
+    return categories
 
 def delete_tag_from_all_categories(tag_name: str) -> None:
     """Removes a given tag from all categories it might reside in."""
     for category in core.document_state.get("tag_categories", []):
         if tag_name in category.get("tags", []):
             category["tags"].remove(tag_name)
-            category["tags"].sort(key=str.lower)
+    # Remove duplicates and sort after all removals
+    for category in core.document_state.get("tag_categories", []):
+        category["tags"] = sorted(list(set(category["tags"])), key=str.lower)
 
 
 def update_content_with_new_tag(old_tag: str, new_tag: str) -> None:
@@ -270,8 +243,8 @@ def cleanup_orphan_tags() -> None:
     current_known_tags_lower = {t.lower() for t in core.document_state["known_tags"]}
     for category in core.document_state.get("tag_categories", []):
         category["tags"] = [tag for tag in category.get("tags", []) if tag.lower() in current_known_tags_lower]
-        # Sort tags within category after cleanup
-        category["tags"] = sorted(category["tags"], key=str.lower)
+        # Remove duplicates and sort tags within category after cleanup
+        category["tags"] = sorted(list(set(category["tags"])), key=str.lower)
 
 def smart_rename_tag(old_tag: str, new_tag: str) -> None:
     """
@@ -414,14 +387,9 @@ def handle_smart_tag_update(old_tags: List[str], new_tags: List[str], exclude_se
                 for category in core.document_state.get("tag_categories", []):
                     if removed_tag in category.get("tags", []):
                         category["tags"] = [added_tag if t == removed_tag else t for t in category["tags"]]
-                        category["tags"] = sorted(category["tags"], key=str.lower)
-                        found_in_category = True
-                        break
-                
-                if not found_in_category:
-                    # Tag wasn't in any category, add the new tag to uncategorized
-                    sync_known_tags([added_tag])
-                
+                # Remove duplicates and sort after all renames
+                for category in core.document_state.get("tag_categories", []):
+                    category["tags"] = sorted(list(set(category["tags"])), key=str.lower)
                 # Update in known_tags
                 if removed_tag in core.document_state.get("known_tags", set()):
                     core.document_state["known_tags"].discard(removed_tag)
@@ -457,6 +425,9 @@ def remove_tag_globally(tag_to_remove: str) -> Dict[str, Any]:
         for category in core.document_state.get('tag_categories', []):
             if tag_to_remove in category.get('tags', []):
                 category['tags'].remove(tag_to_remove)
+        # Remove duplicates and sort after all removals
+        for category in core.document_state.get('tag_categories', []):
+            category['tags'] = sorted(list(set(category['tags'])), key=str.lower)
         
         # If the removed tag was an AND tag, check for orphaned components
         if '&' in tag_to_remove:
@@ -497,6 +468,9 @@ def remove_orphaned_components(removed_and_tag: str) -> None:
         # If component is not used elsewhere, remove it globally
         if not component_used_elsewhere:
             remove_tag_globally(component)
+    # After removals, ensure all categories have unique tags
+    for category in core.document_state.get('tag_categories', []):
+        category['tags'] = sorted(list(set(category['tags'])), key=str.lower)
 
 def rename_tag_globally(old_tag: str, new_tag: str) -> Dict[str, Any]:
     """
@@ -533,7 +507,9 @@ def rename_tag_globally(old_tag: str, new_tag: str) -> Dict[str, Any]:
         for category in core.document_state.get('tag_categories', []):
             if old_tag in category.get('tags', []):
                 category['tags'] = [new_tag if tag == old_tag else tag for tag in category['tags']]
-                category['tags'].sort(key=str.lower)
+        # Remove duplicates and sort after all renames
+        for category in core.document_state.get('tag_categories', []):
+            category['tags'] = sorted(list(set(category['tags'])), key=str.lower)
         
         # Sync known_tags and categories
         sync_known_tags()
@@ -725,47 +701,35 @@ def get_tags_in_category(category_name: str) -> List[str]:
 def should_show_content_for_filter(content_tags: Set[str], filter_tag: str) -> bool:
     """
     Enhanced matching logic that includes CATEGORY tag support.
-    
     For a given filter tag, content should be shown if:
     1. Content has the exact tag
-    2. Content has a CATEGORY tag for the category that contains the filter tag
+    2. Content has a CATEGORY tag for the category that contains the filter tag (even if the content does not have the specific tag)
     3. For AND tags: all components must be present (existing logic)
-    
-    Args:
-        content_tags: Set of tags on the content (lowercased)
-        filter_tag: The tag being filtered for
-    
-    Returns:
-        True if content should be shown, False otherwise
     """
-    filter_tag_lower = filter_tag.lower()
-    
+    filter_tag_lower = filter_tag.strip().lower()
+    content_tags_lower = {t.strip().lower() for t in content_tags}
     # Check if content has the exact tag
-    if filter_tag_lower in content_tags:
+    if filter_tag_lower in content_tags_lower:
         return True
-    
     # Check if this is an AND tag
     and_tags = core.document_state.get("and_tags", [])
-    and_tags_lower = {tag.lower() for tag in and_tags}
-    
+    and_tags_lower = {tag.strip().lower() for tag in and_tags}
     if filter_tag_lower in and_tags_lower:
         # This is an AND tag - check if ALL components are present
         components = [comp.strip().lower() for comp in filter_tag.split('&')]
-        if all(comp in content_tags for comp in components):
+        if all(comp in content_tags_lower for comp in components):
             return True
-    
     # Check for CATEGORY tag matching
     # Find which category contains this filter tag
     for category in core.document_state.get("tag_categories", []):
-        category_tags_lower = {tag.lower() for tag in category.get('tags', [])}
+        category_tags_lower = {tag.strip().lower() for tag in category.get('tags', [])}
         if filter_tag_lower in category_tags_lower:
             # This filter tag belongs to this category
-            # Check if content has the CATEGORY tag for this category
-            category_tag = get_category_tag_name(category['name']).lower()
-            if category_tag in content_tags:
+            # Show content if it has the CATEGORY tag for this category
+            category_tag = get_category_tag_name(category['name']).strip().lower()
+            if category_tag in content_tags_lower:
                 return True
-            break  # Tag can only belong to one category
-    
+            # Do NOT break here: other categories may also contain this tag
     return False
 
 def delete_category_and_associated_tags(category_name: str) -> Dict[str, Any]:
