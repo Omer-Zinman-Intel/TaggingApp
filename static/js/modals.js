@@ -1,3 +1,163 @@
+// --- Robust modal openers (single definition, robust initialization) ---
+function showCreateStateModal() {
+    initializeModalSystem();
+    try {
+        const input = document.getElementById('new_state_name');
+        if (input) input.value = '';
+        setTimeout(() => { if (input) input.focus(); }, 100);
+        const modal = document.getElementById('createStateModal');
+        const form = modal ? modal.querySelector('form') : null;
+        if (form) {
+            if (form._submitHandler) form.removeEventListener('submit', form._submitHandler);
+            const submitHandler = function(e) {
+                if (!input.value.trim()) {
+                    e.preventDefault();
+                    alert('State name is required.');
+                    input.focus();
+                }
+            };
+            form.addEventListener('submit', submitHandler);
+            form._submitHandler = submitHandler;
+        }
+        showModal('createStateModal');
+    } catch (error) {
+        console.error('Error in showCreateStateModal:', error);
+    }
+}
+
+function showAddCategoryModal() {
+    initializeModalSystem();
+    try {
+        const input = document.getElementById('new_category_name');
+        if (input) input.value = '';
+        setTimeout(() => { if (input) input.focus(); }, 100);
+        const modal = document.getElementById('addCategoryModal');
+        const form = modal ? modal.querySelector('form') : null;
+        if (form) {
+            if (form._submitHandler) form.removeEventListener('submit', form._submitHandler);
+            const submitHandler = function(e) {
+                if (!input.value.trim()) {
+                    e.preventDefault();
+                    alert('Category name is required.');
+                    input.focus();
+                }
+            };
+            form.addEventListener('submit', submitHandler);
+            form._submitHandler = submitHandler;
+        }
+        showModal('addCategoryModal');
+    } catch (error) {
+        console.error('Error in showAddCategoryModal:', error);
+    }
+}
+
+function showAddAndTagModal() {
+    initializeModalSystem();
+    try {
+        const container = document.getElementById('newAndTagComponentsContainer');
+        if (container) container.innerHTML = '';
+        if (typeof addNewAndTagComponent === 'function') {
+            addNewAndTagComponent();
+            addNewAndTagComponent();
+        }
+        const preview = document.getElementById('andTagPreview');
+        if (preview) preview.classList.add('hidden');
+        const modal = document.getElementById('addAndTagModal');
+        const form = modal ? modal.querySelector('form') : null;
+        if (form) {
+            if (form._submitHandler) form.removeEventListener('submit', form._submitHandler);
+            const submitHandler = function(e) {
+                const inputs = container ? container.querySelectorAll('input[type="text"]') : [];
+                const components = Array.from(inputs).map(input => input.value.trim()).filter(Boolean);
+                if (components.length < 2) {
+                    e.preventDefault();
+                    alert('Please enter at least two tag components.');
+                    if (inputs[0]) inputs[0].focus();
+                }
+            };
+            form.addEventListener('submit', submitHandler);
+            form._submitHandler = submitHandler;
+        }
+        showModal('addAndTagModal');
+    } catch (error) {
+        console.error('Error in showAddAndTagModal:', error);
+    }
+}
+
+function showManualImportModal() {
+    initializeModalSystem();
+    try {
+        if (window.importEditor && window.importEditor.resetEditor) {
+            window.importEditor.resetEditor();
+        }
+        const htmlEditor = document.getElementById('html-import-editor');
+        if (htmlEditor) htmlEditor.value = '';
+        if (window.toggleImportEditorView) window.toggleImportEditorView('richtext');
+        const modal = document.getElementById('importModal');
+        const form = modal ? modal.querySelector('form') : null;
+        if (form) {
+            if (form._submitHandler) form.removeEventListener('submit', form._submitHandler);
+            const submitHandler = function(e) {
+                const contentInput = document.getElementById('import_html_content');
+                if (!contentInput.value.trim()) {
+                    e.preventDefault();
+                    alert('Please provide content to import.');
+                    if (htmlEditor) htmlEditor.focus();
+                }
+            };
+            form.addEventListener('submit', submitHandler);
+            form._submitHandler = submitHandler;
+        }
+        showModal('importModal');
+    } catch (error) {
+        console.error('Error in showManualImportModal:', error);
+    }
+}
+
+function showRenameStateModal(currentState) {
+    initializeModalSystem();
+    try {
+        const oldStateInput = document.getElementById('renameOldStateName');
+        const oldStateText = document.getElementById('oldStateName');
+        const newStateInput = document.getElementById('renameNewStateName');
+        if (oldStateInput) oldStateInput.value = currentState || '';
+        if (oldStateText) oldStateText.textContent = currentState || '';
+        if (newStateInput) newStateInput.value = currentState || '';
+        setTimeout(() => { if (newStateInput) newStateInput.focus(); }, 100);
+        const modal = document.getElementById('renameStateModal');
+        const form = modal ? modal.querySelector('form') : null;
+        if (form) {
+            if (form._submitHandler) form.removeEventListener('submit', form._submitHandler);
+            const submitHandler = function(e) {
+                if (!newStateInput.value.trim()) {
+                    e.preventDefault();
+                    alert('New state name is required.');
+                    newStateInput.focus();
+                }
+            };
+            form.addEventListener('submit', submitHandler);
+            form._submitHandler = submitHandler;
+        }
+        showModal('renameStateModal');
+    } catch (error) {
+        console.error('Error in showRenameStateModal:', error);
+    }
+}
+
+// Assign robust modal openers globally (single assignment, after definition)
+window.showCreateStateModal = showCreateStateModal;
+window.showAddCategoryModal = showAddCategoryModal;
+window.showAddAndTagModal = showAddAndTagModal;
+window.showManualImportModal = showManualImportModal;
+window.showRenameStateModal = showRenameStateModal;
+// Helper to launch section modal using data-* attributes (like notes)
+function showEditSectionModalFromData(btn) {
+    const sectionId = btn.getAttribute('data-section-id');
+    const sectionTitle = btn.getAttribute('data-section-title');
+    const sectionTags = btn.getAttribute('data-section-tags');
+    const sectionCategories = btn.getAttribute('data-section-categories');
+    showEditSectionModal(sectionId, sectionTitle, sectionTags, sectionCategories);
+}
 // Global script - no ES6 modules
 // Using global tag input system
 
@@ -13,28 +173,48 @@ function testModalFunctions() {
     console.log('================================');
 }
 
-// Make functions globally accessible
+
+
+// Assign modal functions globally, including showAddAndTagModal from window if present
 window.showModal = showModal;
 window.hideModal = hideModal;
 window.testModalFunctions = testModalFunctions;
+window.showEditSectionModal = showEditSectionModal;
+window.showEditNoteModal = showEditNoteModal;
+window.showImportModal = showImportModal;
+window.showRenameModal = showRenameModal;
+window.showRenameStateModal = showRenameStateModal;
+window.showRenameCategoryModal = showRenameCategoryModal;
+window.showEditAndTagModal = showEditAndTagModal;
+// Assign showAddAndTagModal if defined globally (from index.html)
+if (typeof window.showAddAndTagModal === 'function') {
+    window.showAddAndTagModal = window.showAddAndTagModal;
+}
 
 function showModal(modalId) {
+    // Always initialize modal system before showing any modal
+    initializeModalSystem();
     window.appLogger?.buttonClick('SHOW_MODAL', { modalId });
     console.log('showModal called with modalId:', modalId);
-    
+
+    // Hide all other modals before showing the requested one
+    document.querySelectorAll('.modal').forEach(m => {
+        if (m.id !== modalId) m.classList.add('hidden', 'opacity-0');
+    });
+
     const modal = document.getElementById(modalId);
     console.log('modal element:', modal);
-    
+
     if (modal) {
         modal.classList.remove('hidden');
         modal.classList.remove('opacity-0');
         modal.offsetHeight; // Force reflow
         console.log('Modal should now be visible');
-        
+
         // Validate modal components
         const components = validateModalComponents(modalId);
         window.appLogger?.modalLoaded(modalId, components);
-        
+
         // Focus first input if it exists
         setTimeout(() => {
             const firstInput = modal.querySelector('input[type="text"], textarea');
@@ -206,7 +386,7 @@ function handleImportModalCancel() {
     }
 }
 
-function showEditSectionModal(sectionId, title, tags) {
+function showEditSectionModal(sectionId, title, tags, categoriesJson) {
     window.appLogger?.action('SHOW_EDIT_SECTION_MODAL', { sectionId, title, tags });
     
     try {
@@ -229,6 +409,7 @@ function showEditSectionModal(sectionId, title, tags) {
         titleInput.value = title || '';
         window.appLogger?.componentStatus('editSectionTitle', 'populated', { value: title });
         
+
         // Process tags
         let tagList = [];
         if (!tags) {
@@ -239,7 +420,19 @@ function showEditSectionModal(sectionId, title, tags) {
             tagList = tags.split(',').map(t => t.trim()).filter(t => t);
         }
         window.appLogger?.componentStatus('tags_processed', 'success', { originalTags: tags, processedTags: tagList });
-        
+
+        // Process categories
+        let categoryList = [];
+        if (categoriesJson) {
+            try {
+                categoryList = JSON.parse(categoriesJson);
+            } catch (e) {
+                window.appLogger?.error('Failed to parse section categories JSON', { categoriesJson, error: e });
+                categoryList = [];
+            }
+        }
+        window.appLogger?.componentStatus('categories_processed', 'success', { originalCategories: categoriesJson, processedCategories: categoryList });
+
         const tagsHiddenInput = document.getElementById('editSectionTags');
         if (tagsHiddenInput) {
             tagsHiddenInput.value = tagList.join(', ');
@@ -281,9 +474,47 @@ function showEditSectionModal(sectionId, title, tags) {
                     window.appLogger?.componentStatus('section_tag_input', 'created', { success: !!window.tagInputs.section });
                     
                     if (window.tagInputs.section) {
-                        window.tagInputs.section.init(tagList);
-                        window.appLogger?.componentStatus('section_tags', 'initialized', { tags: tagList });
+                        // Always initialize with both tags and categories
+                        // Normalize categories to array of IDs if needed
+                        function normalizeCategoryArray(categories) {
+                            if (!Array.isArray(categories)) return [];
+                            if (categories.length > 0 && typeof categories[0] === 'object' && categories[0].id) {
+                                return categories.map(cat => cat.id);
+                            }
+                            return categories;
+                        }
+                        const normalizedCategories = normalizeCategoryArray(categoryList);
+                        window.tagInputs.section.init(tagList, normalizedCategories);
+                        window.appLogger?.componentStatus('section_tags', 'initialized', { tags: tagList, categories: normalizedCategories });
                         console.log('Section tags initialized successfully');
+                        // Attach submit handler to always send tags/categories
+                        const form = document.getElementById('editSectionForm');
+                        if (form) {
+                            form.addEventListener('submit', function(e) {
+                                try {
+                                    // Ensure hidden categories input exists
+                                    let categoriesInput = form.querySelector('input[name="categories"]');
+                                    if (!categoriesInput) {
+                                        categoriesInput = document.createElement('input');
+                                        categoriesInput.type = 'hidden';
+                                        categoriesInput.name = 'categories';
+                                        form.appendChild(categoriesInput);
+                                    }
+                                    window.tagInputs.section.submitToBackend(form);
+                                    if (window.appLogger) {
+                                        window.appLogger.log('Form submit: section', {
+                                            tags: form.querySelector('input[name="tags"]').value,
+                                            categories: form.querySelector('input[name="categories"]').value
+                                        });
+                                    }
+                                } catch (err) {
+                                    console.error('Form submit error (section):', err);
+                                    if (window.appLogger) {
+                                        window.appLogger.error('Form submit error (section)', err);
+                                    }
+                                }
+                            });
+                        }
                     }
                 } else {
                     window.appLogger?.error('Missing elements for section tag input creation:', elements);
@@ -308,66 +539,72 @@ function showEditSectionModal(sectionId, title, tags) {
     }
 }
 
-function showEditNoteModal(sectionId, noteId, title, content, tags) {
+function showEditNoteModal(btn) {
     try {
+        if (!btn || !btn.dataset) throw new Error('Button or dataset missing');
+        // Parse data attributes safely
+        let sectionId = btn.dataset.sectionId;
+        let noteId = btn.dataset.noteId;
+        let title = '';
+        let content = '';
+        let tags = [];
+        let categories = [];
+        try { title = btn.dataset.title ? JSON.parse(btn.dataset.title) : ''; } catch (e) { title = btn.dataset.title || ''; }
+        try { content = btn.dataset.content ? JSON.parse(btn.dataset.content) : ''; } catch (e) { content = btn.dataset.content || ''; }
+        try { tags = btn.dataset.tags ? JSON.parse(btn.dataset.tags) : []; } catch (e) { tags = []; }
+        try { categories = btn.dataset.categories ? JSON.parse(btn.dataset.categories) : []; } catch (e) { categories = []; }
+
         window.appLogger?.action('SHOW_EDIT_NOTE_MODAL_START', { 
             sectionId, 
             noteId, 
             title, 
             contentLength: content?.length || 0,
-            tagsCount: Array.isArray(tags) ? tags.length : 0
+            tags: tags,
+            categories: categories
         });
-        
+
         const form = document.getElementById('editNoteForm');
         if (!form) {
             throw new Error('editNoteForm not found');
         }
-        
+
         const currentUrl = new URL(window.location.href);
-        // Ensure the state parameter is preserved in the form action
         let searchParams = currentUrl.search;
-        
-        // If there's no state parameter in the URL, add the current state
         if (!searchParams.includes('state=') && window.currentState) {
             searchParams = searchParams ? `${searchParams}&state=${window.currentState}` : `?state=${window.currentState}`;
         }
-        
         form.action = `/note/update/${sectionId}/${noteId}${searchParams}`;
-        
+
         window.appLogger?.action('FORM_ACTION_SET', { 
             formAction: form.action,
             sectionId,
             noteId
         });
-        
+
         const titleInput = document.getElementById('editNoteTitle');
         if (!titleInput) {
             throw new Error('editNoteTitle input not found');
         }
         titleInput.value = title || '';
-        
+
         const contentInput = document.getElementById('editNoteContent');
         if (!contentInput) {
             throw new Error('editNoteContent input not found');
         }
-        contentInput.value = content || ''; // Hidden textarea value
-        
+        contentInput.value = content || '';
+
         window.appLogger?.action('MODAL_FIELDS_POPULATED', {
             titleLength: titleInput.value.length,
             contentLength: contentInput.value.length
         });
-        
+
         if (window.noteEditor) {
-            // First reset the editor to clear any previous styling/state
             if (window.noteEditor.resetEditor) {
                 window.noteEditor.resetEditor();
             }
-            
-            // Then set the fresh content from main view
             window.noteEditor.setContent(content || '');
-            
             if (window.toggleEditorView) {
-                window.toggleEditorView('richtext'); // Always start with rich text view
+                window.toggleEditorView('richtext');
             }
             window.appLogger?.action('NOTE_EDITOR_CONTENT_SET', {
                 contentLength: content?.length || 0,
@@ -375,7 +612,6 @@ function showEditNoteModal(sectionId, noteId, title, content, tags) {
                 editorReset: true
             });
         } else if (window.noteEditorQuill) {
-            // Fallback to old system for backward compatibility
             window.noteEditorQuill.root.innerHTML = content || '';
             if (window.toggleEditorView) {
                 window.toggleEditorView('richtext');
@@ -385,12 +621,10 @@ function showEditNoteModal(sectionId, noteId, title, content, tags) {
             });
         } else {
             window.appLogger?.error('Note editor not available, attempting to initialize');
-            // Try to initialize the editor after modal is shown
             setTimeout(() => {
                 if (typeof window.initializeEditors === 'function') {
                     window.initializeEditors();
                     if (window.noteEditor) {
-                        // Reset and set content for late initialization too
                         if (window.noteEditor.resetEditor) {
                             window.noteEditor.resetEditor();
                         }
@@ -405,74 +639,139 @@ function showEditNoteModal(sectionId, noteId, title, content, tags) {
                 }
             }, 300);
         }
-        
-        // Ensure tags is an array of singular tags
-        let tagList = [];
-        // Defensive: handle undefined/null tags first
-        if (!tags) {
-            tagList = [];
-        } else if (Array.isArray(tags)) {
-            tagList = tags.filter(t => t); // Allow tags with & characters
-        } else if (typeof tags === 'string') {
-            tagList = tags.split(',').map(t => t.trim()).filter(t => t);
+
+        // Ensure tags/categories are arrays
+        let tagList = Array.isArray(tags) ? tags.filter(t => t) : [];
+        let categoryList = Array.isArray(categories) ? categories : [];
+        if (window.appLogger && typeof window.appLogger.error === 'function') {
+            window.appLogger.error('[DEBUG] Categories for note initialization (modal open):', categoryList);
         }
-        
         // Set tags in hidden input for fallback
         const tagsHiddenInput = document.getElementById('editNoteTags');
         if (tagsHiddenInput) {
             tagsHiddenInput.value = tagList.join(', ');
         }
-        
         // Initialize tag input when modal opens - wait for modal to be visible
         setTimeout(() => {
-            // Recreate tag input since the modal DOM elements are now available
+            // --- COPY OF SECTION MODAL LOGIC FOR TAG INPUT ---
             if (window.createTagInput) {
                 if (!window.tagInputs) window.tagInputs = {};
-                console.log('Creating note tag input for modal - checking elements...');
-                
-                // Verify all required elements exist
                 const elements = {
                     container: document.getElementById('editNoteTagsContainer'),
                     input: document.getElementById('editNoteTagsInput'),
                     hiddenInput: document.getElementById('editNoteTags'),
                     suggestions: document.getElementById('note-suggestions')
                 };
-                
-                console.log('Note modal elements check:', elements);
-                console.log('ALL_TAGS available:', !!window.ALL_TAGS, 'Count:', window.ALL_TAGS?.length || 0);
-                
-                if (Object.values(elements).every(el => el)) {
-                    console.log('All elements found, creating note tag input...');
+                const allElementsFound = Object.values(elements).every(el => el);
+                if (allElementsFound) {
                     window.tagInputs.note = window.createTagInput(
                         'editNoteTagsContainer',
                         'editNoteTagsInput',
                         'editNoteTags',
                         'note-suggestions'
                     );
-                    console.log('Note tag input created:', !!window.tagInputs.note);
-                    console.log('Initializing note tags with:', tagList);
-                    window.tagInputs.note.init(tagList);
-                    console.log('Note tags initialized successfully');
+                    // Always initialize with both tags and categories
+                    function normalizeCategoryArray(categories) {
+                        if (!Array.isArray(categories)) return [];
+                        if (categories.length > 0 && typeof categories[0] === 'object' && categories[0].id) {
+                            return categories.map(cat => cat.id);
+                        }
+                        return categories;
+                    }
+                    const normalizedCategories = normalizeCategoryArray(categoryList);
+                    window.tagInputs.note.init(tagList, normalizedCategories);
+                    if (window.appLogger && typeof window.appLogger.error === 'function') {
+                        window.appLogger.error('[DEBUG] tagInputs.note.init called with:', { tags: tagList, categories: normalizedCategories });
+                        window.appLogger.error('[DEBUG] tagInputs.note.getCategories() after init:', window.tagInputs.note.getCategories());
+                    }
+                    // Attach submit handler to always send tags/categories
+                    const form = document.getElementById('editNoteForm');
+                    if (form) {
+                        // Remove previous submit handler if present
+                        if (form._noteSubmitHandler) {
+                            form.removeEventListener('submit', form._noteSubmitHandler);
+                        }
+                        // Define and attach new submit handler
+                        const noteSubmitHandler = function(e) {
+                            try {
+                                // Ensure hidden categories input exists
+                                let categoriesInput = form.querySelector('input[name="categories"]');
+                                if (!categoriesInput) {
+                                    categoriesInput = document.createElement('input');
+                                    categoriesInput.type = 'hidden';
+                                    categoriesInput.name = 'categories';
+                                    form.appendChild(categoriesInput);
+                                }
+                                // Ensure hidden tags input exists
+                                let tagsInput = form.querySelector('input[name="tags"]');
+                                if (!tagsInput) {
+                                    tagsInput = document.createElement('input');
+                                    tagsInput.type = 'hidden';
+                                    tagsInput.name = 'tags';
+                                    form.appendChild(tagsInput);
+                                }
+                                // --- FORCE UPDATE hidden fields from tag input system ---
+                                const currentTags = window.tagInputs.note.tags || [];
+                                const currentCategories = window.tagInputs.note.getCategories ? window.tagInputs.note.getCategories() : [];
+                                tagsInput.value = currentTags.join(', ');
+                                categoriesInput.value = JSON.stringify(currentCategories);
+                                // Debug: log values before backend submit
+                                const debugBefore = {
+                                    tags: currentTags,
+                                    categories: currentCategories,
+                                    tagsInputValue: tagsInput.value,
+                                    categoriesInputValue: categoriesInput.value
+                                };
+                                console.log('[NOTE MODAL SUBMIT] Before submitToBackend:', debugBefore);
+                                if (window.appLogger && typeof window.appLogger.error === 'function') {
+                                    window.appLogger.error('[NOTE MODAL SUBMIT] Before submitToBackend', debugBefore);
+                                }
+                                window.tagInputs.note.submitToBackend(form);
+                                const debugAfter = {
+                                    tagsInputValue: tagsInput.value,
+                                    categoriesInputValue: categoriesInput.value
+                                };
+                                console.log('[NOTE MODAL SUBMIT] After submitToBackend:', debugAfter);
+                                if (window.appLogger && typeof window.appLogger.error === 'function') {
+                                    window.appLogger.error('[NOTE MODAL SUBMIT] After submitToBackend', debugAfter);
+                                }
+                                if (window.appLogger) {
+                                    window.appLogger.action('FORM_SUBMIT_NOTE', {
+                                        tags: tagsInput.value,
+                                        categories: categoriesInput.value
+                                    });
+                                }
+                            } catch (err) {
+                                console.error('Form submit error (note):', err, err?.stack);
+                                if (window.appLogger) {
+                                    window.appLogger.error('Form submit error (note)', err?.message || err);
+                                }
+                            }
+                        };
+                        form.addEventListener('submit', noteSubmitHandler);
+                        form._noteSubmitHandler = noteSubmitHandler;
+                    }
                 } else {
+                    window.appLogger?.error('Missing elements for note tag input creation:', elements);
                     console.error('Missing elements for note tag input creation:', elements);
                 }
             } else {
+                window.appLogger?.error('createTagInput function not available');
                 console.error('createTagInput function not available');
             }
-        }, 500); // Increased delay to ensure modal is fully rendered
-        
+        }, 500);
         showModal('editNoteModal');
     } catch (error) {
         console.error('Error in showEditNoteModal:', error);
         if (window.logModalError) {
-            window.logModalError('showEditNoteModal', 'editNoteModal', error, { sectionId, noteId, title, tags });
+            window.logModalError('showEditNoteModal', 'editNoteModal', error);
         }
-        // Still try to show the modal even if initialization fails
         showModal('editNoteModal');
     }
 }
 
 function showImportModal() {
+    console.log('[DEBUG] showImportModal called');
     // Clear both editors using proper reset method
     if (window.importEditor) {
         if (window.importEditor.resetEditor) {
@@ -481,17 +780,82 @@ function showImportModal() {
             window.importEditor.quill.root.innerHTML = '';
         }
     }
-    
     const htmlEditor = document.getElementById('html-import-editor');
     if (htmlEditor) {
         htmlEditor.value = '';
     }
-    
     // Start with rich text view
     if (window.toggleImportEditorView) {
         window.toggleImportEditorView('richtext');
     }
-    
+
+    // --- Robust initialization for import modal ---
+    setTimeout(() => {
+        // Tag/category input system for import modal (if present)
+        if (window.createTagInput) {
+            if (!window.tagInputs) window.tagInputs = {};
+            const elements = {
+                container: document.getElementById('importTagsContainer'),
+                input: document.getElementById('importTagsInput'),
+                hiddenInput: document.getElementById('importTags'),
+                suggestions: document.getElementById('import-suggestions')
+            };
+            const allElementsFound = Object.values(elements).every(el => el);
+            if (allElementsFound) {
+                window.tagInputs.import = window.createTagInput(
+                    'importTagsContainer',
+                    'importTagsInput',
+                    'importTags',
+                    'import-suggestions'
+                );
+                // Always initialize with both tags and categories (empty by default)
+                window.tagInputs.import.init([], []);
+                // Attach submit handler to always send tags/categories
+                const form = document.getElementById('importForm');
+                if (form) {
+                    if (form._importSubmitHandler) {
+                        form.removeEventListener('submit', form._importSubmitHandler);
+                    }
+                    const importSubmitHandler = function(e) {
+                        try {
+                            // Ensure hidden categories input exists
+                            let categoriesInput = form.querySelector('input[name="categories"]');
+                            if (!categoriesInput) {
+                                categoriesInput = document.createElement('input');
+                                categoriesInput.type = 'hidden';
+                                categoriesInput.name = 'categories';
+                                form.appendChild(categoriesInput);
+                            }
+                            // Ensure hidden tags input exists
+                            let tagsInput = form.querySelector('input[name="tags"]');
+                            if (!tagsInput) {
+                                tagsInput = document.createElement('input');
+                                tagsInput.type = 'hidden';
+                                tagsInput.name = 'tags';
+                                form.appendChild(tagsInput);
+                            }
+                            // --- FORCE UPDATE hidden fields from tag input system ---
+                            const currentTags = window.tagInputs.import.tags || [];
+                            const currentCategories = window.tagInputs.import.getCategories ? window.tagInputs.import.getCategories() : [];
+                            tagsInput.value = currentTags.join(', ');
+                            categoriesInput.value = JSON.stringify(currentCategories);
+                            window.tagInputs.import.submitToBackend(form);
+                        } catch (err) {
+                            console.error('Form submit error (import):', err);
+                            if (window.appLogger) {
+                                window.appLogger.error('Form submit error (import)', err);
+                            }
+                        }
+                    };
+                    form.addEventListener('submit', importSubmitHandler);
+                    form._importSubmitHandler = importSubmitHandler;
+                }
+            } else {
+                window.appLogger?.error('Missing elements for import tag input creation:', elements);
+                console.error('Missing elements for import tag input creation:', elements);
+            }
+        }
+    }, 500);
     showModal('importModal');
 }
 
@@ -710,18 +1074,58 @@ function addAndTagComponentInput(value = '', index = 0) {
     }
 }
 
-// Make all modal functions globally accessible
+// --- Modal System Initialization Helper ---
+function initializeModalSystem() {
+    // Ensure editors are initialized
+    if (typeof window.initializeEditors === 'function') {
+        window.initializeEditors();
+    }
+    // Re-initialize modal event listeners if available
+    if (typeof window.reinitializeModalEventListeners === 'function') {
+        window.reinitializeModalEventListeners();
+    }
+    // Optionally, initialize global tag input system
+    if (window.tagInputs && window.tagInputs.global && typeof window.tagInputs.global.init === 'function') {
+        window.tagInputs.global.init(window.ALL_TAGS || [], window.TAG_CATEGORIES || []);
+    }
+}
+
+
+// Make all modal functions globally accessible (single assignment, robust pattern)
 window.showModal = showModal;
 window.hideModal = hideModal;
 window.showEditSectionModal = showEditSectionModal;
 window.showEditNoteModal = showEditNoteModal;
 window.showImportModal = showImportModal;
+window.showManualImportModal = showImportModal; // Alias legacy opener to main
 window.showRenameModal = showRenameModal;
 window.showRenameStateModal = showRenameStateModal;
 window.showRenameCategoryModal = showRenameCategoryModal;
 window.showEditAndTagModal = showEditAndTagModal;
+window.showAddCategoryModal = showAddCategoryModal;
+window.showAddAndTagModal = showAddAndTagModal;
+window.showAddStateModal = window.showCreateStateModal;
 
-// showAddAndTagModal is defined in the HTML template, assign it conditionally
-if (typeof showAddAndTagModal !== 'undefined') {
-    window.showAddAndTagModal = showAddAndTagModal;
-}
+// Ensure all modal event handlers are initialized on page load
+window.addEventListener('DOMContentLoaded', function() {
+    // Attach click handlers for modal triggers
+    document.querySelectorAll('[data-modal-trigger]').forEach(function(btn) {
+        const modalType = btn.getAttribute('data-modal-trigger');
+        if (modalType && typeof window['show' + modalType + 'Modal'] === 'function') {
+            btn.addEventListener('click', function(e) {
+                window['show' + modalType + 'Modal']();
+            });
+        }
+    });
+    // Optionally, initialize tag input system for global modals if needed
+    if (window.tagInputs && window.tagInputs.global && typeof window.tagInputs.global.init === 'function') {
+        window.tagInputs.global.init(window.ALL_TAGS || [], window.TAG_CATEGORIES || []);
+    }
+});
+
+window.addEventListener('error', function(event) {
+    console.error('Uncaught error:', event.error || event.message);
+    if (window.appLogger) {
+        window.appLogger.error('Uncaught error', event.error || event.message);
+    }
+});

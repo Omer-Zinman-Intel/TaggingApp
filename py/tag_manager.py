@@ -37,14 +37,34 @@ def get_all_tags_in_use() -> Set[str]:
         in_use_tags.update(section.get("tags", []))
         for note in section.get("notes", []):
             in_use_tags.update(note.get("tags", []))
+    # Ensure all known_tags are included
+    in_use_tags.update(core.document_state.get("known_tags", []))
     return in_use_tags
 
 def get_all_known_tags() -> List[str]:
-    """Returns a sorted list of all tags that are actually available (used in content), excluding CATEGORY tags for filter menu."""
+    """
+    Returns a sorted list of all tags that are available for filtering,
+    including any tag attached to a category, even if not used in content.
+    """
+    # Collect tags from notes/sections
     available_tags = get_available_tags()
-    # Filter out CATEGORY tags - they should not appear in the filter menu
-    filter_menu_tags = [tag for tag in available_tags if not is_category_tag(tag)]
+    # Add tags from categories
+    for category in core.document_state.get("tag_categories", []):
+        available_tags.update(category.get("tags", []))
+    # Remove CATEGORY: tags and all variations of 'all' from the filter menu
+    filter_menu_tags = [tag for tag in available_tags if not is_category_tag(tag) and tag.strip().lower() != 'all']
     return sorted(filter_menu_tags, key=str.lower)
+
+def get_all_tags_for_suggestion() -> List[str]:
+    """
+    Returns all tags for suggestion/autocomplete, including 'all' and CATEGORY tags.
+    """
+    available_tags = get_available_tags()
+    for category in core.document_state.get("tag_categories", []):
+        available_tags.update(category.get("tags", []))
+    # Always include 'all' in suggestions
+    available_tags.add("all")
+    return sorted(list(available_tags), key=str.lower)
 
 def get_all_used_tags() -> Set[str]:
     """
@@ -129,20 +149,28 @@ def sync_known_tags(new_tags: List[str] = None) -> None:
     but now known_tags is derived from actual usage, not manually maintained.
     Also ensures new tags are added to the Uncategorized category.
     """
-    # Get all actually used tags
-    used_tags = get_all_used_tags()
-    
-    # Get all available tags (including components)
-    available_tags = get_available_tags()
-    
-    # Update known_tags to match available tags
-    core.document_state['known_tags'] = available_tags
-    
-    # Update tag categories to only include used tags (excluding CATEGORY tags)
+    # Always treat known_tags as a set internally
+    if 'known_tags' not in core.document_state:
+        core.document_state['known_tags'] = set()
+    if isinstance(core.document_state['known_tags'], list):
+        state_known_tags = set(core.document_state['known_tags'])
+    else:
+        state_known_tags = core.document_state['known_tags']
+    # Optionally add new_tags
+    if new_tags:
+        state_known_tags.update(new_tags)
+    category_tags = set()
     for category in core.document_state.get('tag_categories', []):
-        # Remove tags that are no longer used and exclude CATEGORY tags
-        category['tags'] = [tag for tag in category.get('tags', []) 
-                           if tag in available_tags and not is_category_tag(tag)]
+        category_tags.update([tag for tag in category.get('tags', []) if not is_category_tag(tag)])
+    used_tags = get_all_used_tags()
+    all_tags = state_known_tags.union(category_tags).union(used_tags)
+    # Remove all variations of 'all' from tags (case-insensitive)
+    all_tags = {tag for tag in all_tags if tag.strip().lower() != 'all'}
+    # Save as sorted list for serialization
+    core.document_state['known_tags'] = sorted(list(all_tags), key=str.lower)
+    # Update tag categories to include all their tags, sorted, and exclude CATEGORY tags and 'all'
+    for category in core.document_state.get('tag_categories', []):
+        category['tags'] = [tag for tag in category.get('tags', []) if not is_category_tag(tag) and tag.strip().lower() != 'all']
         category['tags'] = sorted(list(set(category['tags'])), key=str.lower)
 
 
@@ -364,11 +392,16 @@ def handle_smart_tag_update(old_tags: List[str], new_tags: List[str], exclude_se
             if not is_tag_used_elsewhere(removed_tag, exclude_section_id, exclude_note_id):
                 # This was the last occurrence - remove from categories too
                 delete_tag_from_all_categories(removed_tag)
-                
                 # Also remove from known_tags if it's not a component of any AND tag
                 and_tags_containing = get_and_tags_containing_component(removed_tag)
                 if not and_tags_containing:
-                    core.document_state.setdefault("known_tags", set()).discard(removed_tag)
+                    # Ensure known_tags is a set before discarding
+                    if isinstance(core.document_state.get("known_tags", []), list):
+                        known_tags_set = set(core.document_state["known_tags"])
+                    else:
+                        known_tags_set = core.document_state["known_tags"]
+                    known_tags_set.discard(removed_tag)
+                    core.document_state["known_tags"] = sorted(list(known_tags_set), key=str.lower)
     
     # Handle tag renames (when there's a 1:1 mapping between old and new)
     if len(removed_tags) == 1 and len(added_tags) == 1:
@@ -391,9 +424,15 @@ def handle_smart_tag_update(old_tags: List[str], new_tags: List[str], exclude_se
                 for category in core.document_state.get("tag_categories", []):
                     category["tags"] = sorted(list(set(category["tags"])), key=str.lower)
                 # Update in known_tags
-                if removed_tag in core.document_state.get("known_tags", set()):
-                    core.document_state["known_tags"].discard(removed_tag)
-                    core.document_state.setdefault("known_tags", set()).add(added_tag)
+                if removed_tag in core.document_state.get("known_tags", []):
+                    # Ensure known_tags is a set before discarding/adding
+                    if isinstance(core.document_state["known_tags"], list):
+                        known_tags_set = set(core.document_state["known_tags"])
+                    else:
+                        known_tags_set = core.document_state["known_tags"]
+                    known_tags_set.discard(removed_tag)
+                    known_tags_set.add(added_tag)
+                    core.document_state["known_tags"] = sorted(list(known_tags_set), key=str.lower)
 
 def remove_tag_globally(tag_to_remove: str) -> Dict[str, Any]:
     """

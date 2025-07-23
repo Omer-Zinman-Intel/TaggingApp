@@ -112,6 +112,8 @@ before being sent to the browser as valid HTML/JavaScript.
     <!-- Highlight.js for code block syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <!-- Ensure editors.js is loaded before any code that uses initializeEditors -->
+    <script src="{{ url_for('static', filename='js/editors.js') }}"></script>
     <style>
         /* ...existing code... */
         /* Ensure images in note content are always visible and not collapsed */
@@ -432,7 +434,7 @@ before being sent to the browser as valid HTML/JavaScript.
                         </option>
                     {% endfor %}
                 </select>
-                <button onclick="showModal('createStateModal')" class="text-sm font-medium text-green-600 bg-green-100 hover:bg-green-200 px-3 py-1.5 rounded-full transition-colors new-state-btn px-3 py-1.5">
+                <button onclick="showCreateStateModal()" class="text-sm font-medium text-green-600 bg-green-100 hover:bg-green-200 px-3 py-1.5 rounded-full transition-colors new-state-btn px-3 py-1.5">
                     + New State
                 </button>
                 <button onclick="showRenameStateModal('{{ current_state }}')" class="text-sm font-medium text-blue-600 bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded-full transition-colors">
@@ -449,7 +451,7 @@ before being sent to the browser as valid HTML/JavaScript.
             <div class="pt-4">
                 <h3 class="text-sm font-semibold text-gray-600 mb-2">TAG CATEGORIES</h3>
                 <div class="flex items-center gap-2 mb-4">
-                    <button onclick="showModal('addCategoryModal')" class="text-sm font-medium text-purple-600 bg-purple-100 hover:bg-purple-200 px-3 py-1.5 rounded-full transition-colors">
+                    <button onclick="showAddCategoryModal()" class="text-sm font-medium text-purple-600 bg-purple-100 hover:bg-purple-200 px-3 py-1.5 rounded-full transition-colors">
                         + New Category
                     </button>
                     <button onclick="showAddAndTagModal()" class="text-sm font-medium text-orange-600 bg-orange-100 hover:bg-orange-200 px-3 py-1.5 rounded-full transition-colors">
@@ -502,7 +504,16 @@ before being sent to the browser as valid HTML/JavaScript.
                         </div>
                         <div id="all-tags-content" class="tag-category-content dropzone flex flex-wrap gap-2 p-2 mt-2"
                              >
-                            {% for tag in all_tags %}
+                            {# Combine all_tags and all category tags, avoiding duplicates #}
+                            {% set combined_tags = all_tags[:] %}
+                            {% for category in tag_categories %}
+                                {% for tag in category.tags %}
+                                    {% if tag not in combined_tags and not tag.startswith('CATEGORY:') %}
+                                        {% set _ = combined_tags.append(tag) %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% endfor %}
+                            {% for tag in combined_tags %}
                                 <span class="tag-bubble {% if tag in and_tags %}and-tag{% elif tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
                                    draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}" data-tag-name="{{ tag }}" data-source-category-id="all_tags">
                                     <span onclick='handleTagClick(event, {{ tag|tojson|safe }})' oncontextmenu='window.appLogger?.action("TAG_CONTEXT_MENU_TRIGGERED", {tag: {{ tag|tojson|safe }}, message: "Context menu triggered"}); testContextMenu(); showTagContextMenu(event, {{ tag|tojson|safe }}); return false;'>{{ tag }}</span>
@@ -519,7 +530,7 @@ before being sent to the browser as valid HTML/JavaScript.
                                     </div>
                                 </span>
                             {% endfor %}
-                            {% if not all_tags %}
+                            {% if not combined_tags %}
                                 <span class="text-sm text-gray-500 italic">No tags available.</span>
                             {% endif %}
                         </div>
@@ -583,7 +594,7 @@ before being sent to the browser as valid HTML/JavaScript.
                 </div>
                 <!-- Save as PDF and Manual Import Content buttons below all categories and above main content -->
                 <div class="mt-8 pt-6 border-t flex flex-row items-center justify-end gap-3">
-                    <button onclick="showImportModal()" class="flex items-center justify-center px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75 transition-all">
+                    <button type="button" onclick="showImportModal()" class="flex items-center justify-center px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75 transition-all">
                         Manual Import Content
                     </button>
                     <button onclick="exportPdf()" class="flex items-center justify-center px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75 transition-all">
@@ -670,7 +681,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button type="button" class="text-gray-500 hover:text-green-600 hover:bg-green-100" onclick="toggleNoteReorderMode('{{ section.id }}')" title="Reorder Notes">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9h8M8 15h8M10 5h4M10 19h4" /></svg>
                             </button>
-                            <button onclick="showEditSectionModal('{{ section.id }}', '{{ section.sectionTitle }}', '{% for tag in section.tags %}{{ tag }}{% if not loop.last %}, {% endif %}{% endfor %}')" class="text-gray-500 hover:text-blue-600 hover:bg-gray-200">
+                            <button 
+    data-section-id="{{ section.id }}"
+    data-section-title="{{ section.sectionTitle }}"
+    data-section-tags="{% for tag in section.tags %}{{ tag }}{% if not loop.last %}, {% endif %}{% endfor %}"
+data-section-categories='{{ (section.categories or []) | tojson | safe }}'
+                                onclick="showEditSectionModalFromData(this)"
+                                class="text-gray-500 hover:text-blue-600 hover:bg-gray-200">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                             </button>
                             <form action="{{ url_for('delete_section', section_id=section.id, filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="return confirm('Are you sure you want to delete this section and all its notes?');" class="inline">
@@ -699,6 +716,16 @@ document.addEventListener('DOMContentLoaded', function() {
                                 {% endif %}
                             </span>
                         {% endfor %}
+                        {% if section.categories %}
+                            {% for cat_id in section.categories %}
+                                {% set cat_obj = (tag_categories | selectattr('id', 'equalto', cat_id) | list | first) %}
+                                {% if cat_obj %}
+                                    <span class="text-xs font-semibold mr-2 mb-1 px-2.5 py-1 rounded-full bg-green-100 text-green-800 flex items-center">
+                                        <span class="mr-1">📁</span>{{ cat_obj.name }}
+                                    </span>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
                     </div>
                     {% endif %}
 
@@ -731,7 +758,15 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <h3 class="text-lg font-semibold text-gray-700">{{ note.noteTitle }}</h3>
                                 </div>
                                 <div class="note-action-buttons opacity-0 group-hover/note:opacity-100 transition-opacity">
-                                    <button onclick="showEditNoteModal('{{ section.id }}', '{{ note.id }}', '{{ note.noteTitle }}', `{{ note.content | e }}`, '{% for tag in note.tags %}{{ tag }}{% if not loop.last %}, {% endif %}{% endfor %}')" class="text-gray-500 hover:text-blue-600 hover:bg-gray-200">
+<button
+    onclick="showEditNoteModal(this)"
+    data-section-id='{{ section.id | tojson | safe }}'
+    data-note-id='{{ note.id | tojson | safe }}'
+    data-title='{{ note.noteTitle | tojson | safe }}'
+    data-content='{{ note.content | tojson | safe }}'
+    data-tags='{{ note.tags | tojson | safe }}'
+data-categories='{{ (note.categories or []) | tojson | safe }}'
+    class="text-gray-500 hover:text-blue-600 hover:bg-gray-200">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                     </button>
                                     <form action="{{ url_for('delete_note', section_id=section.id, note_id=note.id, filter=request.args.getlist('filter'), state=current_state) }}" method="post" onsubmit="return confirm('Are you sure?');" class="inline">
@@ -760,6 +795,16 @@ document.addEventListener('DOMContentLoaded', function() {
                                         {% endif %}
                                     </span>
                                 {% endfor %}
+                                {% if note.categories %}
+                                    {% for cat_id in note.categories %}
+                                        {% set cat_obj = (tag_categories | selectattr('id', 'equalto', cat_id) | list | first) %}
+                                        {% if cat_obj %}
+                                            <span class="text-xs font-semibold mr-2 mb-1 px-2.5 py-1 rounded-full bg-green-100 text-green-800 flex items-center">
+                                                <span class="mr-1">📁</span>{{ cat_obj.name }}
+                                            </span>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
                             </div>
                             {% endif %}
                             <div class="note-content{% if note.collapsed %} collapsed-content{% endif %}">
@@ -806,6 +851,10 @@ document.addEventListener('DOMContentLoaded', function() {
     <!-- Removed duplicate Manual Import Content and Save as PDF buttons as requested -->
     </div>
 
+    <!-- End main content container -->
+    </div>
+
+    <!-- Move all modal containers to the end of the HTML file, outside main-content container -->
     <div id="addTagModal" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
             <form action="{{ url_for('add_global_tag', filter=request.args.getlist('filter'), state=current_state) }}" method="post" class="w-full">
@@ -834,7 +883,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </form>
         </div>
     </div>
-    
+
     <div id="editTitleModal" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
             <form action="{{ url_for('update_title', filter=request.args.getlist('filter'), state=current_state) }}" method="post" class="w-full">
@@ -853,7 +902,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </form>
         </div>
     </div>
-    
+
     <div id="editSectionModal" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
             <form id="editSectionForm" method="post" class="w-full">
@@ -866,12 +915,45 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Tags</label>
                         <div class="relative">
-                             <div id="editSectionTagsContainer" class="flex flex-wrap items-center w-full p-1 border border-gray-300 rounded-md bg-white min-h-[42px] relative">
-                                 <input type="text" id="editSectionTagsInput" class="flex-grow p-1 outline-none text-sm" autocomplete="off" placeholder="Add a tag...">
-                             </div>
-                             <input type="hidden" id="editSectionTags" name="tags">
-                             <div id="section-suggestions" class="tag-suggestions absolute left-0 z-10 w-full bg-white border border-gray-300 rounded-md hidden shadow-lg"></div>
+                            <div id="editSectionTagsContainer" class="flex flex-wrap items-center w-full p-1 border border-gray-300 rounded-md bg-white min-h-[42px] relative">
+                                {# Defensive: Only render tag/category bubbles if 'section' is defined #}
+                                {% if section is defined %}
+                                    {% set all_tag_bubbles = [] %}
+                                    {% for tag in section.tags %}
+                                        {% set _ = all_tag_bubbles.append({'type': 'tag', 'value': tag}) %}
+                                    {% endfor %}
+                                    {% if section.categories %}
+                                        {% for cat_id in section.categories %}
+                                            {% set cat_obj = (tag_categories | selectattr('id', 'equalto', cat_id) | list | first) %}
+                                            {% set cat_name = cat_obj.name if cat_obj else cat_id %}
+                                            {% set _ = all_tag_bubbles.append({'type': 'category', 'value': cat_name}) %}
+                                        {% endfor %}
+                                    {% endif %}
+                                    {% for bubble in all_tag_bubbles %}
+                                        {% if bubble.type == 'category' %}
+                                            <span class="tag-bubble bg-green-100 text-green-800 mr-2 mb-1 px-2.5 py-1 rounded-full flex items-center">
+                                                <span class="mr-1">📁</span>{{ bubble.value }}
+                                            </span>
+                                        {% else %}
+                                            <span class="tag-bubble bg-blue-100 text-blue-800 mr-2 mb-1 px-2.5 py-1 rounded-full">{{ bubble.value }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                                <input type="text" id="editSectionTagsInput" class="flex-grow p-1 outline-none text-sm" autocomplete="off" placeholder="Add a tag...">
+                            </div>
+                            <input type="hidden" id="editSectionTags" name="tags">
+                            <div id="section-suggestions" class="tag-suggestions absolute left-0 z-10 w-full bg-white border border-gray-300 rounded-md hidden shadow-lg">
+                                {# Only show all categories for suggestion, avoid referencing undefined section #}
+                                {% for category in tag_categories %}
+                                    <div class="tag-suggestion-item" data-type="category" data-id="{{ category.id }}" data-value="{{ category.name }}">
+                                        <span class="mr-1">📁</span>{{ category.name }}
+                                    </div>
+                                {% endfor %}
+                            </div>
                         </div>
+                    </div>
+                    <div>
+                        <!-- Category selection removed as requested -->
                     </div>
                 </div>
                 <div class="p-4 bg-gray-50 flex justify-end space-x-3 rounded-b-lg">
@@ -914,12 +996,44 @@ document.addEventListener('DOMContentLoaded', function() {
                         <label class="block text-sm font-medium text-gray-700 mb-1">Tags</label>
                         <div class="relative">
                             <div id="editNoteTagsContainer" class="flex flex-wrap items-center w-full p-1 border border-gray-300 rounded-md bg-white min-h-[42px] relative">
-                                 <input type="text" id="editNoteTagsInput" class="flex-grow p-1 outline-none text-sm" autocomplete="off" placeholder="Add a tag...">
-                             </div>
-                             <input type="hidden" id="editNoteTags" name="tags">
-                             <div id="note-suggestions" class="tag-suggestions absolute left-0 z-10 w-full bg-white border border-gray-300 rounded-md hidden shadow-lg"></div>
+                                {# Defensive: Only render tag/category bubbles if 'note' is defined #}
+                                {% if note is defined %}
+                                    {% set all_tag_bubbles = [] %}
+                                    {% for tag in note.tags %}
+                                        {% set _ = all_tag_bubbles.append({'type': 'tag', 'value': tag}) %}
+                                    {% endfor %}
+                                    {% if note.categories %}
+                                        {% for cat_id in note.categories %}
+                                            {% set cat_obj = (tag_categories | selectattr('id', 'equalto', cat_id) | list | first) %}
+                                            {% set cat_name = cat_obj.name if cat_obj else cat_id %}
+                                            {% set _ = all_tag_bubbles.append({'type': 'category', 'value': cat_name}) %}
+                                        {% endfor %}
+                                    {% endif %}
+                                    {% for bubble in all_tag_bubbles %}
+                                        {% if bubble.type == 'category' %}
+                                            <span class="tag-bubble bg-yellow-100 text-yellow-800 mr-2 mb-1 px-2.5 py-1 rounded-full flex items-center">
+                                                <span class="mr-1">🏷️</span>{{ bubble.value }}
+                                            </span>
+                                        {% else %}
+                                            <span class="tag-bubble bg-blue-100 text-blue-800 mr-2 mb-1 px-2.5 py-1 rounded-full">{{ bubble.value }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                                <input type="text" id="editNoteTagsInput" class="flex-grow p-1 outline-none text-sm" autocomplete="off" placeholder="Add a tag...">
+                            </div>
+                            <input type="hidden" id="editNoteTags" name="tags">
+                            <div id="note-suggestions" class="tag-suggestions absolute left-0 z-10 w-full bg-white border border-gray-300 rounded-md hidden shadow-lg">
+                                {# Only show all categories for suggestion, avoid referencing undefined note #}
+                                {% for category in tag_categories %}
+                                    <div class="tag-suggestion-item" data-type="category" data-id="{{ category.id }}" data-value="{{ category.name }}">
+                                        <span class="mr-1">📁</span>{{ category.name }}
+                                    </div>
+                                {% endfor %}
+                            </div>
                         </div>
                     </div>
+                    <div>
+                        <!-- Category selection removed as requested -->
                  </div>
                  <div class="p-4 bg-gray-50 flex justify-end space-x-3 rounded-b-lg border-t">
                     <button type="button" onclick="console.log('Cancel button clicked!'); hideModal('editNoteModal')" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
@@ -1124,6 +1238,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div id="import-editor-container">
                         <div id="import-editor"></div>
                     </div>
+                    <div id="importTagsContainer" class="my-4">
+                        <input id="importTagsInput" type="text" placeholder="Add tags..." class="w-full p-2 border border-gray-300 rounded-md text-sm mb-2" />
+                        <input id="importTags" type="hidden" name="tags" />
+                        <div id="import-suggestions" class="suggestions"></div>
+                    </div>
                     <textarea id="html-import-editor" class="w-full p-2 border border-gray-300 rounded-md font-mono text-sm hidden" placeholder="Paste your HTML here..."></textarea>
                     <input type="hidden" id="import_html_content" name="html_content">
                 </div>
@@ -1143,7 +1262,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <script>
     // Expose global variables from Flask to the window object for your JS modules
     // Note: This script must remain inline as it contains server-side template variables
-    window.ALL_TAGS = JSON.parse('{{ all_tags | tojson | safe }}');
+    window.ALL_TAGS = JSON.parse('{{ all_tag_suggestions | tojson | safe }}');
     window.TAG_CATEGORIES = JSON.parse('{{ tag_categories | tojson | safe }}');
     window.CURRENT_STATE = '{{ current_state | safe }}';
     window.ACTIVE_FILTERS_LOWER = JSON.parse('{{ active_filters_lower | tojson | safe }}');
@@ -1161,249 +1280,8 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('DOM Content Loaded - Setting up modals');
         
         // Ensure basic modal functions exist immediately
-        if (!window.showModal) {
-            window.showModal = function(modalId) {
-                try {
-                    console.log('Fallback showModal called for:', modalId);
-                    const modal = document.getElementById(modalId);
-                    if (modal) {
-                        modal.classList.remove('hidden', 'opacity-0');
-                        // Focus first input if available
-                        setTimeout(() => {
-                            const firstInput = modal.querySelector('input[type="text"], textarea');
-                            if (firstInput) {
-                                firstInput.focus();
-                            }
-                        }, 100);
-                    } else {
-                        console.error('Modal not found:', modalId);
-                    }
-                } catch (error) {
-                    if (window.logModalError) {
-                        window.logModalError('showModal', modalId, error);
-                    }
-                }
-            };
-        }
-        
-        if (!window.hideModal) {
-            window.hideModal = function(modalId) {
-                try {
-                    console.log('Fallback hideModal called for:', modalId);
-                    const modal = document.getElementById(modalId);
-                    if (modal) {
-                        modal.classList.add('opacity-0');
-                        setTimeout(() => modal.classList.add('hidden'), 250);
-                    } else {
-                        console.error('Modal not found for hiding:', modalId);
-                    }
-                } catch (error) {
-                    if (window.logModalError) {
-                        window.logModalError('hideModal', modalId, error);
-                    }
-                }
-            };
-        }
-        
-        // Add comprehensive fallback functions for complex modals
-        if (!window.showEditSectionModal) {
-            window.showEditSectionModal = function(sectionId, title, tags) {
-                try {
-                    console.log('Fallback showEditSectionModal called');
-                    const form = document.getElementById('editSectionForm');
-                    if (form) {
-                        const currentUrl = new URL(window.location.href);
-                        form.action = `/section/update/${sectionId}` + currentUrl.search;
-                    }
-                    
-                    const titleInput = document.getElementById('editSectionTitle');
-                    if (titleInput) {
-                        titleInput.value = title || '';
-                    }
-                    
-                    const tagsInput = document.getElementById('editSectionTags');
-                    if (tagsInput) {
-                        tagsInput.value = tags || '';
-                    }
-                    
-                    window.showModal('editSectionModal');
-                } catch (error) {
-                    if (window.logModalError) {
-                        window.logModalError('showEditSectionModal', 'editSectionModal', error);
-                    }
-                }
-            };
-        }
-        
-        if (!window.showEditNoteModal) {
-            window.showEditNoteModal = function(sectionId, noteId, title, content, tags) {
-                try {
-                    console.log('Fallback showEditNoteModal called');
-                    const form = document.getElementById('editNoteForm');
-                    if (form) {
-                        const currentUrl = new URL(window.location.href);
-                        form.action = `/note/update/${sectionId}/${noteId}` + currentUrl.search;
-                    }
-                    
-                    const titleInput = document.getElementById('editNoteTitle');
-                    if (titleInput) {
-                        titleInput.value = title || '';
-                    }
-                    
-                    const contentInput = document.getElementById('editNoteContent');
-                    if (contentInput) {
-                        contentInput.value = content || '';
-                    }
-                    
-                    const tagsInput = document.getElementById('editNoteTags');
-                    if (tagsInput) {
-                        tagsInput.value = tags || '';
-                    }
-                    
-                    window.showModal('editNoteModal');
-                               } catch (error) {
-                    if (window.logModalError) {
-                        window.logModalError('showEditNoteModal', 'editNoteModal', error);
-                    }
-                }
-            };
-        }
-        
-        if (!window.showImportModal) {
-            window.showImportModal = function() {
-                try {
-                    console.log('Fallback showImportModal called');
-                    window.showModal('importModal');
-                } catch (error) {
-                    if (window.logModalError) {
-                        window.logModalError('showImportModal', 'importModal', error);
-                    }
-                }
-            };
-        }
-        
-        if (!window.showRenameModal) {
-            window.showRenameModal = function(tag) {
-                try {
-                    console.log('Fallback showRenameModal called for tag:', tag);
-                    const form = document.querySelector('#renameTagModal form');
-                    if (form) {
-                        const currentUrl = new URL(window.location.href);
-                        form.action = `/tags/rename` + currentUrl.search;
-                    }
-                    
-                    const oldTagInput = document.getElementById('renameOldTag');
-                    const oldTagText = document.getElementById('oldTagName');
-                    const newTagInput = document.getElementById('renameNewTag');
-                    
-                    if (oldTagInput) oldTagInput.value = tag;
-                    if (oldTagText) oldTagText.textContent = tag;
-                    if (newTagInput) {
-                        newTagInput.value = tag;
-                        setTimeout(() => {
-                            newTagInput.focus();
-                            newTagInput.select();
-                        }, 100);
-                    }
-                    
-                    window.showModal('renameTagModal');
-                } catch (error) {
-                    if (window.logModalError) {
-                        window.logModalError('showRenameModal', 'renameTagModal', error);
-                    }
-                }
-            };
-        }
-        
-        if (!window.showRenameStateModal) {
-            window.showRenameStateModal = function(stateName) {
-                try {
-                    console.log('Fallback showRenameStateModal called');
-                    document.getElementById('renameOldStateName').value = stateName;
-                    document.getElementById('oldStateName').textContent = stateName;
-                    document.getElementById('renameNewStateName').value = stateName;
-                    window.showModal('renameStateModal');
-                    setTimeout(() => {
-                        const input = document.getElementById('renameNewStateName');
-                        if (input) {
-                            input.focus();
-                            input.select();
-                        }
-                    }, 100);
-                } catch (error) {
-                    if (window.logModalError) {
-                        window.logModalError('showRenameStateModal', 'renameStateModal', error);
-                    }
-                }
-            };
-        }
-        
-        if (!window.showRenameCategoryModal) {
-            window.showRenameCategoryModal = function(categoryId, categoryName) {
-                try {
-                    console.log('Fallback showRenameCategoryModal called');
-                    document.getElementById('renameOldCategoryId').value = categoryId;
-                    document.getElementById('oldCategoryName').textContent = categoryName;
-                    document.getElementById('renameNewCategoryName').value = categoryName;
-                    window.showModal('renameCategoryModal');
-                    setTimeout(() => {
-                        const input = document.getElementById('renameNewCategoryName');
-                        if (input) {
-                            input.focus();
-                            input.select();
-                        }
-                    }, 100);
-                } catch (error) {
-                    if (window.logModalError) {
-                        window.logModalError('showRenameCategoryModal', 'renameCategoryModal', error);
-                    }
-                }
-            };
-        }
-        
-        if (!window.showEditAndTagModal) {
-            window.showEditAndTagModal = function(tag) {
-                try {
-                    console.log('Fallback showEditAndTagModal called, delegating to main function');
-                    // Call the main function defined above
-                    showEditAndTagModal(tag);
-                } catch (error) {
-                    if (window.logModalError) {
-                        window.logModalError('showEditAndTagModal', 'editAndTagModal', error);
-                    }
-                }
-            };
-        }
-        
-        // Add event listeners for modal backdrop clicks
-        document.querySelectorAll('.modal').forEach(modal => {
-            modal.addEventListener('click', function(e) {
-                if (e.target === this) {
-                    const modalId = this.id;
-                    if (window.hideModal) {
-                        window.hideModal(modalId);
-                    }
-                }
-            });
-        });
-        
-        // Add escape key handler for all modals
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                const visibleModal = document.querySelector('.modal:not(.hidden)');
-                if (visibleModal && window.hideModal) {
-                    window.hideModal(visibleModal.id);
-                }
-            }
-        });
-        
-        console.log('Modal system initialized with fallbacks');
-        
-        // (moved: showAddAndTagModal will be assigned after its definition)
-// Make showAddAndTagModal available globally after it's defined
-if (typeof showAddAndTagModal !== 'undefined') {
-    window.showAddAndTagModal = showAddAndTagModal;
-}
+        // Removed legacy modal fallback system: all modal logic now handled by modals.js and editors.js
+        window.showAddAndTagModal = showAddAndTagModal;
     });
 </script>
 
@@ -1413,7 +1291,6 @@ if (typeof showAddAndTagModal !== 'undefined') {
 <script src="{{ url_for('static', filename='js/tag-input-global.js') }}"></script>
 <!-- Removed duplicate drag_drop.js script -->
 <!-- Remove duplicate drag_drop.js script at the end of body -->
-<script src="{{ url_for('static', filename='js/editors.js') }}"></script>
 <script src="{{ url_for('static', filename='js/modals.js') }}"></script>
 
 <!-- Initialize Editors after all scripts are loaded -->
@@ -2158,6 +2035,28 @@ function deleteAndTag(tagName, deleteUrl) {
 </body>
     <script src="{{ url_for('static', filename='js/drag_drop.js') }}"></script>
     <script src="{{ url_for('static', filename='js/find-in-text.js') }}"></script>
+    <script>
+    // Show last submitted categories after reload (from localStorage or cookie)
+    window.addEventListener('DOMContentLoaded', function() {
+        var lastCategories = null;
+        try {
+            lastCategories = window.localStorage.getItem('lastSubmittedCategories');
+        } catch (e) {}
+        if (!lastCategories) {
+            // Try cookie fallback
+            var match = document.cookie.match(/(?:^|; )lastSubmittedCategories=([^;]*)/);
+            if (match) {
+                lastCategories = decodeURIComponent(match[1]);
+            }
+        }
+        if (lastCategories) {
+            var infoDiv = document.createElement('div');
+            infoDiv.style.cssText = 'background:#fef3c7;color:#92400e;padding:8px 16px;margin:12px 0;border-radius:6px;font-size:1rem;font-weight:500;z-index:9999;';
+            infoDiv.textContent = '[TAG INPUT] Last submitted categories: ' + lastCategories;
+            document.body.insertBefore(infoDiv, document.body.firstChild);
+        }
+    });
+    </script>
     <!-- START FROM MODAL FOR ORDERED LISTS -->
     <div id="olStartFromModal" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-xs">

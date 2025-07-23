@@ -116,6 +116,29 @@ app.add_url_rule('/section/reorder_notes/<section_id>', 'reorder_notes', views.r
 app.add_url_rule('/note/toggle_completed/<section_id>/<note_id>', 'toggle_note_completed', views.toggle_note_completed, methods=["POST"])
 
 
+# --- Frontend Logging Endpoint ---
+@app.route('/log_frontend', methods=['POST'])
+def log_frontend():
+    try:
+        data = request.get_json(force=True)
+        event = data.get('event', 'UNKNOWN_EVENT')
+        state = data.get('state', 'UNKNOWN_STATE')
+        section = data.get('section', {})
+        now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        log_file = os.path.join(log_dir, f'import_add.log')
+        log_line = f"[{now}] [FRONTEND_IMPORT] {event} | State: {state} | Section: {json.dumps(section, ensure_ascii=False)}\n"
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(log_line)
+        # Also log to stdout for debugging
+        print(log_line)
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f'Error logging frontend import: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # --- Initial State Loading and Main Execution ---
 if __name__ == "__main__":
     if not state_manager.get_available_states():

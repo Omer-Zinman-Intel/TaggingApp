@@ -33,6 +33,10 @@
  */
 
 // Unified Rich Text Editor System
+// Ensure global editor instance for import modal
+window.importEditor = null;
+// Removed DOMContentLoaded wrapper to ensure global availability
+
 class RichTextEditor {
     constructor(containerId, outputElementId, options = {}) {
         this.containerId = containerId;
@@ -2199,52 +2203,82 @@ const TOOLBAR_OPTIONS = [
 ];
 
 function initializeEditors() {
-    // Check if editors are already initialized
-    if (window.noteEditor && window.noteEditor.quill) {
-        return;
-    }
-    
     // Initialize content preservation system first
-    if (!contentPreservation) {
-        contentPreservation = new ContentPreservation();
-        window.contentPreservation = contentPreservation;
+    if (!window.contentPreservation) {
+        window.contentPreservation = new ContentPreservation();
     }
-    
-    // Initialize note editor
-    if (document.getElementById('quill-editor')) {
-        noteEditor = new RichTextEditor('quill-editor', 'editNoteContent', {
-            placeholder: 'Edit your note content...'
-        });
-        
-        // Make globally accessible for backward compatibility
-        window.noteEditorQuill = noteEditor.quill;
-        window.noteEditor = noteEditor;
+
+    // Initialize note editor independently
+    if (!window.noteEditor || !window.noteEditor.quill) {
+        if (document.getElementById('quill-editor')) {
+            window.noteEditor = new RichTextEditor('quill-editor', 'editNoteContent', {
+                placeholder: 'Edit your note content...'
+            });
+            window.noteEditorQuill = window.noteEditor.quill;
+        }
     }
-    
-    // Initialize import editor
-    if (document.getElementById('import-editor')) {
-        importEditor = new RichTextEditor('import-editor', 'import_html_content', {
-            placeholder: 'Paste your content here or import a .docx file...'
-        });
-        
-        // Make globally accessible for backward compatibility
-        window.importEditorQuill = importEditor.quill;
-        window.importEditor = importEditor;
+
+    // Initialize import editor independently
+    if (!window.importEditor || !window.importEditor.quill) {
+        if (document.getElementById('import-editor')) {
+            window.importEditor = new RichTextEditor('import-editor', 'import_html_content', {
+                placeholder: 'Paste your content here or import a .docx file...'
+            });
+            window.importEditorQuill = window.importEditor.quill;
+        }
     }
-    
+
     // Initialize shared content system
-    initializeSharedContent();
-    
+    if (typeof initializeSharedContent === 'function') {
+        initializeSharedContent();
+    }
+
     // Initialize toggle button states
-    initializeToggleButtonStates();
+    if (typeof initializeToggleButtonStates === 'function') {
+        initializeToggleButtonStates();
+    }
+
+    // Always re-initialize modal event listeners for all modals
+    if (window.reinitializeModalEventListeners) {
+        window.reinitializeModalEventListeners();
+    }
 }
+
+// Utility to re-initialize modal event listeners for all modals
+function reinitializeModalEventListeners() {
+    const modalIds = [
+        'addTagModal', 'editTitleModal', 'editSectionModal', 'editNoteModal',
+        'renameTagModal', 'editAndTagModal', 'addAndTagModal', 'createStateModal',
+        'renameStateModal', 'addCategoryModal', 'renameCategoryModal', 'importModal'
+    ];
+    modalIds.forEach(id => {
+        const modal = document.getElementById(id);
+        if (modal) {
+            // Ensure modal is hidden initially
+            modal.classList.add('hidden', 'opacity-0');
+            // Remove any lingering event listeners (if needed)
+            // Add close button event listeners
+            const closeBtns = modal.querySelectorAll('button[onclick*="hideModal"]');
+            closeBtns.forEach(btn => {
+                btn.onclick = function() { window.hideModal(id); };
+            });
+        }
+    });
+    // Log for debugging
+    console.log('✅ Modal event listeners re-initialized for all modals');
+}
+window.reinitializeModalEventListeners = reinitializeModalEventListeners;
 
 // Initialize button states for editor toggles
 function initializeToggleButtonStates() {
+    // Wait for DOMContentLoaded to ensure buttons exist
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeToggleButtonStates, { once: true });
+        return;
+    }
     // Set default active state for note editor (Rich Text)
     const noteRichTextBtn = document.querySelector('#editor-toggle-buttons button[onclick*="richtext"]');
     if (noteRichTextBtn) noteRichTextBtn.classList.add('active');
-    
     // Set default active state for import editor (Rich Text)
     const importRichTextBtn = document.querySelector('#import-editor-toggle-buttons button[onclick*="richtext"]');
     if (importRichTextBtn) importRichTextBtn.classList.add('active');
@@ -2257,49 +2291,41 @@ function toggleImportEditorView(view) {
     // Get toggle buttons
     const richTextBtn = document.querySelector('#import-editor-toggle-buttons button[onclick*="richtext"]');
     const htmlBtn = document.querySelector('#import-editor-toggle-buttons button[onclick*="html"]');
-    
     if (view === 'richtext') {
-        // Before switching to rich text, sync any changes from HTML editor
-        if (importEditor && html.value.trim()) {
+        // Always use window.importEditor for global access
+        if (window.importEditor && html.value.trim()) {
             console.log('📝 Syncing HTML content to rich text editor');
-            importEditor.setContent(html.value);
+            window.importEditor.setContent(html.value);
             html.dataset.hasChanges = 'false';
         }
-        
         rich.classList.remove('hidden');
         html.classList.add('hidden');
-        
         // Update button states
         if (richTextBtn) richTextBtn.classList.add('active');
         if (htmlBtn) htmlBtn.classList.remove('active');
-        
         // Focus the rich text editor
-        if (importEditor) {
-            setTimeout(() => importEditor.focus(), 100);
+        if (window.importEditor) {
+            setTimeout(() => window.importEditor.focus(), 100);
         }
     } else {
-        // Before switching to HTML, sync any changes from rich text editor
-        if (importEditor) {
+        // Always use window.importEditor for global access
+        if (window.importEditor) {
             console.log('📝 Syncing rich text content to HTML editor');
-            const content = importEditor.getContent();
+            const content = window.importEditor.getContent();
             html.value = content;
             html.dataset.hasChanges = 'false';
         }
-        
         html.classList.remove('hidden');
         rich.classList.add('hidden');
-        
         // Update button states
         if (htmlBtn) htmlBtn.classList.add('active');
         if (richTextBtn) richTextBtn.classList.remove('active');
-        
         // Focus the HTML editor
         setTimeout(() => html.focus(), 100);
     }
-    
     // Always ensure the hidden textarea is updated after any view change
-    if (importEditor) {
-        importEditor.syncContent();
+    if (window.importEditor) {
+        window.importEditor.syncContent();
     }
 }
 
@@ -2519,4 +2545,43 @@ window.initializeSharedContent = initializeSharedContent;
 window.createSharedEditorContent = createSharedEditorContent;
 window.initializeToggleButtonStates = initializeToggleButtonStates;
 
-initializeToggleButtonStates();
+// End of file: removed closing DOMContentLoaded wrapper
+/**
+ * Safely initialize modal and editors for any modal type.
+ * Ensures modal event listeners and editor instances are set up without breaking existing editors.
+ * @param {string} modalId - The modal DOM id to initialize.
+ * @param {boolean} [focusEditor] - If true, focus the editor after initialization.
+ */
+
+// Make globally available
+window.initializeModalAndEditors = initializeModalAndEditors;
+/**
+ * Safely initialize modal and editors for any modal type.
+ * Ensures editors are only initialized if not already present, and modal event listeners are always refreshed.
+ * Optionally focuses the editor if the modal requires it.
+ * Usage: window.initializeModalAndEditors('addCategoryModal');
+ */
+function initializeModalAndEditors(modalId, focusEditor = false) {
+    // Only initialize editors if not already present
+    if (!window.noteEditor || !window.noteEditor.quill || !window.importEditor || !window.importEditor.quill) {
+        initializeEditors();
+    }
+    // Always re-initialize modal event listeners
+    if (window.reinitializeModalEventListeners) {
+        window.reinitializeModalEventListeners();
+    }
+    // Optionally focus the editor if modal requires it
+    if (focusEditor) {
+        if (modalId === 'editNoteModal' && window.noteEditor) {
+            setTimeout(() => window.noteEditor.focus(), 100);
+        }
+        if (modalId === 'importModal' && window.importEditor) {
+            setTimeout(() => window.importEditor.focus(), 100);
+        }
+    }
+    // Log for debugging
+    console.log(`✅ Modal and editors initialized for modal: ${modalId}`);
+}
+
+// Make function globally available
+window.initializeModalAndEditors = initializeModalAndEditors;

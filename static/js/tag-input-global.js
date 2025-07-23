@@ -33,15 +33,51 @@
         }
         
         let tags = [];
+        let selectedCategories = [];
 
         function render() {
-            console.log(`[TAG INPUT] Rendering tags for ${containerId}:`, tags);
-            
+            console.log(`[TAG INPUT] Rendering tags for ${containerId}:`, tags, selectedCategories);
             // Remove existing tag bubbles
             container.querySelectorAll('.tag-bubble').forEach(bubble => bubble.remove());
-            
-            // Create new tag bubbles
+            // Render category bubbles first
+            selectedCategories.forEach(catId => {
+                const bubble = document.createElement('div');
+                bubble.classList.add('tag-bubble', 'tag-bubble-category');
+                bubble.style.cssText = `
+                    display: inline-flex;
+                    align-items: center;
+                    border-radius: 9999px;
+                    padding: 0.25rem 0.75rem;
+                    margin-right: 0.5rem;
+                    margin-bottom: 0.25rem;
+                    margin-top: 0.25rem;
+                    font-size: 0.875rem;
+                    font-weight: 600;
+                    background-color: #f0fdf4;
+                    color: #166534;
+                    border: 1px solid #bbf7d0;
+                    cursor: pointer;
+                `;
+                const categoryObj = window.TAG_CATEGORIES?.find(cat => cat.id === catId);
+                const displayName = categoryObj ? categoryObj.name : catId;
+                const tagText = document.createElement('span');
+                tagText.innerHTML = `📁 ${displayName}`;
+                bubble.appendChild(tagText);
+                // Add remove button
+                const removeBtn = document.createElement('span');
+                removeBtn.classList.add('tag-remove-btn');
+                removeBtn.innerHTML = '&times;';
+                removeBtn.style.cssText = 'margin-left: 0.5rem; cursor: pointer; font-weight: bold; color: #666;';
+                removeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    removeCategory(catId);
+                });
+                bubble.appendChild(removeBtn);
+                container.insertBefore(bubble, input);
+            });
+            // Render regular tag bubbles
             tags.forEach(tag => {
+                if (isCategoryId(tag)) return; // Don't render category IDs as tags
                 const bubble = document.createElement('div');
                 bubble.classList.add('tag-bubble', 'inactive-filter');
                 bubble.style.cssText = `
@@ -58,35 +94,15 @@
                     color: #1e40af;
                     cursor: pointer;
                 `;
-                
-                // Handle special "all" tag
                 if(tag.toLowerCase() === 'all') {
                     bubble.classList.add('tag-bubble-all');
                     bubble.classList.remove('inactive-filter');
                     bubble.style.backgroundColor = '#e9d5ff';
                     bubble.style.color = '#5b21b6';
-                } 
-                // Handle category tags
-                else if (tag.startsWith('CATEGORY:')) {
-                    bubble.classList.add('tag-bubble-category');
-                    bubble.classList.remove('inactive-filter');
-                    bubble.style.backgroundColor = '#f0fdf4'; // bg-green-100
-                    bubble.style.color = '#166534'; // text-green-800
-                    bubble.style.fontWeight = '600';
-                    bubble.style.border = '1px solid #bbf7d0'; // border-green-200
                 }
-                
-                // Create proper tag content structure
                 const tagText = document.createElement('span');
-                if (tag.startsWith('CATEGORY:')) {
-                    // Display category tags with folder emoji and clean name
-                    const categoryName = tag.replace('CATEGORY:', '');
-                    tagText.innerHTML = `📁 ${categoryName}`;
-                } else {
-                    tagText.textContent = tag;
-                }
+                tagText.textContent = tag;
                 bubble.appendChild(tagText);
-                
                 // Add remove button
                 const removeBtn = document.createElement('span');
                 removeBtn.classList.add('tag-remove-btn');
@@ -97,35 +113,82 @@
                     removeTag(tag);
                 });
                 bubble.appendChild(removeBtn);
-                
-                // Insert before the input field
                 container.insertBefore(bubble, input);
             });
-            
             // Update hidden input
             hiddenInput.value = tags.join(', ');
-            console.log(`[TAG INPUT] Hidden input updated:`, hiddenInput.value);
+            hiddenInput.setAttribute('data-categories', JSON.stringify(selectedCategories));
+            // Also update a hidden categories input if present in the form
+            const form = container.closest('form');
+            if (form) {
+                let categoriesInput = form.querySelector('input[name="categories"]');
+                if (categoriesInput) {
+                    categoriesInput.value = JSON.stringify(selectedCategories);
+                }
+            }
+            // Persistent log for every render
+            if (window.appLogger && typeof window.appLogger.error === 'function') {
+                window.appLogger.error('[TAG INPUT] render', {
+                    tags: tags.slice(),
+                    selectedCategories: selectedCategories.slice(),
+                    hiddenInputValue: hiddenInput.value
+                });
+            }
         }
-        
+
         function addTag(tag) {
             const trimmedTag = tag.trim();
             console.log(`[TAG INPUT] Adding tag:`, trimmedTag);
-            
-            // Allow any singular tag (including those with &)
-            if (trimmedTag && 
-                !tags.some(t => t.toLowerCase() === trimmedTag.toLowerCase())) {
+            if (isCategoryId(trimmedTag)) {
+                if (!selectedCategories.includes(trimmedTag)) {
+                    selectedCategories.push(trimmedTag);
+                    // Update hidden input for categories immediately
+                    hiddenInput.setAttribute('data-categories', JSON.stringify(selectedCategories));
+                    const form = container.closest('form');
+                    if (form) {
+                        let categoriesInput = form.querySelector('input[name="categories"]');
+                        if (categoriesInput) {
+                            categoriesInput.value = JSON.stringify(selectedCategories);
+                        }
+                    }
+                    if (window.appLogger && typeof window.appLogger.error === 'function') {
+                        window.appLogger.error('[TAG INPUT] Category added', {
+                            added: trimmedTag,
+                            selectedCategories: selectedCategories.slice()
+                        });
+                    }
+                    render();
+                }
+            } else if (trimmedTag && !tags.some(t => t.toLowerCase() === trimmedTag.toLowerCase())) {
                 tags.push(trimmedTag);
                 render();
-                console.log(`[TAG INPUT] Tag added. Current tags:`, tags);
-                
-                // Check if this is a single-tag component input (used in AND tag modals)
                 if (input.hasAttribute('data-single-tag')) {
                     input.style.display = 'none';
-                    input.value = trimmedTag; // Keep the value for form submission
+                    input.value = trimmedTag;
                 }
             }
             input.value = '';
             hideSuggestions();
+        }
+
+        function removeCategory(catId) {
+            selectedCategories = selectedCategories.filter(id => id !== catId);
+            // Update hidden input for categories immediately
+            hiddenInput.setAttribute('data-categories', JSON.stringify(selectedCategories));
+            const form = container.closest('form');
+            if (form) {
+                let categoriesInput = form.querySelector('input[name="categories"]');
+                if (categoriesInput) {
+                    categoriesInput.value = JSON.stringify(selectedCategories);
+                }
+            }
+            if (window.appLogger && typeof window.appLogger.error === 'function') {
+                window.appLogger.error('[TAG INPUT] Category removed', {
+                    removed: catId,
+                    selectedCategories: selectedCategories.slice()
+                });
+            }
+            render();
         }
 
         function removeTag(tag) {
@@ -144,50 +207,43 @@
 
         function showSuggestions() {
             const value = input.value.trim().toLowerCase();
-            if (!value) { 
-                hideSuggestions(); 
-                return; 
-            }
-            
+            // Always show suggestions on focus, even if input is empty
+            // Only hide if input is empty AND there are no suggestions
             console.log(`[TAG INPUT] Showing suggestions for:`, value);
             console.log(`[TAG INPUT] ALL_TAGS available:`, !!window.ALL_TAGS, 'Count:', window.ALL_TAGS?.length);
-            
             const currentTagsLower = tags.map(t => t.toLowerCase());
-            
             // Filter available tags - ensure ALL_TAGS is available
             if (!window.ALL_TAGS || !Array.isArray(window.ALL_TAGS)) {
                 console.warn('[TAG INPUT] ALL_TAGS not available for suggestions');
                 hideSuggestions();
                 return;
             }
-            
-            const filtered = window.ALL_TAGS.filter(tag => 
-                tag.toLowerCase().includes(value) && !currentTagsLower.includes(tag.toLowerCase())
-            ).slice(0, 5); // Reduced to 5 to leave more room for category suggestions
-            
-            console.log(`[TAG INPUT] Filtered regular suggestions:`, filtered);
-            
             // Clear previous suggestions
             suggestionsContainer.innerHTML = '';
-            
             // Add category suggestions first (higher priority)
             addCategoryTagSuggestions(value, currentTagsLower);
-            
             // Add filtered regular tag suggestions
+            let filtered = [];
+            if (value) {
+                filtered = window.ALL_TAGS.filter(tag => 
+                    tag.toLowerCase().includes(value) && !currentTagsLower.includes(tag.toLowerCase())
+                ).slice(0, 5); // Reduced to 5 to leave more room for category suggestions
+            } else {
+                // If input is empty, show top tags (up to 5)
+                filtered = window.ALL_TAGS.filter(tag => !currentTagsLower.includes(tag.toLowerCase())).slice(0, 5);
+            }
+            console.log(`[TAG INPUT] Filtered regular suggestions:`, filtered);
             if (filtered.length > 0) {
                 filtered.forEach(tag => suggestionsContainer.appendChild(createSuggestionItem(tag)));
             }
-            
             // Add "create new tag" option if value doesn't match exactly
-            if (!window.ALL_TAGS.some(tag => tag.toLowerCase() === value)) {
+            if (value && !window.ALL_TAGS.some(tag => tag.toLowerCase() === value)) {
                 suggestionsContainer.appendChild(createSuggestionItem(input.value.trim(), true));
             }
-            
             // Show suggestions if we have any
             if (suggestionsContainer.children.length > 0) {
                 // Smart positioning: Enhanced logic for better positioning
                 positionSuggestions();
-                
                 // Show the container
                 suggestionsContainer.classList.remove('hidden');
             } else {
@@ -202,69 +258,23 @@
                 console.warn('[TAG INPUT] TAG_CATEGORIES not available for category suggestions');
                 return;
             }
-            
+
             console.log(`[TAG INPUT] Adding category suggestions for:`, value);
             console.log(`[TAG INPUT] Available categories:`, window.TAG_CATEGORIES.length);
-            
-            // Create category tag suggestions based on available categories
+
             window.TAG_CATEGORIES.forEach(category => {
-                const categoryTagName = `CATEGORY:${category.name}`;
-                const categoryTagLower = categoryTagName.toLowerCase();
-                
+                const categoryId = category.id;
+                const categoryNameLower = category.name.toLowerCase();
                 // Skip if already selected
-                if (currentTagsLower.includes(categoryTagLower)) {
+                if (currentTagsLower.includes(categoryId.toLowerCase())) {
                     return;
                 }
-                
-                // Enhanced matching logic - show CATEGORY tag if:
-                // 1. User types "CATEGORY:" prefix (exact match)
-                // 2. User types partial "category" keywords
-                // 3. Category name contains the search value
-                // 4. Search value contains part of category name
-                // 5. User types "cat" or similar shortcuts
-                
-                const valueLower = value.toLowerCase();
-                const categoryNameLower = category.name.toLowerCase();
-                
-                let shouldShow = false;
-                
-                // Direct CATEGORY: prefix matching
-                if (valueLower.startsWith('category:')) {
-                    const afterPrefix = valueLower.substring(9); // Remove "category:"
-                    if (categoryNameLower.includes(afterPrefix) || afterPrefix === '') {
-                        shouldShow = true;
-                    }
-                }
-                // Category keyword matching
-                else if (valueLower === 'cat' || 
-                         valueLower === 'category' || 
-                         valueLower.includes('categ') ||
-                         valueLower === 'categories') {
-                    shouldShow = true;
-                }
-                // Category name partial matching (both directions)
-                else if (categoryNameLower.includes(valueLower) || 
-                         valueLower.includes(categoryNameLower)) {
-                    shouldShow = true;
-                }
-                // Fuzzy matching for category names (check if user input matches beginning of category)
-                else if (categoryNameLower.startsWith(valueLower) && valueLower.length >= 2) {
-                    shouldShow = true;
-                }
-                // Word boundary matching within category names
-                else if (valueLower.length >= 2) {
-                    const categoryWords = categoryNameLower.split(/[\s\-_]/);
-                    for (const word of categoryWords) {
-                        if (word.startsWith(valueLower)) {
-                            shouldShow = true;
-                            break;
-                        }
-                    }
-                }
-                
-                if (shouldShow) {
-                    console.log(`[TAG INPUT] Adding category suggestion:`, categoryTagName);
-                    suggestionsContainer.appendChild(createSuggestionItem(categoryTagName, false, true));
+                // Show category suggestion if user types part of the category name or ID
+                if (
+                    categoryNameLower.includes(value) ||
+                    categoryId.toLowerCase().includes(value)
+                ) {
+                    suggestionsContainer.appendChild(createSuggestionItem(categoryId, false, true));
                 }
             });
         }
@@ -272,15 +282,15 @@
         function createSuggestionItem(tag, isNew = false, isCategory = false) {
             const item = document.createElement('div');
             item.className = 'suggestion-item';
-            
             if (isNew) {
                 item.innerHTML = `Create new tag: <strong style="color: #2563eb; margin-left: 0.25rem;">"${tag}"</strong>`;
                 item.style.fontStyle = 'italic';
                 item.style.backgroundColor = '#f8fafc';
             } else if (isCategory) {
-                // Special styling for category tags to match main content view
-                const categoryName = tag.replace('CATEGORY:', '');
-                item.innerHTML = `📁 ${categoryName}`;
+                // Show category name in dropdown, not ID
+                const categoryObj = window.TAG_CATEGORIES?.find(cat => cat.id === tag);
+                const displayName = categoryObj ? categoryObj.name : tag;
+                item.innerHTML = `📁 ${displayName}`;
                 item.style.backgroundColor = '#f0fdf4 !important'; // bg-green-100
                 item.style.color = '#166534 !important'; // text-green-800
                 item.style.fontWeight = '600 !important';
@@ -294,18 +304,6 @@
                 if (tag.toLowerCase() === 'all') {
                     item.style.color = '#7c3aed';
                     item.style.fontWeight = 'bold';
-                } else if (tag.startsWith('CATEGORY:')) {
-                    // Handle existing category tags in regular suggestions to match main content view
-                    const categoryName = tag.replace('CATEGORY:', '');
-                    item.innerHTML = `📁 ${categoryName}`;
-                    item.style.backgroundColor = '#f0fdf4 !important'; // bg-green-100
-                    item.style.color = '#166534 !important'; // text-green-800
-                    item.style.fontWeight = '600 !important';
-                    item.style.border = '1px solid #bbf7d0 !important'; // border-green-200
-                    item.style.borderRadius = '9999px !important'; // rounded-full
-                    item.style.padding = '0.25rem 0.625rem !important'; // px-2.5 py-1
-                    item.style.margin = '0.25rem !important';
-                    item.style.display = 'inline-block !important';
                 }
             }
             
@@ -330,12 +328,14 @@
                 e.stopPropagation();
                 console.log(`[TAG INPUT] Suggestion clicked:`, tag);
                 addTag(tag);
+                // Always refocus input after adding a tag from dropdown
+                setTimeout(() => { input.focus(); }, 10);
                 hideSuggestions();
             };
-            
             // Use mousedown to fire before blur event hides suggestions
             item.addEventListener('mousedown', handleClick);
-            
+            // Also add click for fallback (in case mousedown is blocked)
+            item.addEventListener('click', handleClick);
             return item;
         }
 
@@ -505,6 +505,9 @@
             console.log(`[TAG INPUT] Input focused`);
             if (input.value.trim()) {
                 showSuggestions();
+            } else {
+                // Show suggestions even if input is empty
+                showSuggestions();
             }
         });
         
@@ -558,18 +561,86 @@
 
         console.log(`[TAG INPUT] Created successfully for ${containerId}`);
 
-        return { 
-            init: (tagString) => { 
-                console.log(`[TAG INPUT] Initializing ${containerId} with:`, tagString);
+        return {
+            /**
+             * Initialize tags and categories for the input
+             * @param {Array|string} tagString - tags to initialize
+             * @param {Array} [categoryArray] - categories to initialize
+             */
+            init: (tagString, categoryArray) => {
+                // Defensive: always use array for categories
+                if (!Array.isArray(categoryArray)) categoryArray = [];
+                console.log(`[TAG INPUT] Initializing ${containerId} with:`, tagString, categoryArray);
                 const newTags = Array.isArray(tagString) ? tagString : (tagString ? tagString.split(',').map(t => t.trim()).filter(Boolean) : []);
                 tags = newTags;
-                console.log(`[TAG INPUT] Tags set to:`, tags);
-                render(); 
+                // Normalize category data: handle both arrays of IDs and arrays of objects
+                if (categoryArray.length > 0 && typeof categoryArray[0] === 'object' && categoryArray[0] !== null && 'id' in categoryArray[0]) {
+                    console.log('[TAG INPUT] Normalizing category objects to IDs.');
+                    selectedCategories = categoryArray.map(cat => cat.id);
+                } else {
+                    // It's already an array of IDs or an empty array
+                    selectedCategories = categoryArray;
+                }
+                console.log(`[TAG INPUT] Tags set to:`, tags, 'Categories set to:', selectedCategories);
+                render();
             },
             render: render,
-            get tags() { return tags; }
+            get tags() { return tags; },
+            get categories() { return selectedCategories; },
+            /**
+             * Ensures tags and categories are sent to backend on form submit
+             */
+            submitToBackend: function(form) {
+                let tagsInput = form.querySelector('input[name="tags"]');
+                let categoriesInput = form.querySelector('input[name="categories"]');
+                if (!tagsInput) {
+                    tagsInput = document.createElement('input');
+                    tagsInput.type = 'hidden';
+                    tagsInput.name = 'tags';
+                    form.appendChild(tagsInput);
+                }
+                if (!categoriesInput) {
+                    categoriesInput = document.createElement('input');
+                    categoriesInput.type = 'hidden';
+                    categoriesInput.name = 'categories';
+                    form.appendChild(categoriesInput);
+                }
+                tagsInput.value = tags.join(',');
+                // Defensive: ensure selectedCategories is up-to-date
+                if (typeof this.getCategories === 'function') {
+                    categoriesInput.value = JSON.stringify(this.getCategories());
+                } else {
+                    categoriesInput.value = JSON.stringify(selectedCategories);
+                }
+                // Log to file via appLogger for verification
+                if (window.appLogger && typeof window.appLogger.error === 'function') {
+                    window.appLogger.error('submitToBackend', {
+                        tags: tagsInput.value,
+                        categories: categoriesInput.value,
+                        selectedCategories: selectedCategories
+                    });
+                }
+                console.log('[TAG INPUT] submitToBackend:', tagsInput.value, categoriesInput.value, selectedCategories);
+            },
+            /**
+             * Returns the current selected category IDs
+             */
+            getCategories: function() {
+                if (window.appLogger && typeof window.appLogger.error === 'function') {
+                    window.appLogger.error('[TAG INPUT] getCategories called', {
+                        selectedCategories: selectedCategories.slice()
+                    });
+                }
+                return Array.isArray(selectedCategories) ? selectedCategories : [];
+            }
         };
     };
+    
+    // Utility function to check if a tag is a category ID
+    function isCategoryId(tag) {
+        // Checks if tag matches any category ID in TAG_CATEGORIES
+        return window.TAG_CATEGORIES?.some(cat => cat.id === tag);
+    }
     
     console.log('[TAG INPUT] Global tag input system loaded');
     

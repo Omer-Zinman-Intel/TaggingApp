@@ -9,6 +9,8 @@ import py.state_manager as state_manager
 import py.tag_manager as tag_manager
 import py.content_processor as content_processor
 from flask import Blueprint, jsonify, request
+import datetime
+import json # Importing json here to fix missing import for category parsing
 
 # --- Custom Jinja2 Filter ---
 def remove_case_insensitive_filter(value_list: list[str], item_to_remove: str) -> list[str]:
@@ -23,7 +25,33 @@ def remove_case_insensitive_filter(value_list: list[str], item_to_remove: str) -
     return [item for item in value_list if item.lower() != item_lower]
 
 
+
 # --- Flask Routes ---
+
+
+
+
+# Endpoint to receive frontend logs and write to backend log file
+
+app = Blueprint('app', __name__)
+
+# --- LOGGING ENDPOINT FOR DEBUGGING IMPORT/EXPORT ---
+@app.route('/log_frontend', methods=['POST'])
+def log_frontend():
+    """
+    Receives logs from the frontend and writes them to a backend log file with a timestamp.
+    """
+    try:
+        log_dir = os.path.join(os.path.dirname(__file__), '../logs')
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, 'frontend.log')
+        data = request.get_json(force=True, silent=True) or {}
+        timestamp = datetime.datetime.utcnow().isoformat()
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(f"[{timestamp}] {data}\n")
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 def get_redirect_url() -> str:
     """Helper to build the redirect URL with current state and filters."""
@@ -66,6 +94,9 @@ def index():
 
     sections_to_display = content_processor.get_filtered_sections(active_filters)
 
+    # Debug output for tags sent to frontend
+    # print(f"[DEBUG] all_tags: {tag_manager.get_all_known_tags()}", file=sys.stderr)
+    # print(f"[DEBUG] tag_categories: {core.document_state.get('tag_categories', [])}", file=sys.stderr)
     return render_template(
         "index.html",
         document=core.document_state,
@@ -76,7 +107,8 @@ def index():
         active_filters_lower=list(active_filters_lower), # Pass this for client-side Jinja2 logic
         available_states=[state_manager.get_state_name_from_filename(f) for f in available_state_files],
         current_state=current_state_name,
-        tag_categories=core.document_state.get("tag_categories", []) # Pass categories only
+        tag_categories=core.document_state.get("tag_categories", []), # Pass categories only
+        all_tag_suggestions=tag_manager.get_all_tags_for_suggestion()
     )
 
 # --- State Management Routes ---
@@ -174,7 +206,33 @@ def update_title():
 def add_section():
     state_name = request.args.get('state')
     after_section_id = request.form.get('after_section_id', '')
-    new_section = {"id": str(uuid.uuid4()), "sectionTitle": "New Section", "tags": [], "notes": []}
+    import json
+    section_title = request.form.get("sectionTitle", "New Section")
+    tags_input = request.form.get("tags", "")
+    tags = [t.strip() for t in tags_input.split(",") if t.strip()]
+    categories_json = request.form.get("categories", "[]")
+    try:
+        categories = json.loads(categories_json)
+        if not isinstance(categories, list):
+            categories = []
+    except Exception:
+        categories = []
+    # Normalize categories to IDs
+    tag_categories = core.document_state.get("tag_categories", [])
+    cat_map = {c['name'].lower(): c for c in tag_categories}
+    normalized_categories = []
+    for cat in categories:
+        cat_name = cat['name'] if isinstance(cat, dict) else cat
+        cat_obj = cat_map.get(cat_name.lower())
+        if cat_obj:
+            normalized_categories.append(cat_obj['id'])
+    new_section = {
+        "id": str(uuid.uuid4()),
+        "sectionTitle": section_title,
+        "tags": tags,
+        "categories": normalized_categories,
+        "notes": []
+    }
     sections = core.document_state.setdefault("sections", [])
 
     if after_section_id:
@@ -204,21 +262,36 @@ def update_section(section_id: str):
     state_name = request.args.get('state')
     section = content_processor.find_item(section_id, "section")
     if section:
-        old_tags = section.get("tags", [])
-        section["sectionTitle"] = request.form.get("sectionTitle", section["sectionTitle"])
-        new_tags_input = request.form.get("tags", "")
-        
-        # Process tags as individual singular tags
-        if new_tags_input.strip():
-            new_tags = [tag.strip() for tag in new_tags_input.split(',') if tag.strip()]
-        else:
-            new_tags = []
-        
-        # Handle intelligent tag editing for cleanup
-        tag_manager.handle_smart_tag_update(old_tags, new_tags, exclude_section_id=section_id)
-        
-        section["tags"] = new_tags
-        tag_manager.sync_known_tags()  # No parameters needed - syncs from actual usage
+        tags_input = request.form.get("tags", "")
+        tags = [t.strip() for t in tags_input.split(",") if t.strip()]
+        categories_json = request.form.get("categories", "[]")
+        try:
+            categories = json.loads(categories_json)
+            if not isinstance(categories, list):
+                categories = []
+        except Exception:
+            categories = []
+        # Normalize categories to IDs (handle both IDs and names)
+        tag_categories = core.document_state.get("tag_categories", [])
+        cat_map = {c['name'].lower(): c for c in tag_categories}
+        id_map = {c['id']: c for c in tag_categories}
+        normalized_categories = []
+        for cat in categories:
+            if isinstance(cat, dict):
+                cat_name = cat.get('name')
+                cat_id = cat.get('id')
+            else:
+                cat_name = cat
+                cat_id = cat
+            # If it's a valid category ID, use it directly
+            if cat_id in id_map:
+                normalized_categories.append(cat_id)
+            elif cat_name and cat_name.lower() in cat_map:
+                normalized_categories.append(cat_map[cat_name.lower()]['id'])
+        # Always replace tags with submitted list
+        section["tags"] = tags
+        section["categories"] = normalized_categories
+        tag_manager.sync_known_tags()
         state_manager.save_state(state_name)
     else:
         flash("Section not found.", "error")
@@ -227,7 +300,6 @@ def update_section(section_id: str):
 def delete_section(section_id: str):
     state_name = request.args.get('state')
     sections = core.document_state.get("sections", [])
-    # Find the index of the section to be deleted
     idx_to_delete = None
     for idx, s in enumerate(sections):
         if s["id"] == section_id:
@@ -259,7 +331,34 @@ def add_note(section_id: str):
     state_name = request.args.get('state')
     section = content_processor.find_item(section_id, "section")
     if section:
-        new_note = {"id": str(uuid.uuid4()), "noteTitle": "New Note", "content": "<p>Start writing here...</p>", "tags": []}
+        import json
+        note_title = request.form.get("noteTitle", "New Note")
+        note_content = request.form.get("content", "<p>Start writing here...</p>")
+        tags_input = request.form.get("tags", "")
+        tags = [t.strip() for t in tags_input.split(",") if t.strip()]
+        categories_json = request.form.get("categories", "[]")
+        try:
+            categories = json.loads(categories_json)
+            if not isinstance(categories, list):
+                categories = []
+        except Exception:
+            categories = []
+        # Normalize categories to IDs
+        tag_categories = core.document_state.get("tag_categories", [])
+        cat_map = {c['name'].lower(): c for c in tag_categories}
+        normalized_categories = []
+        for cat in categories:
+            cat_name = cat['name'] if isinstance(cat, dict) else cat
+            cat_obj = cat_map.get(cat_name.lower())
+            if cat_obj:
+                normalized_categories.append(cat_obj['id'])
+        new_note = {
+            "id": str(uuid.uuid4()),
+            "noteTitle": note_title,
+            "content": note_content,
+            "tags": tags,
+            "categories": normalized_categories
+        }
         section.setdefault("notes", []).append(new_note)
         state_manager.save_state(state_name)
     else:
@@ -268,55 +367,79 @@ def add_note(section_id: str):
 
 def update_note(section_id: str, note_id: str):
     state_name = request.args.get('state')
-    
-    # Debug: Log all form data
-    print(f"🔍 DEBUG: Form data received:")
-    print(f"  - noteTitle: {request.form.get('noteTitle', 'NOT_PROVIDED')}")
-    print(f"  - content: {request.form.get('content', 'NOT_PROVIDED')[:200]}...")
-    print(f"  - tags: {request.form.get('tags', 'NOT_PROVIDED')}")
-    
-    _, note = content_processor.find_section_and_note(section_id, note_id)
+    # Sanitize IDs to remove any quotes
+    def sanitize_id(idval):
+        if not idval:
+            return idval
+        return str(idval).strip('"\'')
+
+    clean_section_id = sanitize_id(section_id)
+    clean_note_id = sanitize_id(note_id)
+    print(f"🔍 [BACKEND DEBUG] update_note called with:")
+    print(f"  section_id: {clean_section_id}")
+    print(f"  note_id: {clean_note_id}")
+    print(f"  FORM DATA:")
+    for k in request.form.keys():
+        print(f"    {k}: {request.form.get(k)}")
+    print(f"  ARGS:")
+    for k in request.args.keys():
+        print(f"    {k}: {request.args.get(k)}")
+    # Write to backend log for verification
+    try:
+        with open('logs/frontend_backend_debug.log', 'a', encoding='utf-8') as f:
+            import datetime
+            f.write(f"{datetime.datetime.now().isoformat()} | update_note | note_id={note_id} | tags={request.form.get('tags', '')} | categories={request.form.get('categories', '')}\n")
+    except Exception as logerr:
+        print(f"[ERROR] Could not write to debug log: {logerr}")
+    _, note = content_processor.find_section_and_note(clean_section_id, clean_note_id)
     if note:
-        # Get form data
         new_title = request.form.get("noteTitle", note["noteTitle"])
         new_content = request.form.get("content", note["content"])
-        new_tags_input = request.form.get("tags", "")
-        
-        print(f"🔍 DEBUG: Before update - Note content: {note['content'][:200]}...")
-        print(f"🔍 DEBUG: New content to save: {new_content[:200]}...")
-        
-        # Update note with new data
-        old_tags = note.get("tags", [])
+        # Sanitize content: remove Quill cursor artifacts and zero-width spaces
+        import re
+        new_content = re.sub(r'<span class="ql-cursor">.*?</span>', '', new_content)
+        new_content = new_content.replace('\ufeff', '')
+        tags_input = request.form.get("tags", "")
+        tags = [t.strip() for t in tags_input.split(",") if t.strip()]
+        categories_json = request.form.get("categories", "[]")
+        try:
+            categories = json.loads(categories_json)
+            if not isinstance(categories, list):
+                categories = []
+        except Exception as e:
+            print(f"[ERROR] Failed to parse categories from form: {e}")
+            categories = []
+        # Normalize categories to IDs (handle both IDs and names)
+        tag_categories = core.document_state.get("tag_categories", [])
+        cat_map = {c['name'].lower(): c for c in tag_categories}
+        id_map = {c['id']: c for c in tag_categories}
+        normalized_categories = []
+        for cat in categories:
+            if isinstance(cat, dict):
+                cat_name = cat.get('name')
+                cat_id = cat.get('id')
+            else:
+                cat_name = cat
+                cat_id = cat
+            # If it's a valid category ID, use it directly
+            if cat_id in id_map:
+                normalized_categories.append(cat_id)
+            elif cat_name and cat_name.lower() in cat_map:
+                normalized_categories.append(cat_map[cat_name.lower()]['id'])
         note["noteTitle"] = new_title
-        note["content"] = new_content  # Save HTML directly to JSON
-        
-        if new_tags_input.strip():
-            new_tags = [tag.strip() for tag in new_tags_input.split(',') if tag.strip()]
-        else:
-            new_tags = []
-        
-        # Update tags and save state
-        tag_manager.handle_smart_tag_update(old_tags, new_tags, exclude_note_id=note_id)
-        note["tags"] = new_tags
+        note["content"] = new_content
+        note["tags"] = tags
+        note["categories"] = normalized_categories
         tag_manager.sync_known_tags()
-        
-        # Force save state and verify
         save_result = state_manager.save_state(state_name)
         print(f"🔍 DEBUG: Save state result: {save_result}")
-        
-        # Verify the save worked
         fresh_note = content_processor.find_section_and_note(section_id, note_id)[1]
         if fresh_note:
             print(f"🔍 DEBUG: After save - Note content: {fresh_note['content'][:200]}...")
-        
-        # Log successful update
-        print(f"✅ Note {note_id} updated successfully - Content: {len(new_content)} chars, Tags: {new_tags}")
-        
+        print(f"✅ Note {note_id} updated successfully - Content: {len(new_content)} chars, Tags: {tags}, Categories: {categories}")
     else:
         flash("Note not found.", "error")
         print(f"❌ Note not found: section_id={section_id}, note_id={note_id}")
-    
-    # Return to same page position
     return redirect(get_redirect_url())
 
 def delete_note(section_id: str, note_id: str):
@@ -554,34 +677,165 @@ def move_tag():
     return jsonify({"success": True, "message": "Operation successful."})
 
 def import_html():
+    import os
+    def debug_import_log(msg):
+        log_path = os.path.join(os.path.dirname(__file__), '../logs/import_parser.log')
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(f"[import_html] {msg}\n")
+
     state_name = request.args.get('state')
     html_content = request.form.get("html_content")
     import_mode = request.form.get("import_mode", "overwrite")
 
+    # --- NEW LOGGER: Log the full incoming payload from the frontend ---
+    try:
+        import_payload = {
+            "state_name": state_name,
+            "import_mode": import_mode,
+            "html_content_len": len(html_content) if html_content else 0,
+            "html_content_preview": html_content[:500] if html_content else '',
+            "categories": request.form.get("categories"),
+            "form_keys": list(request.form.keys()),
+            "raw_form": {k: request.form.get(k) for k in request.form.keys()}
+        }
+        debug_import_log(f"[NEW_IMPORT] Payload received: {import_payload}")
+    except Exception as e:
+        debug_import_log(f"[NEW_IMPORT] Error logging payload: {e}")
+
+    debug_import_log(f"Called import_html: state_name={state_name}, import_mode={import_mode}, html_content_len={len(html_content) if html_content else 0}")
+
     if not html_content or not html_content.strip():
+        debug_import_log("No content provided to import.")
         flash("No content provided to import.", "warning")
         return redirect(get_redirect_url())
 
-    new_sections, new_tags = content_processor._parse_imported_html(html_content)
+    # Accept categories from frontend if provided
+    categories_json = request.form.get("categories")
+    debug_import_log("Starting import_html execution.")
+    new_sections, new_tags, parsed_categories = content_processor._parse_imported_html(html_content)
+    debug_import_log(f"_parse_imported_html returned: sections={len(new_sections)}, tags={len(new_tags)}, categories={len(parsed_categories)}")
+    debug_import_log(f"new_sections: {new_sections}")
+    debug_import_log(f"new_tags: {new_tags}")
+    debug_import_log(f"parsed_categories: {parsed_categories}")
 
+    # Parse categories from frontend JSON if present
+    frontend_categories = []
+    if categories_json:
+        try:
+            raw_categories = json.loads(categories_json)
+            # Only keep categories that have a valid name and at least one tag
+            frontend_categories = [c for c in raw_categories if c.get('name') and c.get('tags') and len(c.get('tags')) > 0]
+            debug_import_log(f"Received categories from frontend (filtered): {frontend_categories}")
+        except Exception as e:
+            debug_import_log(f"Failed to parse categories JSON: {e}")
+    else:
+        debug_import_log("No categories received from frontend.")
+
+    # Merge frontend and parsed categories into backend state
+    def merge_categories(existing, incoming):
+        # Only create categories if incoming is non-empty
+        if not incoming:
+            return existing
+        for cat in incoming:
+            name = cat.get('name')
+            tags = set(cat.get('tags', []))
+            found = next((c for c in existing if c['name'].lower() == name.lower()), None)
+            if found:
+                found['tags'] = sorted(list(set(found.get('tags', [])).union(tags)), key=str.lower)
+            else:
+                existing.append({
+                    'id': str(uuid.uuid4()),
+                    'name': name,
+                    'tags': sorted(list(tags), key=str.lower)
+                })
+        return existing
+
+    # Helper: assign category tags to notes/sections
+    def assign_category_tags(sections, categories):
+        # categories: list of {name, tags, id}
+        cat_map = {c['name'].lower(): c for c in categories}
+        for section in sections:
+            section_cats = section.get('categories', [])
+            new_section_cats = []
+            for cat in section_cats:
+                cat_name = cat['name'] if isinstance(cat, dict) else cat
+                cat_obj = cat_map.get(cat_name.lower())
+                if cat_obj:
+                    new_section_cats.append(cat_obj['id'])
+                    # Add tags from category to section
+                    section.setdefault('tags', [])
+                    section['tags'].extend([t for t in cat_obj.get('tags', []) if t not in section['tags']])
+                    # Add category name as a tag to section
+                    if cat_obj['name'] not in section['tags']:
+                        section['tags'].append(cat_obj['name'])
+            section['categories'] = new_section_cats
+            section['tags'] = sorted(list(set(section.get('tags', []))), key=str.lower)
+            # For notes
+            for note in section.get('notes', []):
+                note_cats = note.get('categories', [])
+                new_note_cats = []
+                for cat in note_cats:
+                    cat_name = cat['name'] if isinstance(cat, dict) else cat
+                    cat_obj = cat_map.get(cat_name.lower())
+                    if cat_obj:
+                        new_note_cats.append(cat_obj['id'])
+                        note.setdefault('tags', [])
+                        note['tags'].extend([t for t in cat_obj.get('tags', []) if t not in note['tags']])
+                        # Add category name as a tag to note
+                        if cat_obj['name'] not in note['tags']:
+                            note['tags'].append(cat_obj['name'])
+                note['categories'] = new_note_cats
+                note['tags'] = sorted(list(set(note.get('tags', []))), key=str.lower)
+        return sections
+
+    debug_import_log(f"Import mode: {import_mode}")
     if new_sections:
+        # Always merge both frontend and parsed categories
+        all_categories = parsed_categories
+        if frontend_categories:
+            all_categories = merge_categories(all_categories, frontend_categories)
         if import_mode == 'overwrite':
+            debug_import_log("Overwrite mode: replacing sections, tags, and categories.")
+            tag_cats = all_categories
+            debug_import_log(f"Merged categories: {tag_cats}")
+            new_sections = assign_category_tags(new_sections, tag_cats)
+            debug_import_log(f"Sections after category tag assignment: {new_sections}")
             core.document_state['sections'] = new_sections
-            core.document_state['known_tags'] = new_tags.union({'All'})
-            # Overwrite categories, ensure 'Uncategorized' has all tags
-            core.document_state['tag_categories'] = [{"id": str(uuid.uuid4()), "name": "Uncategorized", "tags": sorted(list(new_tags.union({'All'})))}]
+            # Ensure known_tags is always a set internally
+            core.document_state['known_tags'] = set(new_tags).union({'All'})
+            uncategorized = next((cat for cat in all_categories if cat['name'].lower() == 'uncategorized'), None)
+            if uncategorized:
+                for tag in core.document_state['known_tags']:
+                    if tag not in uncategorized['tags']:
+                        uncategorized['tags'].append(tag)
+                uncategorized['tags'] = sorted(list(set(uncategorized['tags'])), key=str.lower)
+            core.document_state['tag_categories'] = tag_cats
             flash("Content imported, overwriting previous data.", "success")
+            debug_import_log("Overwrite mode: sections, tags, and categories replaced.")
         else: # aggregate mode
+            debug_import_log("Aggregate mode: appending sections and merging categories.")
+            tag_cats = core.document_state.setdefault('tag_categories', [])
+            tag_cats = merge_categories(tag_cats, all_categories)
+            debug_import_log(f"Merged categories: {tag_cats}")
+            new_sections = assign_category_tags(new_sections, tag_cats)
+            debug_import_log(f"Sections after category tag assignment: {new_sections}")
             core.document_state.setdefault('sections', []).extend(new_sections)
             core.document_state.setdefault('known_tags', set()).update(new_tags)
-            # Add new tags to uncategorized if they are not in any category
+            # Ensure known_tags is a set
+            if not isinstance(core.document_state['known_tags'], set):
+                core.document_state['known_tags'] = set(core.document_state['known_tags'])
             tag_manager.sync_known_tags(list(new_tags))
+            core.document_state['tag_categories'] = tag_cats
             flash("Content appended to the end of the document.", "success")
+            debug_import_log("Aggregate mode: sections and categories appended.")
         tag_manager.cleanup_orphan_tags()
         state_manager.save_state(state_name)
+        debug_import_log("State saved after import.")
     else:
+        debug_import_log("No valid sections parsed from import.")
         flash("Could not parse any valid sections or notes from the import.", "warning")
 
+    debug_import_log("Redirecting after import.")
     return redirect(get_redirect_url())
 
 def find_category(category_id: str) -> Optional[Dict]:
@@ -856,36 +1110,41 @@ def delete_and_tag():
 # app.add_url_rule('/section/reorder_notes/<section_id>', 'reorder_notes', views.reorder_notes, methods=["POST"])
 
 def reorder_notes(section_id):
+    """
+    Reorder notes within a section based on a list of note IDs provided by the frontend.
+    Expects JSON: {"note_ids": [...], "state": ...}
+    """
     data = request.get_json()
     note_ids = data.get('note_ids')
     state_name = data.get('state')
     if not note_ids or not state_name:
         return jsonify({'success': False, 'message': 'Missing note_ids or state'}), 400
+
+    # Load the requested state
     if not state_manager.load_state(state_name):
-        # Try to return last error if available
         last_error = getattr(state_manager, 'last_save_error', None)
         return jsonify({'success': False, 'message': 'State not found', 'error': last_error}), 404
-    # Find the section
+
+    # Find the section by ID
     for section in core.document_state.get('sections', []):
         if section.get('id') == section_id:
+            # Build a mapping of note ID to note object
             notes_by_id = {n['id']: n for n in section.get('notes', [])}
-            new_notes = []
-            for nid in note_ids:
-                note = notes_by_id.get(nid)
-                if note:
-                    new_notes.append(note)
-            # Optionally, append any notes not in the new order (shouldn't happen)
+            # Rebuild the notes list in the requested order
+            new_notes = [notes_by_id[nid] for nid in note_ids if nid in notes_by_id]
+            # Optionally, append any notes not in the new order (shouldn't happen, but for safety)
             for note in section.get('notes', []):
                 if note['id'] not in note_ids:
                     new_notes.append(note)
             section['notes'] = new_notes
+            # Save the updated state
             ok = state_manager.save_state(state_name)
             if ok:
                 return jsonify({'success': True})
             else:
-                # Return last error if available
                 last_error = getattr(state_manager, 'last_save_error', None)
                 return jsonify({'success': False, 'message': 'Failed to save state', 'error': last_error}), 500
+    # Section not found
     return jsonify({'success': False, 'message': 'Section not found'}), 404
 
 def import_clear():
@@ -901,28 +1160,122 @@ def import_clear():
     return jsonify({'success': True})
 
 def import_add():
+    import os
+    import datetime
     state_name = request.args.get('state') or request.json.get('state')
     section = request.json.get('section')
+    # Log what is received from frontend
+    log_dir = os.path.join(os.path.dirname(__file__), '../logs')
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, 'import_add.log')
+    timestamp = datetime.datetime.utcnow().isoformat()
+    with open(log_path, 'a', encoding='utf-8') as f:
+        f.write(f"[{timestamp}] IMPORT_ADD_RECEIVED: state={state_name}, section={section}\n")
+
+
+    # Additional logging for categories and tags
+    section_categories = section.get('categories', [])
+    with open(log_path, 'a', encoding='utf-8') as f:
+        f.write(f"[{timestamp}] Section categories: {section_categories}\n")
+        for note in section.get('notes', []):
+            note_categories = note.get('categories', [])
+            f.write(f"[{timestamp}] Note id={note.get('id')} categories: {note_categories}\n")
+            f.write(f"[{timestamp}] Note id={note.get('id')} tags: {note.get('tags', [])}\n")
+        f.write(f"[{timestamp}] Section tags: {section.get('tags', [])}\n")
     if not state_name or not section:
         return jsonify({'success': False, 'message': 'Missing state or section'}), 400
     if not state_manager.load_state(state_name):
         return jsonify({'success': False, 'message': 'State not found'}), 404
+
+    # Ensure tag_categories exists
+    if 'tag_categories' not in core.document_state or not core.document_state['tag_categories']:
+        core.document_state['tag_categories'] = [{"id": str(uuid.uuid4()), "name": "Uncategorized", "tags": ["All"]}]
+    # Always use core.document_state['tag_categories'] for consistency
+    tag_categories = core.document_state['tag_categories']
+
+    def get_or_create_category(cat_name, tags):
+        for cat in tag_categories:
+            if cat['name'].lower() == cat_name.lower():
+                # Merge tags into the category
+                cat['tags'] = sorted(list(set(cat['tags']).union(tags)), key=str.lower)
+                return cat
+        new_cat = {
+            "id": str(uuid.uuid4()),
+            "name": cat_name,
+            "tags": sorted(list(set(tags)), key=str.lower)
+        }
+        tag_categories.append(new_cat)
+        return new_cat
+
+    # Process section categories: collect IDs only
+    section_category_ids = []
+    for cat in section.get('categories', []):
+        cat_name = cat['name'] if isinstance(cat, dict) else cat
+        cat_tags = cat.get('tags', []) if isinstance(cat, dict) else []
+        cat_obj = get_or_create_category(cat_name, cat_tags)
+        section_category_ids.append(cat_obj['id'])
+    section['categories'] = section_category_ids
+
+    # Process note categories: collect IDs only
+    for note in section.get('notes', []):
+        note_category_ids = []
+        for cat in note.get('categories', []):
+            cat_name = cat['name'] if isinstance(cat, dict) else cat
+            cat_tags = cat.get('tags', []) if isinstance(cat, dict) else []
+            cat_obj = get_or_create_category(cat_name, cat_tags)
+            note_category_ids.append(cat_obj['id'])
+        note['categories'] = note_category_ids
+
+    
     # Add section
     core.document_state.setdefault('sections', []).append(section)
-    # Update known_tags and tag_categories
+
+    # Update known_tags
     tags = set(section.get('tags', []))
     for note in section.get('notes', []):
         tags.update(note.get('tags', []))
-    core.document_state.setdefault('known_tags', set()).update(tags)
-    # Add new tags to Uncategorized if not present
-    if 'tag_categories' not in core.document_state or not core.document_state['tag_categories']:
-        core.document_state['tag_categories'] = [{"id": str(uuid.uuid4()), "name": "Uncategorized", "tags": ["All"]}]
+    # Ensure known_tags is always a set internally
+    core.document_state.setdefault('known_tags', set())
+    if isinstance(core.document_state['known_tags'], list):
+        core.document_state['known_tags'] = set(core.document_state['known_tags'])
+    core.document_state['known_tags'].update(tags)
+
+    # Add tags not in any category to Uncategorized
+    all_category_tags = set()
+    for cat in tag_categories:
+        all_category_tags.update(cat['tags'])
+
+# Ensure all tags are in Uncategorized, even if they are in other categories
     uncategorized = next((cat for cat in core.document_state['tag_categories'] if cat['name'].lower() == 'uncategorized'), None)
     if uncategorized:
-        for tag in tags:
+        # Add every tag in known_tags to Uncategorized, even if it's in another category
+        for tag in core.document_state['known_tags']:
             if tag not in uncategorized['tags']:
                 uncategorized['tags'].append(tag)
         uncategorized['tags'] = sorted(list(set(uncategorized['tags'])), key=str.lower)
+
+    # --- ENSURE ALL TAGS ARE IN known_tags AND UNCATEGORIZED IF NEEDED ---
+
+    # 1. Collect all tags from categories
+    category_tags = set()
+    for cat in core.document_state['tag_categories']:
+        category_tags.update(cat['tags'])
+
+    # 2. Collect all tags from sections and notes
+    section_and_note_tags = set(section.get('tags', []))
+    for note in section.get('notes', []):
+        section_and_note_tags.update(note.get('tags', []))
+
+    # 3. known_tags is the union of all
+    all_tags = category_tags.union(section_and_note_tags)
+    core.document_state['known_tags'] = set(all_tags)
+    # Convert known_tags to sorted list for saving
+    core.document_state['known_tags'] = sorted(list(core.document_state['known_tags']), key=str.lower)
+    # Make sure Uncategorized contains ALL tags
+    uncategorized = next((cat for cat in core.document_state['tag_categories'] if cat['name'].lower() == 'uncategorized'), None)
+    if uncategorized:
+        uncategorized['tags'] = sorted(list(set(core.document_state['known_tags'])), key=str.lower)
+
     state_manager.save_state(state_name)
     return jsonify({'success': True})
 

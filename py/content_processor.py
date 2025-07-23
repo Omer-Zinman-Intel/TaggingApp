@@ -103,19 +103,53 @@ def _parse_imported_html(html_content: str) -> tuple[List[Dict], Set[str]]:
     new_known_tags: Set[str] = set()
     current_section: Optional[Dict] = None
 
-    def extract_tags(text: str) -> List[str]: return re.findall(r'\[([^\]]+)\]', text)
-    def clean_title(text: str) -> str: return re.sub(r'\[([^\]]+)\]', '', text).strip()
+
+    import os
+    def log_action(action: str):
+        log_path = os.path.join(os.path.dirname(__file__), '../logs/import_parser.log')
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(f"{action}\n")
+
+    def extract_tags(text: str) -> List[str]:
+        tags = re.findall(r'\[([^\]]+)\]', text)
+        log_action(f"extract_tags: text='{text}' -> tags={tags}")
+        return tags
+
+    def extract_category(text: str):
+        matches = re.findall(r'\{\{([^:}]+):\s*\[([^\]]*)\]\}\}', text)
+        categories = []
+        for cat_name, tags_str in matches:
+            cat_name = cat_name.strip()
+            tags = [t.strip() for t in re.split(r'[ ,;]+', tags_str) if t.strip()]
+            log_action(f"extract_category: cat_name='{cat_name}', tags_str='{tags_str}' -> tags={tags}")
+            categories.append((cat_name, tags))
+        log_action(f"extract_category: text='{text}' -> categories={categories}")
+        return categories if categories else None
+
+    def clean_title(text: str) -> str:
+        orig_text = text
+        text = re.sub(r'\{\{[^:}]+:\s*\[[^\]]*\]\}\}', '', text)
+        text = re.sub(r'\[([^\]]+)]', '', text)
+        cleaned = text.strip()
+        log_action(f"clean_title: orig='{orig_text}' -> cleaned='{cleaned}'")
+        return cleaned
 
     # Define which HTML tags can become notes (headers) vs. content
     NOTE_TAGS = ['h2', 'h3']
     ALL_TAGS = ['h1'] + NOTE_TAGS + ['p', 'ul', 'ol', 'div', 'pre', 'blockquote', 'h4', 'h5', 'h6']
 
     pending_content = ''
+    from py import tag_manager
+    # --- Collect all categories found in the document ---
+    all_categories_dict = {}  # name.lower() -> {'name': name, 'tags': set([...])}
+
     for el in soup.find_all(ALL_TAGS):
+        log_action(f"Processing element: tag='{el.name}', text='{el.get_text()}'")
         # H1 creates a new section
         if el.name == 'h1':
-            # Before starting a new section, if there is pending content and no notes, create a blank note
+            log_action(f"[IMPORT] Handling H1 element: {el.get_text()}")
             if current_section and pending_content and (not current_section.get('notes') or len(current_section['notes']) == 0):
+                log_action(f"Creating blank note for pending_content in section id={current_section.get('id')}")
                 current_section.setdefault('notes', []).append({
                     'id': str(uuid.uuid4()),
                     'noteTitle': '',
@@ -123,14 +157,37 @@ def _parse_imported_html(html_content: str) -> tuple[List[Dict], Set[str]]:
                     'tags': []
                 })
             pending_content = ''
-            if current_section: new_sections.append(current_section)
+            if current_section:
+                log_action(f"Appending section id={current_section.get('id')}")
+                new_sections.append(current_section)
+            found_categories = extract_category(el.get_text())
+            section_categories = []
+            if found_categories:
+                log_action(f"[IMPORT] Found categories: {found_categories}")
+                for cat_name, cat_tags in found_categories:
+                    key = cat_name.lower()
+                    if key not in all_categories_dict:
+                        all_categories_dict[key] = {'name': cat_name, 'tags': set()}
+                    all_categories_dict[key]['tags'].update(cat_tags)
+                    section_categories.append({'name': cat_name, 'tags': cat_tags})
+                    for t in cat_tags:
+                        new_known_tags.add(t)
+                    # Add category name itself as a tag to the section
+                    if cat_name not in tags:
+                        tags.append(cat_name)
+                        new_known_tags.add(cat_name)
             tags = extract_tags(el.get_text())
+            log_action(f"[IMPORT] Extracted tags: {tags}")
             new_known_tags.update(tags)
-            current_section = {"id": str(uuid.uuid4()), "sectionTitle": clean_title(el.get_text()), "tags": tags, "notes": []}
-        # H2-H3 create a new note within the current section
+            # Do NOT add category tags to tags list unless you want them as regular tags too
+            log_action(f"Section tags: {tags}")
+            section_title = clean_title(el.get_text())
+            log_action(f"Section title: '{section_title}'")
+            log_action(f"Section categories: {section_categories}")
+            current_section = {"id": str(uuid.uuid4()), "sectionTitle": section_title, "tags": tags, "notes": [], "categories": section_categories}
         elif el.name in NOTE_TAGS:
-            # Before starting a new note, if there is pending content and no notes, create a blank note
             if current_section and pending_content and (not current_section.get('notes') or len(current_section['notes']) == 0):
+                log_action(f"Creating blank note for pending_content in section id={current_section.get('id')}")
                 current_section.setdefault('notes', []).append({
                     'id': str(uuid.uuid4()),
                     'noteTitle': '',
@@ -138,11 +195,29 @@ def _parse_imported_html(html_content: str) -> tuple[List[Dict], Set[str]]:
                     'tags': []
                 })
                 pending_content = ''
+            found_categories = extract_category(el.get_text())
+            note_categories = []
+            if found_categories:
+                for cat_name, cat_tags in found_categories:
+                    key = cat_name.lower()
+                    if key not in all_categories_dict:
+                        all_categories_dict[key] = {'name': cat_name, 'tags': set()}
+                    all_categories_dict[key]['tags'].update(cat_tags)
+                    note_categories.append({'name': cat_name, 'tags': cat_tags})
+                    for t in cat_tags:
+                        new_known_tags.add(t)
+                    # Add category name itself as a tag to the note
+                    if cat_name not in tags:
+                        tags.append(cat_name)
+                        new_known_tags.add(cat_name)
             tags = extract_tags(el.get_text())
             new_known_tags.update(tags)
-            note_content = {"id": str(uuid.uuid4()), "noteTitle": clean_title(el.get_text()), "content": '', "tags": tags}
+            # Do NOT add category tags to tags list unless you want them as regular tags too
+            log_action(f"Note tags: {tags}")
+            note_title = clean_title(el.get_text())
+            log_action(f"Note title: '{note_title}'")
+            note_content = {"id": str(uuid.uuid4()), "noteTitle": note_title, "content": '', "tags": tags, "categories": note_categories}
             current_section.setdefault("notes", []).append(note_content)
-        # Other tags are appended as content to the most recent note or as pending content
         elif current_section:
             if current_section.get("notes"):
                 last_note = current_section["notes"][-1]
@@ -151,15 +226,52 @@ def _parse_imported_html(html_content: str) -> tuple[List[Dict], Set[str]]:
                 new_known_tags.update(tags)
                 last_note["tags"].extend(tags)
                 last_note["tags"] = list(dict.fromkeys(last_note["tags"])) # Deduplicate
+                log_action(f"Appended content to note id={last_note['id']}, tags added: {tags}")
             else:
                 pending_content += str(el)
+                log_action(f"Appended content to pending_content for section id={current_section.get('id')}")
     # At the end, if there is pending content and no notes, create a blank note
     if current_section and pending_content and (not current_section.get('notes') or len(current_section['notes']) == 0):
+        log_action(f"Creating final blank note for pending_content in section id={current_section.get('id')}")
         current_section.setdefault('notes', []).append({
             'id': str(uuid.uuid4()),
             'noteTitle': '',
             'content': pending_content,
             'tags': []
         })
-    if current_section: new_sections.append(current_section)
-    return new_sections, new_known_tags
+    if current_section:
+        log_action(f"Appending final section id={current_section.get('id')}")
+        new_sections.append(current_section)
+
+    # Convert all_categories_dict to a list of category objects with unique tags
+    all_categories = []
+    # Ensure all categories referenced in notes/sections are present in all_categories_dict
+    def ensure_category_obj(cat):
+        # cat: dict with 'name' and 'tags'
+        key = cat['name'].lower()
+        if key not in all_categories_dict:
+            all_categories_dict[key] = {'name': cat['name'], 'tags': set(cat['tags'])}
+        else:
+            all_categories_dict[key]['tags'].update(cat['tags'])
+
+    # Scan all notes/sections for categories and ensure they're in all_categories_dict
+    for section in new_sections:
+        for cat in section.get('categories', []):
+            ensure_category_obj(cat)
+        for note in section.get('notes', []):
+            for cat in note.get('categories', []):
+                ensure_category_obj(cat)
+
+    for cat in all_categories_dict.values():
+        all_categories.append({
+            'id': str(uuid.uuid4()),
+            'name': cat['name'],
+            'tags': sorted(list(set(cat['tags'])), key=str.lower)
+        })
+
+    log_action(f"Syncing known tags: {list(new_known_tags)}")
+    tag_manager.sync_known_tags(list(new_known_tags))
+    log_action("Cleaning up orphan tags")
+    tag_manager.cleanup_orphan_tags()
+    log_action(f"Returning new_sections: {len(new_sections)} sections, new_known_tags: {len(new_known_tags)} tags, all_categories: {all_categories}")
+    return new_sections, new_known_tags, all_categories

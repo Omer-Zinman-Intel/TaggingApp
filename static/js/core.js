@@ -172,6 +172,56 @@ function nestAllQuillListsInContainer(container) {
 
 // Main application initialization
 document.addEventListener('DOMContentLoaded', function() {
+    // --- LOGGING: Send all import data to backend for debugging ---
+    function logFrontendImport(payload) {
+        try {
+            fetch('/log_frontend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        } catch (e) { console.error('Failed to log to backend', e); }
+    }
+    // --- Render categories as badges for sections and notes ---
+    function renderCategoriesBadges() {
+        // For sections (H1)
+        document.querySelectorAll('h1[data-categories]').forEach(h1 => {
+            let catData = h1.getAttribute('data-categories');
+            if (!catData) return;
+            let categoryIds = [];
+            try { categoryIds = JSON.parse(catData); } catch {}
+            h1.querySelectorAll('.category-badge').forEach(b => b.remove());
+            categoryIds.forEach(catId => {
+                const catObj = window.TAG_CATEGORIES?.find(c => c.id === catId);
+                if (!catObj) return;
+                const badge = document.createElement('span');
+                badge.className = 'category-badge ml-2 px-2 py-0.5 rounded bg-green-100 text-green-800 text-xs font-semibold';
+                badge.textContent = `📁 ${catObj.name}`;
+                h1.appendChild(badge);
+            });
+        });
+        // For notes (H2, H3)
+        document.querySelectorAll('h2[data-categories], h3[data-categories]').forEach(hx => {
+            let catData = hx.getAttribute('data-categories');
+            if (!catData) return;
+            let categoryIds = [];
+            try { categoryIds = JSON.parse(catData); } catch {}
+            hx.querySelectorAll('.category-badge').forEach(b => b.remove());
+            categoryIds.forEach(catId => {
+                const catObj = window.TAG_CATEGORIES?.find(c => c.id === catId);
+                if (!catObj) return;
+                const badge = document.createElement('span');
+                badge.className = 'category-badge ml-2 px-2 py-0.5 rounded bg-green-100 text-green-800 text-xs font-semibold';
+                badge.textContent = `📁 ${catObj.name}`;
+                hx.appendChild(badge);
+            });
+        });
+    }
+    // Call after import and on DOMContentLoaded
+    renderCategoriesBadges();
+    // Also observe for dynamic changes (e.g. after import)
+    const catObs = new MutationObserver(() => renderCategoriesBadges());
+    catObs.observe(document.body, { childList: true, subtree: true });
     window.appLogger?.action('CORE_INITIALIZATION_START');
     console.log('Initializing TaggingApp...');
     
@@ -188,30 +238,34 @@ document.addEventListener('DOMContentLoaded', function() {
     // Setup file input handlers
     const docxInput = document.getElementById('docx-file-input');
     if (docxInput) {
-        window.appLogger?.componentStatus('DOCX_INPUT', 'found');
+        // FIX: Only attach one event listener, no nesting
         docxInput.addEventListener('change', (event) => {
-            window.appLogger?.action('DOCX_FILE_SELECTED', { 
-                fileCount: event.target.files.length,
-                fileName: event.target.files[0]?.name 
-            });
-            if(event.target.files.length === 0) return;
+            console.log('[DOCX DEBUG] File input changed', event.target.files);
+            if(event.target.files.length === 0) {
+                console.log('[DOCX DEBUG] No file selected');
+                return;
+            }
             const file = event.target.files[0];
+            console.log('[DOCX DEBUG] File:', file);
             const reader = new FileReader();
             reader.onload = function(loadEvent) {
-                window.appLogger?.action('DOCX_CONVERSION_START', { fileName: file.name });
+                console.log('[DOCX DEBUG] FileReader loaded');
+                if (typeof mammoth === 'undefined') {
+                    console.error('[DOCX DEBUG] mammoth is not defined!');
+                    return;
+                }
                 mammoth.convertToHtml({ arrayBuffer: loadEvent.target.result })
                     .then(result => {
-                        window.appLogger?.action('DOCX_CONVERSION_SUCCESS', { 
-                            fileName: file.name,
-                            contentLength: result.value.length 
-                        });
+                        console.log('[DOCX DEBUG] Mammoth conversion result:', result.value);
+                        console.log('[DOCX DEBUG] importEditorQuill:', window.importEditorQuill);
                         if (window.importEditorQuill) {
-                            //window.importEditorQuill.root.innerHTML = result.value;
                             insertHtmlAndCodeBlocksToQuill(window.importEditorQuill, result.value);
                             toggleImportEditorView('richtext');
+                        } else {
+                            console.error('[DOCX DEBUG] importEditorQuill is NOT available!');
                         }
                     })
-                    .catch(err => console.error("DOCX conversion error:", err));
+                    .catch(err => console.error('[DOCX DEBUG] Mammoth error:', err));
             };
             reader.readAsArrayBuffer(file);
         });
@@ -244,51 +298,164 @@ document.addEventListener('DOMContentLoaded', function() {
                 let sections = [];
                 let currentSection = null;
                 let pendingContent = '';
+                // Extract tags from [tag] patterns
                 function extractTags(text) {
                     const matches = [...text.matchAll(/\[([^\]]+)\]/g)];
                     return matches.map(m => m[1]);
                 }
+                // Extract categories from {{category:[tag1] [tag2]}} patterns
+                function extractCategories(text) {
+                    // Allow whitespace before/after colon and before/after brackets
+                    const matches = [...text.matchAll(/\{\{\s*([^:}]+)\s*:\s*\[([^\]]*)\]\s*\}\}/g)];
+                    let categories = [];
+                    matches.forEach(m => {
+                        const catName = m[1].trim();
+                        const tagsStr = m[2];
+                        // Split tags by spaces, commas, or semicolons
+                        const tags = tagsStr.split(/[ ,;]+/).map(t => t.trim()).filter(t => t);
+                        categories.push({ name: catName, tags });
+                    });
+                    return categories; // Always return an array
+                }
+                // Remove all category and tag patterns from title
                 function cleanTitle(text) {
-                    return text.replace(/\[([^\]]+)\]/g, '').trim();
+                    let cleaned = text.replace(/\{\{[^:}]+:\s*\[[^\]]*\]\}\}/g, '');
+                    cleaned = cleaned.replace(/\[([^\]]+)]/g, '');
+                    return cleaned.trim();
                 }
                 const elements = Array.from(doc.body.querySelectorAll(ALL_TAGS.join(',')));
                 elements.forEach((el, idx) => {
-                    if (el.tagName.toLowerCase() === 'h1') {
-                        // Before starting a new section, if there is pending content and no notes, create a blank note
-                        if (currentSection && pendingContent && (!currentSection.notes || currentSection.notes.length === 0)) {
-                            currentSection.notes = currentSection.notes || [];
-                            currentSection.notes.push({ id: crypto.randomUUID(), noteTitle: '', content: pendingContent, tags: [] });
-                        }
-                        pendingContent = '';
-                        if (currentSection) sections.push(currentSection);
-                        const tags = extractTags(el.textContent);
-                        currentSection = { id: crypto.randomUUID(), sectionTitle: cleanTitle(el.textContent), tags, notes: [] };
-                    } else if (NOTE_TAGS.includes(el.tagName.toLowerCase())) {
-                        // Before starting a new note, if there is pending content and no notes, create a blank note
-                        if (currentSection && pendingContent && (!currentSection.notes || currentSection.notes.length === 0)) {
-                            currentSection.notes = currentSection.notes || [];
-                            currentSection.notes.push({ id: crypto.randomUUID(), noteTitle: '', content: pendingContent, tags: [] });
-                            pendingContent = '';
-                        }
-                        const tags = extractTags(el.textContent);
-                        const note = { id: crypto.randomUUID(), noteTitle: cleanTitle(el.textContent), content: '', tags };
-                        currentSection.notes.push(note);
-                    } else if (currentSection) {
-                        if (currentSection.notes && currentSection.notes.length > 0) {
-                            const lastNote = currentSection.notes[currentSection.notes.length - 1];
-                            if (!lastNote.blocks) lastNote.blocks = [];
-                            // For lists, preserve the entire list structure (including nested lists)
-                            if (el.tagName.toLowerCase() === 'ul' || el.tagName.toLowerCase() === 'ol') {
-                                lastNote.blocks.push(el.outerHTML);
-                            } else {
-                                lastNote.blocks.push(el.outerHTML);
+                    try {
+                        if (el.tagName && typeof el.tagName.toLowerCase === 'function') {
+                            const tagName = el.tagName.toLowerCase();
+                    
+                            if (tagName === 'h1') {
+                                logFrontendImport({
+                                    event: 'IMPORT_HEADING_DEBUG',
+                                    type: 'section',
+                                    headingText: el.textContent
+                                });
+                    
+                                // Finalize previous section if needed
+                                if (currentSection && pendingContent && (!currentSection.notes || currentSection.notes.length === 0)) {
+                                    currentSection.notes = currentSection.notes || [];
+                                    currentSection.notes.push({
+                                        id: crypto.randomUUID(),
+                                        noteTitle: '',
+                                        content: pendingContent,
+                                        tags: []
+                                    });
+                                }
+                                pendingContent = '';
+                                if (currentSection) sections.push(currentSection);
+                    
+                                // Parse categories and tags
+                                let categories = [];
+                                let allCatTags = [];
+                                try {
+                                    categories = extractCategories(el.textContent) || [];
+                                    categories.forEach(cat => {
+                                        if (cat && Array.isArray(cat.tags)) {
+                                            allCatTags = allCatTags.concat(cat.tags);
+                                        }
+                                    });
+                                } catch (e) {
+                                    console.error('[IMPORT] Error extracting categories:', e);
+                                }
+                    
+                                let tags = [];
+                                try {
+                                    tags = extractTags(el.textContent) || [];
+                                } catch (e) {
+                                    console.error('[IMPORT] Error extracting tags:', e);
+                                }
+                    
+                                // Only keep tags that are NOT part of any category
+                                let singularTags = tags.filter(t => !allCatTags.includes(t));
+                                const sectionTitle = cleanTitle(el.textContent);
+                                // Merge category tags into the tags array
+                                let allTags = [...singularTags, ...allCatTags];
+                                console.log('[IMPORT] Section:', sectionTitle, 'Tags:', allTags, 'Categories:', categories);
+                    
+                                currentSection = {
+                                    id: crypto.randomUUID(),
+                                    sectionTitle,
+                                    tags: allTags,
+                                    notes: [],
+                                    categories
+                                };
+                                el.setAttribute('data-categories', JSON.stringify(categories));
+                                console.log('[DEBUG] Note to backend:', note);
+                            } else if (NOTE_TAGS.includes(tagName)) {
+                                if (currentSection && pendingContent && (!currentSection.notes || currentSection.notes.length === 0)) {
+                                    currentSection.notes = currentSection.notes || [];
+                                    currentSection.notes.push({
+                                        id: crypto.randomUUID(),
+                                        noteTitle: '',
+                                        content: pendingContent,
+                                        tags: []
+                                    });
+                                    pendingContent = '';
+                                }
+                    
+                                // Parse categories and tags
+                                let categories = [];
+                                let allCatTags = [];
+                                try {
+                                    categories = extractCategories(el.textContent) || [];
+                                    categories.forEach(cat => {
+                                        if (cat && Array.isArray(cat.tags)) {
+                                            allCatTags = allCatTags.concat(cat.tags);
+                                        }
+                                    });
+                                } catch (e) {
+                                    console.error('[IMPORT] Error extracting note categories:', e);
+                                }
+                    
+                                let tags = [];
+                                try {
+                                    tags = extractTags(el.textContent) || [];
+                                } catch (e) {
+                                    console.error('[IMPORT] Error extracting note tags:', e);
+                                }
+                    
+                                // Only keep tags that are NOT part of any category
+                                let singularTags = tags.filter(t => !allCatTags.includes(t));
+                                const noteTitle = cleanTitle(el.textContent);
+                                console.log('[IMPORT] Note:', noteTitle, 'Tags:', singularTags, 'Categories:', categories);
+                    
+                                const note = {
+                                    id: crypto.randomUUID(),
+                                    noteTitle,
+                                    content: '',
+                                    tags: singularTags,
+                                    categories
+                                };
+                                currentSection.notes.push(note);
+                                el.setAttribute('data-categories', JSON.stringify(categories));
+                                console.log('[DEBUG] Section to backend:', currentSection);
+                            } else if (currentSection) {
+                                if (currentSection.notes && currentSection.notes.length > 0) {
+                                    const lastNote = currentSection.notes[currentSection.notes.length - 1];
+                                    if (!lastNote.blocks) lastNote.blocks = [];
+                                    if (tagName === 'ul' || tagName === 'ol') {
+                                        lastNote.blocks.push(el.outerHTML);
+                                    } else {
+                                        lastNote.blocks.push(el.outerHTML);
+                                    }
+                                } else {
+                                    pendingContent += el.outerHTML;
+                                }
                             }
                         } else {
-                            pendingContent += el.outerHTML;
+                            console.warn('[IMPORT] Skipped element with invalid tagName:', el);
                         }
+                    } catch (err) {
+                        console.error('[IMPORT] Fatal error in section/note parsing:', err, el);
                     }
-                });
-                // At the end, if there is pending content and no notes, create a blank note
+                }); // <-- CLOSES the .forEach
+
+                // Now, OUTSIDE the .forEach, add the end-of-parsing logic:
                 if (currentSection && pendingContent && (!currentSection.notes || currentSection.notes.length === 0)) {
                     currentSection.notes = currentSection.notes || [];
                     currentSection.notes.push({ id: crypto.randomUUID(), noteTitle: '', content: pendingContent, tags: [] });
@@ -306,8 +473,40 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             
                 return sections;
-            }
+            } // <-- CLOSES the function
             const sections = parseSectionsFromHTML(htmlContent);
+            // Log the parsed sections and tagCategories before sending to backend
+            logFrontendImport({
+                event: 'IMPORT_SUBMIT',
+                htmlContent,
+                parsedSections: sections,
+                tagCategories: window.tagCategories,
+                timestamp: new Date().toISOString()
+            });
+            // Collect all categories and tags from parsed sections/notes
+            let allCategories = {};
+            sections.forEach(section => {
+                (section.categories || []).forEach(cat => {
+                    if (!allCategories[cat.name]) {
+                        allCategories[cat.name] = new Set();
+                    }
+                    cat.tags.forEach(tag => allCategories[cat.name].add(tag));
+                });
+                section.notes.forEach(note => {
+                    (note.categories || []).forEach(cat => {
+                        if (!allCategories[cat.name]) {
+                            allCategories[cat.name] = new Set();
+                        }
+                        cat.tags.forEach(tag => allCategories[cat.name].add(tag));
+                    });
+                });
+            });
+            // Convert to array format for UI
+            window.tagCategories = Object.entries(allCategories).map(([name, tagsSet]) => ({
+                name,
+                tags: Array.from(tagsSet)
+            }));
+            console.log('[IMPORT] Global categories:', window.tagCategories);
             // Wrap code blocks in each note's content
             sections.forEach(section => {
                 section.notes.forEach(note => {
@@ -320,11 +519,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 await fetch(`/import/clear?state=${encodeURIComponent(state)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
             }
             async function addSection(section) {
-                await fetch(`/import/add?state=${encodeURIComponent(state)}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ section })
-                });
+                try {
+                    // Log to backend what is being sent
+                    await fetch('/log_frontend', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ event: 'IMPORT_SECTION_SEND', state, section })
+                    });
+                    const response = await fetch(`/import/add?state=${encodeURIComponent(state)}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ section })
+                    });
+                    if (!response.ok) {
+                        console.error('[IMPORT] Import failed:', response.status, response.statusText);
+                    } else {
+                        const data = await response.text();
+                        console.log('[IMPORT] Import response:', data);
+                    }
+                } catch (error) {
+                    console.error('[IMPORT] POST error:', error);
+                }
             }
             // Progress bar logic
             const progressBarContainer = document.getElementById('import-progress-bar-container');
@@ -496,6 +711,21 @@ document.addEventListener('DOMContentLoaded', function() {
                         tagCount: window.tagInputs.note.tags.length
                     });
                 }
+                // FIX START: Add categories to the form
+                let categoriesHiddenInput = editNoteForm.querySelector('input[name="categories"]');
+                if (!categoriesHiddenInput) {
+                    categoriesHiddenInput = document.createElement('input');
+                    categoriesHiddenInput.type = 'hidden';
+                    categoriesHiddenInput.name = 'categories';
+                    editNoteForm.appendChild(categoriesHiddenInput);
+                }
+                const categoriesValue = JSON.stringify(window.tagInputs.note.getCategories() || []);
+                categoriesHiddenInput.value = categoriesValue;
+                window.appLogger?.action('NOTE_CATEGORIES_CAPTURED', {
+                    categories: categoriesValue,
+                    categoryCount: (window.tagInputs.note.getCategories() || []).length
+                });
+                // FIX END
             }
             
             // Log final form data before submission
@@ -532,8 +762,14 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // First try to scroll to the specific note
             const noteElement = document.querySelector(`[data-note-id="${editedNoteId}"]`) || 
-                               document.querySelector(`#note-${editedNoteId}`) ||
-                               document.querySelector(`[id*="${editedNoteId}"]`);
+                               document.querySelector(`#note-${sanitizeNoteId(editedNoteId)}`) ||
+                               document.querySelector(`[id*="${sanitizeNoteId(editedNoteId)}"]`);
+
+            // Helper to sanitize noteId for selectors
+            function sanitizeNoteId(noteId) {
+                if (!noteId) return '';
+                return String(noteId).replace(/['"%]/g, ''); // Remove quotes and percent signs
+            }
             
             if (noteElement) {
                 // Scroll to the note with some offset
