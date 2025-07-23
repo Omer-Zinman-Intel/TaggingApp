@@ -503,11 +503,11 @@
         
         input.addEventListener('focus', () => {
             console.log(`[TAG INPUT] Input focused`);
+            // Only show suggestions if input is non-empty
             if (input.value.trim()) {
                 showSuggestions();
             } else {
-                // Show suggestions even if input is empty
-                showSuggestions();
+                hideSuggestions();
             }
         });
         

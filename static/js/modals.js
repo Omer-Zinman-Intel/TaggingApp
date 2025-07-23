@@ -1,3 +1,15 @@
+// Global ESC key handler to close modals
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        // Find the topmost visible modal
+        const modals = Array.from(document.querySelectorAll('.modal')).filter(m => !m.classList.contains('hidden'));
+        if (modals.length > 0) {
+            // Hide the last (topmost) visible modal
+            const topModal = modals[modals.length - 1];
+            hideModal(topModal.id);
+        }
+    }
+});
 // --- Robust modal openers (single definition, robust initialization) ---
 function showCreateStateModal() {
     initializeModalSystem();

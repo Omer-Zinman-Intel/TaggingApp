@@ -1,8 +1,4 @@
-/* DEBUG: Highlight import modal and its children for troubleshooting */
-#importModal, #importModal * {
-  border: 2px solid red !important;
-  background: yellow !important;
-}
+
 /* Collapsed style for notes/sections */
 /* Only hide note/section content, not the title row */
 .collapsed-content {
@@ -10,21 +6,6 @@
 }
 .note-content {
   display: block;
-}
-
-/* DEBUG: Force all modals visible for troubleshooting */
-.modal {
-  display: flex !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  z-index: 9999 !important;
-}
-
-/* DEBUG: Highlight import modal and its children for troubleshooting */
-#importModal, #importModal * {
-  border: 2px solid red !important;
-  background: yellow !important;
-}
 }
 
 /* Separation between notes */

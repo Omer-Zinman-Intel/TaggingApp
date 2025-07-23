@@ -1040,6 +1040,7 @@ data-categories='{{ (note.categories or []) | tojson | safe }}'
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save Changes</button>
                 </div>
             </form>
+            </div>
          </div>
     </div>
     
@@ -1210,7 +1211,7 @@ data-categories='{{ (note.categories or []) | tojson | safe }}'
             <form id="importForm" action="{{ url_for('import_html', filter=request.args.getlist('filter'), state=current_state) }}" method="post" class="w-full flex flex-col h-full">
                 <div class="flex justify-between items-center p-4 border-b">
                     <h3 class="text-xl font-semibold">Import Content</h3>
-                     <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-4">
                         <label for="docx-file-input" class="file-input-button">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
                             Import .docx
@@ -1222,8 +1223,8 @@ data-categories='{{ (note.categories or []) | tojson | safe }}'
                 <div class="p-6 modal-body">
                     <div class="flex items-center justify-between mb-2">
                         <div id="import-editor-toggle-buttons" class="flex items-center rounded-md">
-                             <button type="button" onclick="toggleImportEditorView('richtext')" class="toggle-btn px-3 py-1 text-sm font-semibold bg-gray-200 rounded-l-md" title="Rich Text Editor">Rich Text</button>
-                             <button type="button" onclick="toggleImportEditorView('html')" class="toggle-btn px-3 py-1 text-sm font-semibold bg-gray-200 rounded-r-md" title="HTML Source Code">HTML</button>
+                            <button type="button" onclick="toggleImportEditorView('richtext')" class="toggle-btn px-3 py-1 text-sm font-semibold bg-gray-200 rounded-l-md" title="Rich Text Editor">Rich Text</button>
+                            <button type="button" onclick="toggleImportEditorView('html')" class="toggle-btn px-3 py-1 text-sm font-semibold bg-gray-200 rounded-r-md" title="HTML Source Code">HTML</button>
                         </div>
                         <button type="button" onclick="cleanActiveEditorContent('import')" title="Clean empty lines" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-gray-200 rounded-full">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M19 21V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v14"/><path d="M9 10l6 6"/><path d="M15 10l-6 6"/></svg>
