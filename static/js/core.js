@@ -306,20 +306,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Extract categories from {{category:[tag1] [tag2]}} patterns
                 function extractCategories(text) {
                     // Allow whitespace before/after colon and before/after brackets
-                    const matches = [...text.matchAll(/\{\{\s*([^:}]+)\s*:\s*\[([^\]]*)\]\s*\}\}/g)];
+                    // Match category patterns with any number of [tag] blocks, even if tags are empty
+                    const matches = [...text.matchAll(/\{\{\s*([^:}]+)\s*:\s*((?:\s*\[[^\]]*\])*)\s*\}\}/g)];
                     let categories = [];
                     matches.forEach(m => {
                         const catName = m[1].trim();
-                        const tagsStr = m[2];
-                        // Split tags by spaces, commas, or semicolons
-                        const tags = tagsStr.split(/[ ,;]+/).map(t => t.trim()).filter(t => t);
+                        let tags = [];
+                        if (m[2]) {
+                            // Find all [tag] blocks, including empty ones
+                            const tagMatches = [...m[2].matchAll(/\[([^\]]*)\]/g)];
+                            tagMatches.forEach(tm => {
+                                // Only add non-empty tags
+                                if (tm[1].trim()) {
+                                    tags.push(tm[1].trim());
+                                }
+                            });
+                        }
                         categories.push({ name: catName, tags });
                     });
                     return categories; // Always return an array
                 }
                 // Remove all category and tag patterns from title
                 function cleanTitle(text) {
-                    let cleaned = text.replace(/\{\{[^:}]+:\s*\[[^\]]*\]\}\}/g, '');
+                    // Remove everything from {{ to }} (greedy)
+                    let cleaned = text.replace(/\{\{[^}]*\}\}/g, '');
                     cleaned = cleaned.replace(/\[([^\]]+)]/g, '');
                     return cleaned.trim();
                 }

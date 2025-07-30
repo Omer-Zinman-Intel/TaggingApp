@@ -1,3 +1,65 @@
+# --- Category Deletion Logic ---
+def delete_category_and_associated_tags(category_name: str) -> dict:
+    """
+    Deletes a category and removes its tags if they are not used elsewhere (in other categories or in any section/note).
+    Returns a dict with details of what was deleted.
+    """
+    deleted_tags = []
+    deleted_category = None
+    # Find and remove the category
+    categories = core.document_state.get("tag_categories", [])
+    for idx, category in enumerate(categories):
+        if category.get("name") == category_name:
+            deleted_category = categories.pop(idx)
+            break
+    # Remove category from all notes and sections
+    if deleted_category:
+        deleted_id = deleted_category.get("id")
+        # Remove category ID from all sections and notes
+        for section in core.document_state.get("sections", []):
+            # Remove from section categories (by ID)
+            if "categories" in section:
+                section["categories"] = [cat for cat in section["categories"] if cat != deleted_id]
+            # Remove from notes categories (by ID)
+            for note in section.get("notes", []):
+                if "categories" in note:
+                    note["categories"] = [cat for cat in note["categories"] if cat != deleted_id]
+        # Remove tags only if not used elsewhere
+        for tag in deleted_category.get("tags", []):
+            # Check if tag is used in other categories
+            still_used = False
+            for cat in categories:
+                if tag in cat.get("tags", []):
+                    still_used = True
+                    break
+            # Check if tag is used in any section/note
+            if not still_used:
+                for section in core.document_state.get("sections", []):
+                    if tag in section.get("tags", []):
+                        still_used = True
+                        break
+                    for note in section.get("notes", []):
+                        if tag in note.get("tags", []):
+                            still_used = True
+                            break
+                    if still_used:
+                        break
+            if not still_used:
+                delete_tag_from_all_categories(tag)
+                deleted_tags.append(tag)
+    # Clean up orphans
+    cleanup_orphan_tags()
+    message = ""
+    if deleted_category:
+        message = f"Category '{category_name}' deleted. Tags removed: {deleted_tags if deleted_tags else 'None'}"
+    else:
+        message = f"Category '{category_name}' not found."
+    return {
+        "success": deleted_category is not None,
+        "deleted_category": deleted_category,
+        "deleted_tags": deleted_tags,
+        "message": message
+    }
 import uuid
 import copy
 from typing import List, Dict, Set, Optional, Any
@@ -96,9 +158,10 @@ def get_all_tags_for_suggestion() -> List[str]:
     available_tags = get_available_tags()
     for category in core.document_state.get("tag_categories", []):
         available_tags.update(category.get("tags", []))
-    # Remove all variations of 'all' from suggestions
+    # Always include 'all' (lowercase) as a suggestion, even if not present
     filtered_tags = [tag for tag in available_tags if tag.strip().lower() != 'all']
-    return sorted(filtered_tags, key=str.lower)
+    filtered_tags.append('all')
+    return sorted(set(filtered_tags), key=str.lower)
 
 def get_all_used_tags() -> Set[str]:
     """

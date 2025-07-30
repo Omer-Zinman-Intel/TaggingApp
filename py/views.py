@@ -92,6 +92,11 @@ def index():
             note['completed'] = note.get('id') in user_completed_notes
             note['collapsed'] = note.get('id') in collapsed_notes
 
+    # --- Remove orphan tags on every page reload ---
+    from py import tag_cleanup_util
+    core.document_state = tag_cleanup_util.remove_orphan_tags(core.document_state)
+    state_manager.save_state(current_state_name)
+
     sections_to_display = content_processor.get_filtered_sections(active_filters)
 
     # Debug output for tags sent to frontend
