@@ -377,7 +377,7 @@ before being sent to the browser as valid HTML/JavaScript.
         </div>
         <div id="find-in-text-widget" class="flex flex-col items-start">
             <div id="find-in-text-panel" style="display:none;"
-                class="mt-2 bg-white rounded-xl shadow-xl border border-gray-200 p-3 flex flex-col gap-2 w-72">
+                class="mt-2 bg-white rounded-xl shadow-xl border border-gray-200 p-3 flex flex-col gap-2 w-80">
                 <div class="flex items-center gap-2">
                     <input id="find-in-text-input" type="text" placeholder="Find in text..."
                         class="flex-grow border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
@@ -388,6 +388,20 @@ before being sent to the browser as valid HTML/JavaScript.
                             stroke="currentColor" stroke-width="2">
                             <line x1="18" y1="6" x2="6" y2="18" />
                             <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="flex items-center gap-2 mt-2">
+                    <input id="find-in-text-replace" type="text" placeholder="Replace with..."
+                        class="flex-grow border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                    <button id="find-in-text-replace-all"
+                        class="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-md focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors"
+                        title="Replace all occurrences">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor" stroke-width="2">
+                            <path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H5a2 2 0 0 0-2-2z"/>
+                            <polyline points="3,7 8,12 3,17"/>
+                            <line x1="21" y1="12" x2="9" y2="12"/>
                         </svg>
                     </button>
                 </div>
@@ -443,6 +457,39 @@ before being sent to the browser as valid HTML/JavaScript.
             background: #e0e7ff !important;
             box-shadow: 0 0 0 2px #6366f1;
             transition: background 0.2s, box-shadow 0.2s;
+        }
+
+        /* Replace functionality styling */
+        #find-in-text-replace:focus {
+            border-color: #10b981;
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+        }
+
+        #find-in-text-replace-all:active {
+            transform: translateY(1px);
+        }
+
+        #find-in-text-replace-all:disabled {
+            color: #9ca3af !important;
+            cursor: not-allowed;
+            transform: none;
+            background-color: transparent !important;
+        }
+
+        #find-in-text-replace-all:disabled:hover {
+            color: #9ca3af !important;
+            background-color: transparent !important;
+        }
+
+        /* Loading spinner animation */
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        
+        .animate-spin {
+            animation: spin 1s linear infinite;
         }
     </style>
 

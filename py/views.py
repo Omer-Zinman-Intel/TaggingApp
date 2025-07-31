@@ -1310,6 +1310,84 @@ def expand_all():
     user_config_manager.save_user_config(username, config)
     return jsonify({"success": True})
 
+def replace_text():
+    """Replace all occurrences of text in the document content"""
+    state_name = request.args.get('state') or request.json.get('state')
+    if not state_name:
+        return jsonify({'success': False, 'message': 'Missing state'}), 400
+    
+    try:
+        data = request.get_json(force=True)
+        find_text = data.get('findText', '').strip()
+        replace_text = data.get('replaceText', '')
+        
+        if not find_text:
+            return jsonify({'success': False, 'message': 'Find text is required'}), 400
+        
+        # Get the current document state
+        document_state = core.document_state
+        
+        # Track replacements
+        total_replacements = 0
+        sections_updated = []
+        
+        # Replace in section titles
+        for section in document_state.get('sections', []):
+            if find_text.lower() in section.get('sectionTitle', '').lower():
+                original_title = section['sectionTitle']
+                # Case-insensitive replacement
+                import re
+                new_title = re.sub(re.escape(find_text), replace_text, section['sectionTitle'], flags=re.IGNORECASE)
+                section['sectionTitle'] = new_title
+                total_replacements += len(re.findall(re.escape(find_text), original_title, flags=re.IGNORECASE))
+                sections_updated.append(section['id'])
+        
+        # Replace in note titles and content
+        for section in document_state.get('sections', []):
+            for note in section.get('notes', []):
+                note_updated = False
+                
+                # Replace in note title
+                if find_text.lower() in note.get('noteTitle', '').lower():
+                    original_title = note['noteTitle']
+                    import re
+                    new_title = re.sub(re.escape(find_text), replace_text, note['noteTitle'], flags=re.IGNORECASE)
+                    note['noteTitle'] = new_title
+                    total_replacements += len(re.findall(re.escape(find_text), original_title, flags=re.IGNORECASE))
+                    note_updated = True
+                
+                # Replace in note content
+                if find_text.lower() in note.get('content', '').lower():
+                    original_content = note['content']
+                    import re
+                    new_content = re.sub(re.escape(find_text), replace_text, note['content'], flags=re.IGNORECASE)
+                    note['content'] = new_content
+                    total_replacements += len(re.findall(re.escape(find_text), original_content, flags=re.IGNORECASE))
+                    note_updated = True
+                
+                if note_updated:
+                    sections_updated.append(section['id'])
+        
+        # Save the changes to the backend
+        if total_replacements > 0:
+            save_result = state_manager.save_state(state_name)
+            if not save_result:
+                return jsonify({'success': False, 'message': 'Failed to save changes to backend'}), 500
+            
+            print(f"✅ Text replacement completed: {total_replacements} occurrences replaced in state '{state_name}'")
+            return jsonify({
+                'success': True, 
+                'message': f'Successfully replaced {total_replacements} occurrence(s)',
+                'replacements': total_replacements,
+                'sectionsUpdated': list(set(sections_updated))
+            })
+        else:
+            return jsonify({'success': False, 'message': 'No occurrences found to replace'}), 404
+            
+    except Exception as e:
+        print(f"Error in replace_text: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 # Register route for expand_all
 from flask import current_app
 ## Remove Flask route registration from this file. Route will be registered in app.py

@@ -17,15 +17,17 @@ document.addEventListener('DOMContentLoaded', function() {
   const toggleBtn = document.getElementById('find-in-text-toggle');
   const panel = document.getElementById('find-in-text-panel');
   const input = document.getElementById('find-in-text-input');
+  const replaceInput = document.getElementById('find-in-text-replace');
+  const replaceAllBtn = document.getElementById('find-in-text-replace-all');
   const closeBtn = document.getElementById('find-in-text-close');
   const prevBtn = document.getElementById('find-in-text-prev');
   const nextBtn = document.getElementById('find-in-text-next');
   const countSpan = document.getElementById('find-in-text-count');
-  if (!toggleBtn || !panel || !input || !closeBtn || !prevBtn || !nextBtn || !countSpan) {
+  if (!toggleBtn || !panel || !input || !replaceInput || !replaceAllBtn || !closeBtn || !prevBtn || !nextBtn || !countSpan) {
     if (window.appLogger) {
       window.appLogger.componentStatus('FIND_IN_TEXT_WIDGET', 'error', {
         message: '[Find in Text] One or more required elements are missing',
-        toggleBtn, panel, input, closeBtn, prevBtn, nextBtn, countSpan
+        toggleBtn, panel, input, replaceInput, replaceAllBtn, closeBtn, prevBtn, nextBtn, countSpan
       });
     }
     return;
@@ -103,6 +105,7 @@ document.addEventListener('DOMContentLoaded', function() {
     } while (found);
     matches = [];
     currentIdx = -1;
+    replaceAllBtn.disabled = true;
   }
 
   function highlightMatches(phrase) {
@@ -110,6 +113,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!phrase || phrase.length < 1) {
       countSpan.textContent = '0 / 0';
       debugOverlay.style.display = 'none';
+      replaceAllBtn.disabled = true;
       if (window.appLogger) window.appLogger.action('FIND_IN_TEXT_SEARCH_CLEARED', { value: phrase });
       return;
     }
@@ -145,9 +149,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (matches.length > 0) {
       currentIdx = 0;
       updateCurrent();
+      replaceAllBtn.disabled = false;
       if (window.appLogger) window.appLogger.action('FIND_IN_TEXT_SEARCH_MATCHES', { value: phrase, count: matches.length });
     } else {
       currentIdx = -1;
+      replaceAllBtn.disabled = true;
       if (window.appLogger) window.appLogger.action('FIND_IN_TEXT_SEARCH_NO_MATCHES', { value: phrase });
       // Show a message in the widget if nothing found
       countSpan.textContent = '0 / 0 (no matches)';
@@ -179,6 +185,119 @@ document.addEventListener('DOMContentLoaded', function() {
     updateCurrent();
   }
 
+  function replaceAll() {
+    const findText = input.value.trim();
+    const replaceText = replaceInput.value;
+    
+    if (!findText || matches.length === 0) {
+      if (window.appLogger) window.appLogger.action('FIND_IN_TEXT_REPLACE_NO_MATCHES', { findText, replaceText });
+      return;
+    }
+
+    // Confirm with user before replacing all
+    const confirmMessage = `Replace all ${matches.length} occurrences of "${findText}" with "${replaceText}"?`;
+    if (!confirm(confirmMessage)) {
+      if (window.appLogger) window.appLogger.action('FIND_IN_TEXT_REPLACE_CANCELLED', { findText, replaceText, count: matches.length });
+      return;
+    }
+
+    // Show loading state
+    replaceAllBtn.disabled = true;
+    replaceAllBtn.innerHTML = '<svg class="animate-spin" width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" stroke-dasharray="31.416" stroke-dashoffset="31.416"><animate attributeName="stroke-dasharray" dur="2s" values="0 31.416;15.708 15.708;0 31.416" repeatCount="indefinite"/><animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416" repeatCount="indefinite"/></circle></svg>';
+
+    // Get current state from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentState = urlParams.get('state') || 'Default_State';
+
+    // Send request to backend
+    fetch('/replace_text?state=' + encodeURIComponent(currentState), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        findText: findText,
+        replaceText: replaceText
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Clear highlights and reset search
+        clearHighlights();
+        input.value = '';
+        replaceInput.value = '';
+        countSpan.textContent = '0 / 0';
+
+        if (window.appLogger) window.appLogger.action('FIND_IN_TEXT_REPLACE_ALL_SUCCESS', { 
+          findText, 
+          replaceText, 
+          count: data.replacements 
+        });
+
+        // Show success message
+        showReplaceSuccess(data.replacements);
+        
+        // Reload the page to show updated content
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        throw new Error(data.message || 'Replace operation failed');
+      }
+    })
+    .catch(error => {
+      console.error('Replace error:', error);
+      if (window.appLogger) window.appLogger.error('FindInText replaceAll error:', error);
+      alert('Error occurred while replacing text: ' + error.message);
+    })
+    .finally(() => {
+      // Restore button state
+      replaceAllBtn.disabled = false;
+      replaceAllBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H5a2 2 0 0 0-2-2z"/><polyline points="3,7 8,12 3,17"/><line x1="21" y1="12" x2="9" y2="12"/></svg>';
+    });
+  }
+
+  function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function showReplaceSuccess(count) {
+    // Create a temporary success message
+    const successMsg = document.createElement('div');
+    successMsg.style.position = 'fixed';
+    successMsg.style.top = '20px';
+    successMsg.style.right = '20px';
+    successMsg.style.background = '#10b981';
+    successMsg.style.color = 'white';
+    successMsg.style.padding = '12px 16px';
+    successMsg.style.borderRadius = '8px';
+    successMsg.style.fontSize = '14px';
+    successMsg.style.fontWeight = '500';
+    successMsg.style.zIndex = '10000';
+    successMsg.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+    successMsg.style.transform = 'translateX(100%)';
+    successMsg.style.transition = 'transform 0.3s ease-out';
+    successMsg.textContent = `Successfully replaced ${count} occurrence${count !== 1 ? 's' : ''}`;
+    
+    document.body.appendChild(successMsg);
+    
+    // Animate in
+    setTimeout(() => {
+      successMsg.style.transform = 'translateX(0)';
+    }, 10);
+    
+    // Animate out and remove
+    setTimeout(() => {
+      successMsg.style.transform = 'translateX(100%)';
+      setTimeout(() => {
+        if (successMsg.parentNode) {
+          successMsg.parentNode.removeChild(successMsg);
+        }
+      }, 300);
+    }, 3000);
+  }
+
   // Show/hide logic with focus and highlight reset
   function openPanel() {
     panel.style.display = 'block';
@@ -186,6 +305,7 @@ document.addEventListener('DOMContentLoaded', function() {
       input.focus();
       input.select();
     }, 50);
+    replaceAllBtn.disabled = true;
     if (input.value) {
       highlightMatches(input.value);
     }
@@ -222,6 +342,8 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   nextBtn.addEventListener('click', next);
   prevBtn.addEventListener('click', prev);
+  replaceAllBtn.addEventListener('click', replaceAll);
+  
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
       if (e.shiftKey) {
@@ -229,6 +351,13 @@ document.addEventListener('DOMContentLoaded', function() {
       } else {
         next();
       }
+      e.preventDefault();
+    }
+  });
+  
+  replaceInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      replaceAll();
       e.preventDefault();
     }
   });

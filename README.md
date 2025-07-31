@@ -794,6 +794,16 @@ The Find in Text widget is a powerful, always-accessible floating search tool fo
 - **Edge Case Handling**: Handles adjacent, nested, and overlapping matches without breaking the DOM or user experience. Special care is taken to avoid highlighting inside hidden elements, scripts, or styles.
 - **No Performance Lag**: Even with large documents, the search and highlight logic is optimized for speed and responsiveness.
 
+### Replace Functionality
+- **Find and Replace**: Built on top of the existing find mechanism, the replace functionality allows you to replace all occurrences of found text with new content.
+- **Replace All**: Click the "Replace All" button to replace all occurrences of the search term with the replacement text.
+- **Confirmation Dialog**: A confirmation dialog shows the number of occurrences that will be replaced before proceeding.
+- **Keyboard Shortcut**: Press Enter in the replace input field to trigger the replace all operation.
+- **Success Feedback**: A green notification appears showing how many occurrences were successfully replaced.
+- **Smart Content Handling**: Automatically detects and handles Quill rich text editors, ensuring proper replacement in both regular content and rich text areas.
+- **Button State Management**: The replace button is automatically disabled when there are no matches, and enabled when matches are found.
+- **Case-Insensitive Replacement**: Replaces all variations of the search term regardless of capitalization.
+
 ### Navigation & Usability
 - **Keyboard Navigation**: Press Enter to jump to the next match, Shift+Enter for the previous match. Navigation wraps around at the end/beginning.
 - **UI Navigation**: Use the next/previous buttons in the widget for mouse-based navigation.
