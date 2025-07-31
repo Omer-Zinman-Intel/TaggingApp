@@ -247,6 +247,15 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             const file = event.target.files[0];
             console.log('[DOCX DEBUG] File:', file);
+            
+            // Auto-populate document title with filename (without extension)
+            const documentTitleInput = document.getElementById('importDocumentTitle');
+            if (documentTitleInput && !documentTitleInput.value) {
+                const fileName = file.name.replace(/\.docx$/i, '').replace(/\.doc$/i, '');
+                documentTitleInput.value = fileName;
+                console.log('[DOCX DEBUG] Auto-populated document title:', fileName);
+            }
+            
             const reader = new FileReader();
             reader.onload = function(loadEvent) {
                 console.log('[DOCX DEBUG] FileReader loaded');
@@ -524,22 +533,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             });
             const importMode = importForm.querySelector('input[name="import_mode"]:checked').value;
+            const documentTitle = document.getElementById('importDocumentTitle').value.trim();
             const state = window.CURRENT_STATE;
             async function clearState() {
                 await fetch(`/import/clear?state=${encodeURIComponent(state)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
             }
-            async function addSection(section) {
+            async function addSection(section, isFirstSection = false) {
                 try {
                     // Log to backend what is being sent
                     await fetch('/log_frontend', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ event: 'IMPORT_SECTION_SEND', state, section })
+                        body: JSON.stringify({ event: 'IMPORT_SECTION_SEND', state, section, isFirstSection })
                     });
                     const response = await fetch(`/import/add?state=${encodeURIComponent(state)}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ section })
+                        body: JSON.stringify({ 
+                            section,
+                            document_title: isFirstSection ? documentTitle : null
+                        })
                     });
                     if (!response.ok) {
                         console.error('[IMPORT] Import failed:', response.status, response.statusText);
@@ -576,7 +589,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     await clearState();
                 }
                 for (let i = 0; i < sections.length; i++) {
-                    await addSection(sections[i]);
+                    await addSection(sections[i], i === 0); // Pass isFirstSection=true for the first section
                     updateProgressBar(i + 1, sections.length);
                 }
                 setTimeout(() => {
@@ -601,6 +614,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (hiddenInput) {
                     const tags = window.tagInputs.section.tags || [];
                     hiddenInput.value = tags.join(', ');
+                }
+                
+                // Also handle categories
+                const categoriesHiddenInput = document.getElementById('editSectionCategories');
+                if (categoriesHiddenInput) {
+                    const categories = window.tagInputs.section.categories || [];
+                    categoriesHiddenInput.value = JSON.stringify(categories);
                 }
             }
         });

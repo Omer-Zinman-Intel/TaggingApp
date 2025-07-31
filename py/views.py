@@ -693,6 +693,7 @@ def import_html():
     state_name = request.args.get('state')
     html_content = request.form.get("html_content")
     import_mode = request.form.get("import_mode", "overwrite")
+    document_title = request.form.get("document_title", "").strip()
 
     # --- NEW LOGGER: Log the full incoming payload from the frontend ---
     try:
@@ -835,6 +836,11 @@ def import_html():
             core.document_state['tag_categories'] = tag_cats
             flash("Content appended to the end of the document.", "success")
             debug_import_log("Aggregate mode: sections and categories appended.")
+        # Update document title if provided
+        if document_title:
+            core.document_state['documentTitle'] = document_title
+            debug_import_log(f"Document title updated to: {document_title}")
+        
         tag_manager.cleanup_orphan_tags()
         state_manager.save_state(state_name)
         debug_import_log("State saved after import.")
@@ -1245,6 +1251,13 @@ def import_add():
     
     # Add section
     core.document_state.setdefault('sections', []).append(section)
+    
+    # Update document title if provided (only for the first section)
+    document_title = request.json.get('document_title')
+    if document_title and document_title.strip():
+        core.document_state['documentTitle'] = document_title.strip()
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(f"[{timestamp}] Document title updated to: {document_title}\n")
 
     # Update known_tags
     tags = set(section.get('tags', []))

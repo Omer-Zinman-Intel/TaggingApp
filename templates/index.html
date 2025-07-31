@@ -491,6 +491,42 @@ before being sent to the browser as valid HTML/JavaScript.
         .animate-spin {
             animation: spin 1s linear infinite;
         }
+
+        /* Modal responsive improvements */
+        .modal-body {
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+
+        /* Ensure consistent modal heights */
+        .modal-container {
+            max-height: calc(100vh - 2rem);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-container form {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-container .modal-body {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        @media (max-height: 600px) {
+            .modal-body {
+                max-height: calc(100vh - 150px);
+            }
+        }
+
+        @media (max-height: 500px) {
+            .modal-body {
+                max-height: calc(100vh - 120px);
+            }
+        }
     </style>
 
     </script>
@@ -1249,8 +1285,8 @@ before being sent to the browser as valid HTML/JavaScript.
         </div>
 
         <div id="editSectionModal"
-            class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 hidden opacity-0">
-            <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
+            class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-start p-4 hidden opacity-0 overflow-y-auto">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-lg my-4">
                 <form id="editSectionForm" method="post" class="w-full">
                     <div class="flex justify-between items-center p-4 border-b">
                         <h3 class="text-xl font-semibold">Edit Section</h3><button type="button"
@@ -1301,6 +1337,7 @@ before being sent to the browser as valid HTML/JavaScript.
                                         placeholder="Add a tag...">
                                 </div>
                                 <input type="hidden" id="editSectionTags" name="tags">
+                                <input type="hidden" id="editSectionCategories" name="categories">
                                 <div id="section-suggestions"
                                     class="tag-suggestions absolute left-0 z-10 w-full bg-white border border-gray-300 rounded-md hidden shadow-lg">
                                     {# Only show all categories for suggestion, avoid referencing undefined section #}
@@ -1328,8 +1365,8 @@ before being sent to the browser as valid HTML/JavaScript.
         </div>
 
         <div id="editNoteModal"
-            class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 hidden opacity-0">
-            <div class="bg-white rounded-lg shadow-xl w-full max-w-5xl modal-container">
+            class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-start p-4 hidden opacity-0 overflow-y-auto">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-5xl modal-container my-4">
                 <form id="editNoteForm" method="post" class="w-full flex flex-col h-full">
                     <div class="flex justify-between items-center p-4 border-b">
                         <h3 class="text-xl font-semibold">Edit Note</h3>
@@ -1667,8 +1704,8 @@ before being sent to the browser as valid HTML/JavaScript.
 
 
     <div id="importModal"
-        class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 hidden opacity-0">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-5xl modal-container">
+        class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-start p-4 hidden opacity-0 overflow-y-auto">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-5xl modal-container my-4">
             <form id="importForm"
                 action="{{ url_for('import_html', filter=request.args.getlist('filter'), state=current_state) }}"
                 method="post" class="w-full flex flex-col h-full">
@@ -1691,7 +1728,13 @@ before being sent to the browser as valid HTML/JavaScript.
                             class="p-1 rounded-full hover:bg-gray-200">&times;</button>
                     </div>
                 </div>
-                <div class="p-6 modal-body">
+                <div class="p-6 space-y-4 modal-body">
+                    <div>
+                        <label for="importDocumentTitle" class="block text-sm font-medium text-gray-700 mb-1">Document Title</label>
+                        <input type="text" id="importDocumentTitle" name="document_title" 
+                               class="w-full p-2 border border-gray-300 rounded-md text-sm" 
+                               placeholder="Enter document title...">
+                    </div>
                     <div class="flex items-center justify-between mb-2">
                         <div id="import-editor-toggle-buttons" class="flex items-center rounded-md">
                             <button type="button" onclick="toggleImportEditorView('richtext')"

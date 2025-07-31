@@ -1046,6 +1046,14 @@ window.showAddAndTagModal = function() {
     modal.classList.remove('hidden');
     modal.classList.remove('opacity-0');
     initAddAndTagModal();
+    
+    // Focus on the first input component after a short delay to ensure DOM is ready
+    setTimeout(() => {
+        const firstInput = document.querySelector('#andTagComponentsContainer input[data-index="0"]');
+        if (firstInput) {
+            firstInput.focus();
+        }
+    }, 100);
 };
 
 // Global functions for AND tag editing
