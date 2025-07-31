@@ -678,12 +678,11 @@ before being sent to the browser as valid HTML/JavaScript.
                                     draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}"
                                     data-tag-name="{{ tag }}" data-source-category-id="all_tags">
                                     <span onclick='handleTagClick(event, {{ tag|tojson|safe }})'
-                                        oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }}); return false;'>{{
-                                        tag }}</span>
+                                        oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }}); return false;'>{{ tag }}</span>
                                     <div
                                         class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white shadow-lg rounded-md p-1 flex items-center z-20 opacity-0 group-hover/tag:opacity-100 transition-opacity pointer-events-none group-hover/tag:pointer-events-auto">
                                         <button
-                                            onclick='console.log("Button clicked for tag:", {{ tag|tojson|safe }}); event.stopPropagation(); showRenameModal({{ tag|tojson|safe }})'
+                                            onclick='event.stopPropagation(); showRenameModal({{ tag|tojson|safe }})'
                                             class="p-1 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-md"
                                             title="Rename tag">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
@@ -774,8 +773,7 @@ before being sent to the browser as valid HTML/JavaScript.
                                     draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}"
                                     data-tag-name="{{ tag }}" data-source-category-id="{{ category.id }}" data-category-id="{{ category.id }}">
                                     <span onclick='handleTagClick(event, {{ tag|tojson|safe }})'
-                                        oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }}, {{ category.id|tojson|safe }}); return false;'>{{
-                                        tag }}</span>
+                                        oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }}, {{ category.id|tojson|safe }}); return false;'>{{ tag }}</span>
                                     <div
                                         class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white shadow-lg rounded-md p-1 flex items-center z-20 opacity-0 group-hover/tag:opacity-100 transition-opacity pointer-events-none group-hover/tag:pointer-events-auto">
                                         <button
@@ -1393,7 +1391,7 @@ before being sent to the browser as valid HTML/JavaScript.
                                     class="toggle-btn px-3 py-1 text-sm font-semibold bg-gray-200 rounded-r-md"
                                     title="Preview Content">Preview</button>
                             </div>
-                            <button type="button" onclick="console.log('X button clicked!'); hideModal('editNoteModal')"
+                                                            <button type="button" onclick="hideModal('editNoteModal')"
                                 class="p-1 rounded-full hover:bg-gray-200">&times;</button>
                         </div>
                     </div>
@@ -1466,7 +1464,7 @@ before being sent to the browser as valid HTML/JavaScript.
                         </div>
                         <div class="p-4 bg-gray-50 flex justify-end space-x-3 rounded-b-lg border-t">
                             <button type="button"
-                                onclick="console.log('Cancel button clicked!'); hideModal('editNoteModal')"
+                                onclick="hideModal('editNoteModal')"
                                 class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
                             <button type="submit"
                                 class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Save
@@ -1829,7 +1827,7 @@ before being sent to the browser as valid HTML/JavaScript.
         document.addEventListener('DOMContentLoaded', function () {
             // Initialize editors now that all scripts are loaded
             if (typeof initializeEditors === 'function') {
-                console.log('🔄 Initializing editors from HTML template...');
+        
                 window.appLogger?.componentStatus('EDITORS', 'initializing');
                 initializeEditors();
                 window.appLogger?.componentStatus('EDITORS', 'initialized');

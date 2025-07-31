@@ -2,21 +2,39 @@
 def delete_category_and_associated_tags(category_name: str) -> dict:
     """
     Deletes a category and removes all its tags from the global known_tags list.
+    Also cleans up category references in sections and notes.
     Returns a dict with the deleted category info and affected tags.
     """
     category_name_lower = category_name.lower()
     deleted_category = None
     affected_tags = []
+    category_id = None
     
     # Find and remove the category
     for i, category in enumerate(core.document_state.get("tag_categories", [])):
         if category.get("name", "").lower() == category_name_lower:
             deleted_category = category
+            category_id = category.get("id")
             affected_tags = category.get("tags", [])
             core.document_state["tag_categories"].pop(i)
             break
     
-    if deleted_category:
+    if deleted_category and category_id:
+        # Clean up category references in sections and notes
+        for section in core.document_state.get("sections", []):
+            # Remove category from section categories
+            section_categories = section.get("categories", [])
+            if category_id in section_categories:
+                section_categories.remove(category_id)
+                section["categories"] = section_categories
+            
+            # Remove category from note categories
+            for note in section.get("notes", []):
+                note_categories = note.get("categories", [])
+                if category_id in note_categories:
+                    note_categories.remove(category_id)
+                    note["categories"] = note_categories
+        
         # Remove affected tags from known_tags if they're not used elsewhere
         for tag in affected_tags:
             tag_used_elsewhere = False
@@ -55,18 +73,30 @@ def should_show_content_for_filter(content_tags, content_categories, filter_tag)
     """
     Determines if content should be shown based on the filter tag.
     Handles both singular tags and AND tags.
+    Also considers category membership - if content belongs to a category,
+    it's treated as having all tags from that category.
     """
     if not filter_tag:
         return True
     
+    # Get all available tags for this content (direct tags + category tags)
+    all_content_tags = set(content_tags)
+    
+    # Add tags from categories that this content belongs to
+    for category_id in content_categories:
+        for category in core.document_state.get("tag_categories", []):
+            if str(category.get("id")) == str(category_id):
+                all_content_tags.update(category.get("tags", []))
+                break
+    
     # Handle AND tags (containing '&')
     if '&' in filter_tag:
         components = [comp.strip() for comp in filter_tag.split('&')]
-        # Content must have ALL components
-        return all(comp in content_tags for comp in components)
+        # Content must have ALL components (either directly or via category membership)
+        return all(comp in all_content_tags for comp in components)
     else:
-        # Handle singular tags - content must have the tag
-        return filter_tag in content_tags
+        # Handle singular tags - content must have the tag (either directly or via category membership)
+        return filter_tag in all_content_tags
 
 # --- Logging helper ---
 def log_tag_deletion(action: str, tag: str, details: str = "", before=None, after=None, context=None):
