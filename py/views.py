@@ -954,9 +954,10 @@ def delete_category():
     
     # Build comprehensive success message
     success_message = f"Category '{category_to_delete['name']}' deleted and its tags moved to 'Uncategorized'."
-    if category_deletion_result['success']:
-        if "CATEGORY:" in category_deletion_result['message']:
-            success_message += f" {category_deletion_result['message'].split('. ', 1)[1] if '. ' in category_deletion_result['message'] else category_deletion_result['message']}"
+    if category_deletion_result.get('deleted_category'):
+        affected_tags = category_deletion_result.get('affected_tags', [])
+        if affected_tags:
+            success_message += f" {len(affected_tags)} tags were affected."
     
     flash(success_message, "success")
     return redirect(get_redirect_url())

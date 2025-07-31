@@ -300,3 +300,98 @@ def cleanup_orphan_tags() -> None:
     # Persist the cleaned state immediately if possible
     if hasattr(core, 'save_state'):
         core.save_state()
+
+def remove_tag_globally(tag_name: str) -> dict:
+    """
+    Removes a tag from all content globally (sections, notes, categories).
+    Returns a dict with 'success' and 'message' keys.
+    """
+    if not tag_name:
+        return {"success": False, "message": "No tag name provided."}
+    
+    removed_count = 0
+    
+    # Remove from sections
+    for section in core.document_state.get("sections", []):
+        if tag_name in section.get("tags", []):
+            section["tags"].remove(tag_name)
+            removed_count += 1
+    
+    # Remove from notes
+    for section in core.document_state.get("sections", []):
+        for note in section.get("notes", []):
+            if tag_name in note.get("tags", []):
+                note["tags"].remove(tag_name)
+                removed_count += 1
+    
+    # Remove from categories
+    for category in core.document_state.get("tag_categories", []):
+        if tag_name in category.get("tags", []):
+            category["tags"].remove(tag_name)
+            removed_count += 1
+    
+    # Remove from known_tags
+    if tag_name in core.document_state.get("known_tags", []):
+        core.document_state["known_tags"].remove(tag_name)
+    
+    # Remove from and_tags
+    if tag_name in core.document_state.get("and_tags", []):
+        core.document_state["and_tags"].remove(tag_name)
+    
+    if removed_count > 0:
+        return {"success": True, "message": f"Tag '{tag_name}' removed from {removed_count} locations globally."}
+    else:
+        return {"success": False, "message": f"Tag '{tag_name}' not found in any content."}
+
+def rename_tag_globally(old_tag: str, new_tag: str) -> dict:
+    """
+    Renames a tag in all content globally (sections, notes, categories).
+    Returns a dict with 'success' and 'message' keys.
+    """
+    if not old_tag or not new_tag:
+        return {"success": False, "message": "Both old and new tag names are required."}
+    
+    if old_tag == new_tag:
+        return {"success": False, "message": "Old and new tag names are the same."}
+    
+    renamed_count = 0
+    
+    # Rename in sections
+    for section in core.document_state.get("sections", []):
+        if old_tag in section.get("tags", []):
+            section["tags"] = [new_tag if tag == old_tag else tag for tag in section["tags"]]
+            renamed_count += 1
+    
+    # Rename in notes
+    for section in core.document_state.get("sections", []):
+        for note in section.get("notes", []):
+            if old_tag in note.get("tags", []):
+                note["tags"] = [new_tag if tag == old_tag else tag for tag in note["tags"]]
+                renamed_count += 1
+    
+    # Rename in categories
+    for category in core.document_state.get("tag_categories", []):
+        if old_tag in category.get("tags", []):
+            category["tags"] = [new_tag if tag == old_tag else tag for tag in category["tags"]]
+            renamed_count += 1
+    
+    # Update known_tags
+    if old_tag in core.document_state.get("known_tags", []):
+        known_tags = core.document_state["known_tags"]
+        known_tags.remove(old_tag)
+        if new_tag not in known_tags:
+            known_tags.append(new_tag)
+        core.document_state["known_tags"] = sorted(known_tags, key=str.lower)
+    
+    # Update and_tags
+    if old_tag in core.document_state.get("and_tags", []):
+        and_tags = core.document_state["and_tags"]
+        and_tags.remove(old_tag)
+        if new_tag not in and_tags:
+            and_tags.append(new_tag)
+        core.document_state["and_tags"] = sorted(and_tags, key=str.lower)
+    
+    if renamed_count > 0:
+        return {"success": True, "message": f"Tag '{old_tag}' renamed to '{new_tag}' in {renamed_count} locations globally."}
+    else:
+        return {"success": False, "message": f"Tag '{old_tag}' not found in any content."}
