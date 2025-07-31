@@ -9,9 +9,10 @@
 5. [Consolidation Summary](#consolidation-summary)
 6. [Logging System](#logging-system)
 7. [Tag Input Positioning](#tag-input-positioning)
-8. [API Reference](#api-reference)
-9. [Development Guide](#development-guide)
-10. [Troubleshooting](#troubleshooting)
+8. [User Configuration Management](#user-configuration-management)
+9. [API Reference](#api-reference)
+10. [Development Guide](#development-guide)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -28,6 +29,11 @@ TaggingApp is a comprehensive document management system that allows users to cr
 - **Real-time Logging**: Comprehensive tracking of all user interactions
 - **State Management**: Multiple document states with easy switching
 - **Import/Export**: Support for HTML import and PDF export
+- **Find & Replace**: Powerful search and replace functionality with persistent changes
+- **Responsive Modals**: Fully responsive modal dialogs that work on all screen sizes
+- **Document Title Management**: Automatic document title handling during imports
+- **Floating Widgets**: Always-accessible search and content navigation tools
+- **User Configuration**: Per-user settings for note completion status and section collapse state
 
 ---
 
@@ -92,8 +98,12 @@ TaggingApp/
 - `py/register_toggle_note_completed.py`: Handles toggling note completion state, ensuring UI and backend stay in sync.
 - `logs/js_errors_YYYY-MM-DD.log`: Dedicated log files for JavaScript errors, separate from general client logs.
 - `states/Space_Exploration.json` (and others): Each state is stored as a separate JSON file for modular state management.
-- `static/js/find-in-text.js`: Logic for the new Find in Text widget, providing a floating search panel for navigating document content.
-- `static/js/content-menu.js`: Logic for the new Content Menu widget, offering a floating table of contents for quick navigation.
+- `static/js/find-in-text.js`: Logic for the Find in Text widget with replace functionality, providing floating search and replace capabilities.
+- `static/js/content-menu.js`: Logic for the Content Menu widget, offering a floating table of contents for quick navigation.
+- `static/js/modals.js`: Enhanced modal management with improved responsiveness and focus handling.
+- `py/user_config_manager.py`: Manages per-user configuration including note completion status and section collapse state.
+- `py/reset_completion_status.py`: Handles resetting completion status for all notes in a state.
+- `py/collapse_state.py`: Manages section and note collapse/expand functionality.
 
 See each file for more details on its responsibilities. The expanded structure supports better modularity, reliability, and debugging.
 
@@ -481,6 +491,62 @@ if (isVerySmallViewport) {
 
 ---
 
+## User Configuration Management
+
+### Overview
+TaggingApp supports per-user configuration that persists across sessions and states. This includes note completion status, section collapse state, and other user-specific preferences.
+
+### Configuration Features
+
+#### Note Completion Status
+- **Per-Note Tracking**: Each note can be marked as completed or incomplete
+- **State-Specific**: Completion status is tracked separately for each document state
+- **Persistent**: Status persists across browser sessions and page reloads
+- **Bulk Reset**: "Reset Completion Status" button resets all notes in current state
+
+#### Section and Note Collapse State
+- **Collapsible Sections**: Sections can be collapsed to hide their content
+- **Collapsible Notes**: Individual notes can be collapsed within sections
+- **State-Specific**: Collapse state is tracked per document state
+- **Persistent**: Collapse state persists across sessions
+- **Bulk Expand**: "Expand All" functionality expands all collapsed items
+
+### Configuration Storage
+- **File-based**: User configurations stored in `user-config/` directory
+- **JSON Format**: Each user has a separate JSON configuration file
+- **Automatic Creation**: Configuration files created automatically when needed
+- **Git Ignored**: User configuration files are excluded from version control
+
+### Configuration Structure
+```json
+{
+  "Default_State": {
+    "completed_notes": ["note_id_1", "note_id_2"],
+    "collapsed_sections": ["section_id_1"],
+    "collapsed_notes": ["note_id_3"]
+  },
+  "Another_State": {
+    "completed_notes": [],
+    "collapsed_sections": [],
+    "collapsed_notes": []
+  }
+}
+```
+
+### API Endpoints
+```python
+@app.route('/toggle_note_completed/<section_id>/<note_id>', methods=['POST'])
+def toggle_note_completed(section_id, note_id)  # Toggle note completion
+
+@app.route('/reset_completion_status', methods=['POST'])
+def reset_completion_status()  # Reset all notes in current state
+
+@app.route('/expand_all', methods=['POST'])
+def expand_all()  # Expand all collapsed sections and notes
+```
+
+---
+
 ## API Reference
 
 ### Flask Routes
@@ -513,6 +579,18 @@ def update_note(section_id, note_id)  # Update note content
 
 @app.route('/delete_note/<section_id>/<note_id>', methods=['POST'])
 def delete_note(section_id, note_id)  # Delete note
+
+@app.route('/replace_text', methods=['POST'])
+def replace_text()  # Replace all occurrences of text in document
+
+@app.route('/toggle_note_completed/<section_id>/<note_id>', methods=['POST'])
+def toggle_note_completed(section_id, note_id)  # Toggle note completion status
+
+@app.route('/reset_completion_status', methods=['POST'])
+def reset_completion_status()  # Reset all notes in current state
+
+@app.route('/expand_all', methods=['POST'])
+def expand_all()  # Expand all collapsed sections and notes
 ```
 
 #### Tag Management
@@ -647,6 +725,15 @@ http://localhost:5000
 - [ ] State switching
 - [ ] Import/export functionality
 - [ ] Drag and drop operations
+- [ ] Find and replace functionality
+- [ ] Modal responsiveness on different screen sizes
+- [ ] Document title auto-population during import
+- [ ] Section tag editing (tags and categories)
+- [ ] AND tag modal focus behavior
+- [ ] Note completion status toggling
+- [ ] Reset completion status functionality
+- [ ] Section and note collapse/expand
+- [ ] User configuration persistence
 
 #### Logging Verification
 - [ ] Check browser console for logged actions
@@ -691,6 +778,48 @@ http://localhost:5000
 2. Verify JSON syntax in state files
 3. Check server logs for save errors
 4. Ensure proper state validation
+
+#### Replace Functionality Issues
+**Symptoms**: Replace not working, changes not persisting
+**Solutions**:
+1. Check browser console for JavaScript errors
+2. Verify `/replace_text` endpoint is accessible
+3. Check server logs for replace operation errors
+4. Ensure proper state parameter in URL
+5. Verify document has write permissions
+
+#### Modal Responsiveness Issues
+**Symptoms**: Modal buttons not accessible, content cutoff
+**Solutions**:
+1. Check CSS for modal container classes (`items-start`, `overflow-y-auto`)
+2. Verify modal body has proper height constraints
+3. Test on different screen sizes
+4. Check for CSS conflicts with other styles
+
+#### Import Document Title Issues
+**Symptoms**: Document title not saving, auto-population not working
+**Solutions**:
+1. Check `importDocumentTitle` input field exists in modal
+2. Verify filename extraction logic in JavaScript
+3. Check backend `import_add` function for document title handling
+4. Ensure proper form submission with document title data
+
+#### User Configuration Issues
+**Symptoms**: Note completion status not saving, collapse state not persisting
+**Solutions**:
+1. Check `user-config/` directory permissions
+2. Verify user configuration file exists and is valid JSON
+3. Check `user_config_manager.py` functions for errors
+4. Ensure proper username handling in configuration
+5. Verify configuration file is not corrupted
+
+#### Note Completion Issues
+**Symptoms**: Completion status not toggling, reset not working
+**Solutions**:
+1. Check `/toggle_note_completed` endpoint accessibility
+2. Verify note IDs are properly passed to backend
+3. Check user configuration file for completion data
+4. Ensure proper state parameter in requests
 
 ### Debug Mode
 
@@ -758,7 +887,44 @@ For additional support or feature requests, please refer to the development guid
 
 ---
 
-## Recent UI/UX Improvements (July 2025)
+## Recent UI/UX Improvements (January 2025)
+
+### Modal Responsiveness & Accessibility
+- **Fixed Button Accessibility**: Resolved modal button cutoff issues on smaller screens by changing layout from `items-center` to `items-start` with `overflow-y-auto`
+- **Consistent Modal Heights**: Added proper flex layout and height constraints for all modals
+- **Scrollable Content**: Modal body content now scrolls when it exceeds available height
+- **Button Visibility**: Save/Cancel buttons are always accessible, even on smaller screens
+- **Enhanced CSS**: Added responsive modal styling with proper height management
+
+### Find & Replace Functionality
+- **Persistent Replace**: Added backend API endpoint `/replace_text` for saving changes to JSON files
+- **Case-Insensitive Replacement**: Replaces all variations of search terms regardless of capitalization
+- **Smart Content Handling**: Automatically detects and handles Quill rich text editors
+- **User Confirmation**: Shows confirmation dialog with count of occurrences before replacing
+- **Success Feedback**: Green notification appears showing replacement count
+- **Loading States**: Replace button shows spinner during operation
+- **Automatic Page Reload**: Page refreshes after successful replacement to show updated content
+
+### Import Modal Enhancements
+- **Document Title Field**: Added clean document title input field to import modal
+- **Auto-Population**: Document title automatically fills with filename when importing .docx files
+- **Backend Integration**: Document title is saved to JSON state when importing
+- **Smart Handling**: Only updates document title on the first section of import
+
+### Section Tag Editing Fix
+- **Missing Categories Field**: Added hidden input for categories in section modal
+- **Proper Form Submission**: Section tags and categories now save correctly
+- **Backend Validation**: Categories are properly processed and saved to state
+
+### AND Tag Modal Improvements
+- **Focus Management**: Cursor now starts in the first input field instead of second
+- **Better UX**: More intuitive behavior when creating AND tags
+
+### Technical Improvements
+- **API Endpoints**: Added `/replace_text` endpoint for persistent text replacement
+- **Form Handling**: Enhanced section form submission to include categories
+- **Error Handling**: Improved error handling and user feedback
+- **Performance**: Optimized modal rendering and content management
 
 - **Manual Import Content**, **Save as PDF**, and **Reset Completion Status** buttons are now located directly below all tag categories and above the main content area for improved workflow. No duplicate buttons remain.
 - **Reset Completion Status** instantly marks all notes in the current state as incomplete, updating both the UI and backend in real time.
@@ -773,8 +939,8 @@ See the `index.html` template for the latest markup and button placement. These 
 
 ---
 
-*Last updated: July 10, 2025*
-*Version: 2.0.1*
+*Last updated: January 2025*
+*Version: 2.1.0*
 
 ---
 
