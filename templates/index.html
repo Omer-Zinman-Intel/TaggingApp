@@ -678,7 +678,7 @@ before being sent to the browser as valid HTML/JavaScript.
                                     draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}"
                                     data-tag-name="{{ tag }}" data-source-category-id="all_tags">
                                     <span onclick='handleTagClick(event, {{ tag|tojson|safe }})'
-                                        oncontextmenu='window.appLogger?.action("TAG_CONTEXT_MENU_TRIGGERED", {tag: {{ tag|tojson|safe }}, message: "Context menu triggered"}); testContextMenu(); showTagContextMenu(event, {{ tag|tojson|safe }}); return false;'>{{
+                                        oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }}); return false;'>{{
                                         tag }}</span>
                                     <div
                                         class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white shadow-lg rounded-md p-1 flex items-center z-20 opacity-0 group-hover/tag:opacity-100 transition-opacity pointer-events-none group-hover/tag:pointer-events-auto">
@@ -772,9 +772,9 @@ before being sent to the browser as valid HTML/JavaScript.
                                 <span
                                     class="tag-bubble {% if tag in and_tags %}and-tag{% elif tag.lower() in active_filters_lower %}active-filter{% else %}inactive-filter{% endif %} relative group/tag"
                                     draggable="{{ 'false' if tag.lower() == 'all' else 'true' }}"
-                                    data-tag-name="{{ tag }}" data-source-category-id="{{ category.id }}">
+                                    data-tag-name="{{ tag }}" data-source-category-id="{{ category.id }}" data-category-id="{{ category.id }}">
                                     <span onclick='handleTagClick(event, {{ tag|tojson|safe }})'
-                                        oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }}); return false;'>{{
+                                        oncontextmenu='showTagContextMenu(event, {{ tag|tojson|safe }}, {{ category.id|tojson|safe }}); return false;'>{{
                                         tag }}</span>
                                     <div
                                         class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white shadow-lg rounded-md p-1 flex items-center z-20 opacity-0 group-hover/tag:opacity-100 transition-opacity pointer-events-none group-hover/tag:pointer-events-auto">
@@ -2111,7 +2111,7 @@ before being sent to the browser as valid HTML/JavaScript.
             const components = [];
             const duplicates = [];
 
-            console.log('[DEBUG] Updating AND tag preview');
+
 
             // Get all component values from the tag input system - exclude hidden inputs
             container.querySelectorAll('[id^="andTagInput_"]:not([id$="_hidden"])').forEach(input => {
@@ -2127,7 +2127,7 @@ before being sent to the browser as valid HTML/JavaScript.
                     value = input.value.trim();
                 }
 
-                console.log(`[DEBUG] Preview - Input ${inputId}: value="${value}", tagInput.tags=${tagInput?.tags || 'N/A'}`);
+
 
                 if (value) {
                     const lowerValue = value.toLowerCase();
@@ -2135,7 +2135,7 @@ before being sent to the browser as valid HTML/JavaScript.
                         duplicates.push(value);
                         // Add visual indicator for duplicate
                         input.parentElement.parentElement.classList.add('border-red-500');
-                        console.log(`[DEBUG] Preview - Duplicate detected: ${value}`);
+
                     } else {
                         components.push(value);
                         // Remove visual indicator
@@ -2147,8 +2147,7 @@ before being sent to the browser as valid HTML/JavaScript.
                 }
             });
 
-            console.log('[DEBUG] Preview - Components:', components);
-            console.log('[DEBUG] Preview - Duplicates:', duplicates);
+
 
             const previewDiv = document.getElementById('andTagPreview');
             const previewText = document.getElementById('andTagPreviewText');
@@ -2178,7 +2177,7 @@ before being sent to the browser as valid HTML/JavaScript.
             const container = document.getElementById('newAndTagComponentsContainer');
             const components = [];
 
-            console.log('[DEBUG] Starting component collection for AND tag creation');
+
 
             // Get all component values from the tag input system - exclude hidden inputs
             container.querySelectorAll('[id^="andTagInput_"]:not([id$="_hidden"])').forEach(input => {
@@ -2206,11 +2205,7 @@ before being sent to the browser as valid HTML/JavaScript.
                     }
                 }
 
-                console.log(`[DEBUG] Input ${inputId}: value="${collectedValue}", source="${source}", tagInput.tags=${tagInput?.tags || 'N/A'}`);
             });
-
-            console.log('[DEBUG] Final components array:', components);
-            console.log('[DEBUG] Components lowercase:', components.map(c => c.toLowerCase()));
 
             // Validate components
             if (components.length < 2) {
@@ -2220,8 +2215,7 @@ before being sent to the browser as valid HTML/JavaScript.
 
             // Check for duplicates
             const uniqueComponents = [...new Set(components.map(c => c.toLowerCase()))];
-            console.log('[DEBUG] Unique components:', uniqueComponents);
-            console.log('[DEBUG] Has duplicates?', uniqueComponents.length !== components.length);
+
 
             if (uniqueComponents.length !== components.length) {
                 alert('Please remove duplicate components.');
@@ -2426,29 +2420,22 @@ before being sent to the browser as valid HTML/JavaScript.
         }
 
         function updateAndTagFromComponents() {
-            console.log('[DEBUG] updateAndTagFromComponents called');
+    
 
             const container = document.getElementById('andTagComponentsContainer');
             const components = [];
 
-            console.log('[DEBUG] Container found:', !!container);
-            console.log('[DEBUG] Container children count:', container?.children?.length);
+
 
             // Get all component values - try multiple approaches
             const componentDivs = container.querySelectorAll('[id^="editAndTagComponent_"]');
-            console.log('[DEBUG] Found component divs:', componentDivs.length);
+
 
             componentDivs.forEach(div => {
                 const input = div.querySelector('[id^="editAndTagInput_"]');
                 const hiddenInput = div.querySelector('[id$="_hidden"]');
 
-                console.log('[DEBUG] Processing component div:', {
-                    divId: div.id,
-                    inputId: input?.id,
-                    inputValue: input?.value,
-                    hiddenInputId: hiddenInput?.id,
-                    hiddenInputValue: hiddenInput?.value
-                });
+
 
                 // Try to get value from multiple sources
                 let componentValue = '';
@@ -2458,20 +2445,20 @@ before being sent to the browser as valid HTML/JavaScript.
                     const tagInput = window.tagInputs[input.id];
                     if (tagInput && tagInput.tags && tagInput.tags.length > 0) {
                         componentValue = tagInput.tags[0].trim();
-                        console.log('[DEBUG] Got value from tag system:', componentValue);
+
                     }
                 }
 
                 // Fallback to hidden input
                 if (!componentValue && hiddenInput && hiddenInput.value) {
                     componentValue = hiddenInput.value.trim();
-                    console.log('[DEBUG] Got value from hidden input:', componentValue);
+
                 }
 
                 // Final fallback to direct input value
                 if (!componentValue && input && input.value) {
                     componentValue = input.value.trim();
-                    console.log('[DEBUG] Got value from direct input:', componentValue);
+
                 }
 
                 if (componentValue) {
@@ -2479,7 +2466,7 @@ before being sent to the browser as valid HTML/JavaScript.
                 }
             });
 
-            console.log('[DEBUG] Final components:', components);
+
 
             // Validate components
             if (components.length < 2) {

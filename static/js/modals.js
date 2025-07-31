@@ -175,7 +175,7 @@ function showEditSectionModalFromData(btn) {
 
 // Test function to verify modal functions are accessible
 function testModalFunctions() {
-    console.log('=== Modal Functions Test ===');
+
     console.log('showModal function:', typeof showModal);
     console.log('hideModal function:', typeof hideModal);
     console.log('handleNoteModalCancel function:', typeof handleNoteModalCancel);
@@ -734,7 +734,7 @@ function showEditNoteModal(btn) {
                                     tagsInputValue: tagsInput.value,
                                     categoriesInputValue: categoriesInput.value
                                 };
-                                console.log('[NOTE MODAL SUBMIT] Before submitToBackend:', debugBefore);
+                        
                                 if (window.appLogger && typeof window.appLogger.error === 'function') {
                                     window.appLogger.error('[NOTE MODAL SUBMIT] Before submitToBackend', debugBefore);
                                 }
@@ -743,7 +743,7 @@ function showEditNoteModal(btn) {
                                     tagsInputValue: tagsInput.value,
                                     categoriesInputValue: categoriesInput.value
                                 };
-                                console.log('[NOTE MODAL SUBMIT] After submitToBackend:', debugAfter);
+                        
                                 if (window.appLogger && typeof window.appLogger.error === 'function') {
                                     window.appLogger.error('[NOTE MODAL SUBMIT] After submitToBackend', debugAfter);
                                 }
@@ -783,7 +783,7 @@ function showEditNoteModal(btn) {
 }
 
 function showImportModal() {
-    console.log('[DEBUG] showImportModal called');
+
     // Clear both editors using proper reset method
     if (window.importEditor) {
         if (window.importEditor.resetEditor) {

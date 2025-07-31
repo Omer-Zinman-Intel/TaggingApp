@@ -1014,7 +1014,7 @@ def add_and_tag():
     and_tag = ' & '.join(components)
     # Load state file
     state_path = os.path.join('states', f"{request.args.get('state', 'Space_Exploration')}.json")
-    # Use file lock if available, otherwise fallback to open()
+    # Use file lock if available, otherwise fallback to open
     lock_path = state_path + '.lock'
     try:
         with FileLock(lock_path):
@@ -1404,3 +1404,38 @@ def replace_text():
 # Register route for expand_all
 from flask import current_app
 ## Remove Flask route registration from this file. Route will be registered in app.py
+
+@app.route('/remove_tag_from_category', methods=['POST'])
+def remove_tag_from_category():
+    """
+    Removes a tag from a specific category. If the tag is not referenced anywhere else (not in any category, section, or note), it will be removed globally as an orphan.
+    Expects JSON: {"tag": <tag_name>, "category_id": <category_id>, "state": <state_name>}.
+    """
+    data = request.get_json(force=True)
+    tag = data.get('tag')
+    category_id = data.get('category_id')
+    state_name = data.get('state')
+    if not tag or not category_id or not state_name:
+        return jsonify({'success': False, 'error': 'Missing tag, category_id, or state'}), 400
+
+    # Remove tag from the specified category
+    found = False
+    for category in core.document_state.get('tag_categories', []):
+        if str(category.get('id')) == str(category_id):
+            if tag in category.get('tags', []):
+                category['tags'].remove(tag)
+                found = True
+                # Remove duplicates and sort
+                category['tags'] = sorted(list(set(category['tags'])), key=str.lower)
+                break
+    if not found:
+        return jsonify({'success': False, 'error': 'Tag or category not found'}), 404
+
+    # Run orphan cleanup
+    from py import tag_cleanup_util
+    before_tags = set(core.document_state.get('known_tags', []))
+    core.document_state = tag_cleanup_util.remove_orphan_tags(core.document_state)
+    after_tags = set(core.document_state.get('known_tags', []))
+    state_manager.save_state(state_name)
+    was_deleted = tag not in after_tags
+    return jsonify({'success': True, 'tag_deleted': was_deleted})

@@ -15,9 +15,10 @@ from py.register_toggle_note_completed import register_toggle_note_completed
 register_toggle_note_completed(app)
 
 # Register /expand_all route using the expand_all view from py.views
-from py.views import expand_all, replace_text
+from py.views import expand_all, replace_text, remove_tag_from_category
 app.add_url_rule('/expand_all', 'expand_all', expand_all, methods=['POST'])
 app.add_url_rule('/replace_text', 'replace_text', replace_text, methods=['POST'])
+app.add_url_rule('/remove_tag_from_category', 'remove_tag_from_category', remove_tag_from_category, methods=['POST'])
 
 # --- API endpoint for frontend logging fallback ---
 @app.route('/api/log', methods=['POST'])

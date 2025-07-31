@@ -240,41 +240,34 @@ document.addEventListener('DOMContentLoaded', function() {
     if (docxInput) {
         // FIX: Only attach one event listener, no nesting
         docxInput.addEventListener('change', (event) => {
-            console.log('[DOCX DEBUG] File input changed', event.target.files);
             if(event.target.files.length === 0) {
-                console.log('[DOCX DEBUG] No file selected');
                 return;
             }
             const file = event.target.files[0];
-            console.log('[DOCX DEBUG] File:', file);
             
             // Auto-populate document title with filename (without extension)
             const documentTitleInput = document.getElementById('importDocumentTitle');
             if (documentTitleInput && !documentTitleInput.value) {
                 const fileName = file.name.replace(/\.docx$/i, '').replace(/\.doc$/i, '');
                 documentTitleInput.value = fileName;
-                console.log('[DOCX DEBUG] Auto-populated document title:', fileName);
             }
             
             const reader = new FileReader();
             reader.onload = function(loadEvent) {
-                console.log('[DOCX DEBUG] FileReader loaded');
                 if (typeof mammoth === 'undefined') {
-                    console.error('[DOCX DEBUG] mammoth is not defined!');
+                    console.error('mammoth is not defined!');
                     return;
                 }
                 mammoth.convertToHtml({ arrayBuffer: loadEvent.target.result })
                     .then(result => {
-                        console.log('[DOCX DEBUG] Mammoth conversion result:', result.value);
-                        console.log('[DOCX DEBUG] importEditorQuill:', window.importEditorQuill);
                         if (window.importEditorQuill) {
                             insertHtmlAndCodeBlocksToQuill(window.importEditorQuill, result.value);
                             toggleImportEditorView('richtext');
                         } else {
-                            console.error('[DOCX DEBUG] importEditorQuill is NOT available!');
+                            console.error('importEditorQuill is NOT available!');
                         }
                     })
-                    .catch(err => console.error('[DOCX DEBUG] Mammoth error:', err));
+                    .catch(err => console.error('Mammoth error:', err));
             };
             reader.readAsArrayBuffer(file);
         });
@@ -404,7 +397,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     categories
                                 };
                                 el.setAttribute('data-categories', JSON.stringify(categories));
-                                console.log('[DEBUG] Note to backend:', note);
+                        
                             } else if (NOTE_TAGS.includes(tagName)) {
                                 if (currentSection && pendingContent && (!currentSection.notes || currentSection.notes.length === 0)) {
                                     currentSection.notes = currentSection.notes || [];
@@ -452,7 +445,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 };
                                 currentSection.notes.push(note);
                                 el.setAttribute('data-categories', JSON.stringify(categories));
-                                console.log('[DEBUG] Section to backend:', currentSection);
+                        
                             } else if (currentSection) {
                                 if (currentSection.notes && currentSection.notes.length > 0) {
                                     const lastNote = currentSection.notes[currentSection.notes.length - 1];
@@ -988,7 +981,7 @@ window.testContextMenu = function() {
     return false;
 };
 
-window.showTagContextMenu = function(event, tagName) {
+window.showTagContextMenu = function(event, tagName, categoryId) {
     // Fire a dedicated context menu opened event for future logging/analytics
     window.appLogger?.action('CONTEXT_MENU_OPENED', {
         type: 'tag_context_menu',
@@ -1087,12 +1080,16 @@ window.showTagContextMenu = function(event, tagName) {
     
     const editLabel = isAndTag ? 'Edit Components' : 'Rename Tag';
     
+    // Add Remove from Category option if categoryId is provided
+    const removeFromCategoryFunction = categoryId ? `removeTagFromCategoryFromContextMenu('${tagName}', '${categoryId}')` : '';
+    const removeFromCategoryItem = categoryId ? `<a href="#" class="block px-4 py-2 text-sm text-yellow-700 hover:bg-gray-100" onclick="event.preventDefault(); ${removeFromCategoryFunction}; hideContextMenu();">Remove tag from category</a>` : '';
     contextMenu.innerHTML = `
         <div class="px-3 py-1 text-sm font-medium text-gray-800 border-b mb-1">${tagName}</div>
         <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
            onclick="event.preventDefault(); ${editFunction}; hideContextMenu();">
            ${editLabel}
         </a>
+        ${removeFromCategoryItem}
         <a href="#" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
            onclick="event.preventDefault(); ${deleteFunction}; hideContextMenu();">
            Delete Tag
@@ -1642,5 +1639,37 @@ window.expandAll = function() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ state: window.CURRENT_STATE })
+    });
+}
+
+window.removeTagFromCategoryFromContextMenu = function(tagName, categoryId) {
+    fetch('/remove_tag_from_category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            tag: tagName,
+            category_id: categoryId,
+            state: window.CURRENT_STATE
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            // Remove the tag from the category in the DOM
+            // Find the tag element in the category and remove it
+            const tagElems = document.querySelectorAll(`[data-tag-name="${tagName}"][data-category-id="${categoryId}"]`);
+            tagElems.forEach(el => el.remove());
+            // Optionally, show a toast/alert
+            if (data.tag_deleted) {
+                alert(`Tag '${tagName}' was removed from category and deleted globally (orphan).`);
+            } else {
+                alert(`Tag '${tagName}' was removed from category.`);
+            }
+        } else {
+            alert('Failed to remove tag from category: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(err => {
+        alert('Error removing tag from category: ' + err);
     });
 }

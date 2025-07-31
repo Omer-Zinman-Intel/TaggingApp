@@ -196,6 +196,12 @@ Example: Select "Python", "JavaScript", "Database&API"
 - **Delete**: Remove tags from all content and categories
 - **Move**: Drag tags between categories
 - **Combine**: Create AND tags by dragging one tag onto another
+- **Remove from Category**: Remove a tag from a specific category via right-click context menu
+
+#### Category-Specific Operations
+- **Remove from Category**: Right-click a tag in a category to remove it from that category only
+- **Orphan Cleanup**: Tags removed from categories are automatically deleted globally if not referenced elsewhere
+- **Context Menu**: Access category-specific operations through the tag context menu
 
 #### Content Operations
 - **Apply**: Add tags to sections and notes
@@ -606,6 +612,9 @@ def delete_global_tag()  # Delete tag globally
 
 @app.route('/move_tag', methods=['POST'])
 def move_tag()  # Move tag between categories
+
+@app.route('/remove_tag_from_category', methods=['POST'])
+def remove_tag_from_category()  # Remove tag from specific category
 ```
 
 #### State Management
@@ -734,6 +743,7 @@ http://localhost:5000
 - [ ] Reset completion status functionality
 - [ ] Section and note collapse/expand
 - [ ] User configuration persistence
+- [ ] Remove tag from category functionality
 
 #### Logging Verification
 - [ ] Check browser console for logged actions
@@ -925,6 +935,7 @@ For additional support or feature requests, please refer to the development guid
 - **Form Handling**: Enhanced section form submission to include categories
 - **Error Handling**: Improved error handling and user feedback
 - **Performance**: Optimized modal rendering and content management
+- **Tag Management**: Added `/remove_tag_from_category` endpoint for selective tag removal
 
 - **Manual Import Content**, **Save as PDF**, and **Reset Completion Status** buttons are now located directly below all tag categories and above the main content area for improved workflow. No duplicate buttons remain.
 - **Reset Completion Status** instantly marks all notes in the current state as incomplete, updating both the UI and backend in real time.

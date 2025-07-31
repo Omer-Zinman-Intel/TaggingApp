@@ -1155,14 +1155,6 @@ class RichTextEditor {
         const buttonRect = pickerButton.getBoundingClientRect();
         const viewportWidth = window.innerWidth;
         
-        console.log('DEBUG: Button position:', {
-            type: pickerType,
-            top: buttonRect.top,
-            bottom: buttonRect.bottom,
-            left: buttonRect.left,
-            height: buttonRect.height
-        });
-        
         // Set picker width based on type
         let pickerWidth;
         if (pickerType === 'color' || pickerType === 'background') {
@@ -1175,12 +1167,7 @@ class RichTextEditor {
         const belowPosition = buttonRect.bottom + 10; // 10px gap below button
         const leftPosition = buttonRect.left;
         
-        console.log('DEBUG: Calculated position:', {
-            type: pickerType,
-            belowPosition: belowPosition,
-            leftPosition: leftPosition,
-            pickerWidth: pickerWidth
-        });
+
         
         // Ensure it doesn't go off-screen horizontally
         let finalLeft = leftPosition;
@@ -1247,12 +1234,7 @@ class RichTextEditor {
         // FORCE final positioning using setAttribute for maximum override power
         pickerOptions.setAttribute('style', pickerStyles);
         
-        console.log('DEBUG: Final applied styles:', {
-            type: pickerType,
-            styleAttribute: pickerOptions.getAttribute('style'),
-            computedTop: window.getComputedStyle(pickerOptions).top,
-            computedLeft: window.getComputedStyle(pickerOptions).left
-        });
+
         
         // Log final position for debugging
         window.appLogger?.action('PICKER_POSITIONED_BELOW', {
@@ -2066,55 +2048,9 @@ class ContentPreservation {
 // Initialize content preservation system
 let contentPreservation = null;
 
-// Debug function to check sync status
-function debugEditorSync() {
-    console.log('=== Editor Sync Debug ===');
-    
-    if (noteEditor) {
-        const quillContent = noteEditor.getContent();
-        const hiddenContent = noteEditor.outputElement ? noteEditor.outputElement.value : 'N/A';
-        console.log('Note Editor:');
-        console.log('  Quill content length:', quillContent.length);
-        console.log('  Hidden field content length:', hiddenContent.length);
-        console.log('  Content matches:', quillContent === hiddenContent);
-        console.log('  Quill preview:', quillContent.substring(0, 200) + (quillContent.length > 200 ? '...' : ''));
-    } else {
-        console.log('Note Editor: Not initialized');
-    }
-    
-    if (importEditor) {
-        const quillContent = importEditor.getContent();
-        const hiddenContent = importEditor.outputElement ? importEditor.outputElement.value : 'N/A';
-        console.log('Import Editor:');
-        console.log('  Quill content length:', quillContent.length);
-        console.log('  Hidden field content length:', hiddenContent.length);
-        console.log('  Content matches:', quillContent === hiddenContent);
-        console.log('  Quill preview:', quillContent.substring(0, 200) + (quillContent.length > 200 ? '...' : ''));
-    } else {
-        console.log('Import Editor: Not initialized');
-    }
-    
-    console.log('=== End Debug ===');
-}
 
-// Make debug function globally available
-window.debugEditorSync = debugEditorSync;
 
-// Manual sync function for testing
-function manualSync() {
-    console.log('🔄 Manual sync triggered');
-    if (window.noteEditor) {
-        window.noteEditor.syncContent();
-        console.log('✅ Note editor synced');
-    }
-    if (window.importEditor) {
-        window.importEditor.syncContent();
-        console.log('✅ Import editor synced');
-    }
-}
 
-// Make manual sync globally available
-window.manualSync = manualSync;
 
 // Make manual backup/restore functions globally available for debugging
 window.manualBackupNote = function() {
@@ -2149,40 +2085,7 @@ window.manualRestoreImport = function() {
     return false;
 };
 
-// Enhanced debug function that includes backup information
-window.debugEditorBackups = function() {
-    console.log('=== Editor Backup Debug ===');
-    
-    if (contentPreservation) {
-        const noteBackup = contentPreservation.getLatestBackup('note', 'editNoteForm');
-        const importBackup = contentPreservation.getLatestBackup('import', 'importForm');
-        
-        console.log('Note Editor Backup:', noteBackup ? {
-            timestamp: new Date(noteBackup.data.timestamp).toLocaleString(),
-            contentLength: noteBackup.data.content.length,
-            reason: noteBackup.data.reason,
-            preview: noteBackup.data.content.substring(0, 200)
-        } : 'None');
-        
-        console.log('Import Editor Backup:', importBackup ? {
-            timestamp: new Date(importBackup.data.timestamp).toLocaleString(),
-            contentLength: importBackup.data.content.length,
-            reason: importBackup.data.reason,
-            preview: importBackup.data.content.substring(0, 200)
-        } : 'None');
-        
-        // Show all backup keys
-        const allBackups = Object.keys(localStorage).filter(key => 
-            key.startsWith(contentPreservation.storageKey)
-        );
-        console.log('Total Backups:', allBackups.length);
-        console.log('Backup Keys:', allBackups);
-    } else {
-        console.log('Content preservation system not initialized');
-    }
-    
-    console.log('=== End Backup Debug ===');
-};
+
 
 // Global editor instances
 let noteEditor;

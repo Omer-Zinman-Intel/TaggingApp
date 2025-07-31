@@ -1,68 +1,51 @@
 # --- Category Deletion Logic ---
 def delete_category_and_associated_tags(category_name: str) -> dict:
     """
-    Deletes a category and removes its tags if they are not used elsewhere (in other categories or in any section/note).
-    Returns a dict with details of what was deleted.
+    Deletes a category and removes all its tags from the global known_tags list.
+    Returns a dict with the deleted category info and affected tags.
     """
-    deleted_tags = []
+    category_name_lower = category_name.lower()
     deleted_category = None
+    affected_tags = []
+    
     # Find and remove the category
-    categories = core.document_state.get("tag_categories", [])
-    for idx, category in enumerate(categories):
-        if category.get("name") == category_name:
-            deleted_category = categories.pop(idx)
+    for i, category in enumerate(core.document_state.get("tag_categories", [])):
+        if category.get("name", "").lower() == category_name_lower:
+            deleted_category = category
+            affected_tags = category.get("tags", [])
+            core.document_state["tag_categories"].pop(i)
             break
-    # Remove category from all notes and sections
+    
     if deleted_category:
-        deleted_id = deleted_category.get("id")
-        # Remove category ID from all sections and notes
-        for section in core.document_state.get("sections", []):
-            # Remove from section categories (by ID)
-            if "categories" in section:
-                section["categories"] = [cat for cat in section["categories"] if cat != deleted_id]
-            # Remove from notes categories (by ID)
-            for note in section.get("notes", []):
-                if "categories" in note:
-                    note["categories"] = [cat for cat in note["categories"] if cat != deleted_id]
-        # Remove tags only if not used elsewhere
-        for tag in deleted_category.get("tags", []):
+        # Remove affected tags from known_tags if they're not used elsewhere
+        for tag in affected_tags:
+            tag_used_elsewhere = False
             # Check if tag is used in other categories
-            still_used = False
-            for cat in categories:
-                if tag in cat.get("tags", []):
-                    still_used = True
+            for other_category in core.document_state.get("tag_categories", []):
+                if tag in other_category.get("tags", []):
+                    tag_used_elsewhere = True
                     break
-            # Check if tag is used in any section/note
-            if not still_used:
+            # Check if tag is used in sections or notes
+            if not tag_used_elsewhere:
                 for section in core.document_state.get("sections", []):
                     if tag in section.get("tags", []):
-                        still_used = True
+                        tag_used_elsewhere = True
                         break
                     for note in section.get("notes", []):
                         if tag in note.get("tags", []):
-                            still_used = True
+                            tag_used_elsewhere = True
                             break
-                    if still_used:
-                        break
-            if not still_used:
-                delete_tag_from_all_categories(tag)
-                deleted_tags.append(tag)
-    # Clean up orphans
-    cleanup_orphan_tags()
-    message = ""
-    if deleted_category:
-        message = f"Category '{category_name}' deleted. Tags removed: {deleted_tags if deleted_tags else 'None'}"
-    else:
-        message = f"Category '{category_name}' not found."
+            # Remove from known_tags if not used elsewhere
+            if not tag_used_elsewhere and tag in core.document_state.get("known_tags", []):
+                core.document_state["known_tags"].remove(tag)
+    
     return {
-        "success": deleted_category is not None,
         "deleted_category": deleted_category,
-        "deleted_tags": deleted_tags,
-        "message": message
+        "affected_tags": affected_tags
     }
 import uuid
 import copy
-from typing import List, Dict, Set, Optional, Any
+from typing import List, Set, Dict, Optional
 import py.core as core
 import json
 from datetime import datetime
@@ -70,238 +53,146 @@ import os
 
 def should_show_content_for_filter(content_tags, content_categories, filter_tag):
     """
-    Returns True if the content (section/note) should be shown for the given filter_tag.
-    Supports both singular tags and AND tags (e.g., 'A&B').
-    Now considers tags from attached categories as present (by ID or name).
+    Determines if content should be shown based on the filter tag.
+    Handles both singular tags and AND tags.
     """
     if not filter_tag:
         return True
-    # Build the full set of tags: direct + from categories
-    all_tags = set(tag.lower() for tag in content_tags)
-    # Support both category names and IDs in content_categories
-    normalized_cat_names = set(str(cat).strip().lower() for cat in content_categories)
-    for category in core.document_state.get("tag_categories", []):
-        cat_name = category.get("name", "").strip().lower()
-        cat_id = str(category.get("id", "")).strip().lower()
-        if cat_name in normalized_cat_names or cat_id in normalized_cat_names:
-            all_tags.update(tag.lower() for tag in category.get("tags", []))
-    # AND tag: must match all components
+    
+    # Handle AND tags (containing '&')
     if '&' in filter_tag:
-        required = [t.strip().lower() for t in filter_tag.split('&')]
-        return all(t in all_tags for t in required)
-    # Singular tag: match any
-    return filter_tag.strip().lower() in all_tags
+        components = [comp.strip() for comp in filter_tag.split('&')]
+        # Content must have ALL components
+        return all(comp in content_tags for comp in components)
+    else:
+        # Handle singular tags - content must have the tag
+        return filter_tag in content_tags
 
 # --- Logging helper ---
 def log_tag_deletion(action: str, tag: str, details: str = "", before=None, after=None, context=None):
+    """
+    Logs tag deletion events for debugging and audit purposes.
+    """
     log_entry = {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now().isoformat(),
         "action": action,
         "tag": tag,
         "details": details,
         "before": before,
         "after": after,
-        "context": context
+        "context": context or {}
     }
-    log_path = os.path.join(os.path.dirname(__file__), '..', 'logs', 'backend_tag_deletion.log')
-    try:
-        with open(log_path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(log_entry) + "\n")
-    except Exception as e:
-        pass  # Avoid crashing if logging fails
+    
+    # Log to file
+    log_dir = "logs"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    
+    log_file = os.path.join(log_dir, f"tag_deletions_{datetime.now().strftime('%Y-%m-%d')}.log")
+    with open(log_file, 'a', encoding='utf-8') as f:
+        f.write(json.dumps(log_entry) + '\n')
 
 # --- Helper for AND tags ---
 def combine_tags_to_and(tags: List[str]) -> str:
-    """
-    Combines a list of tags into a canonical AND tag string (e.g., "A&B").
-    Tags are sorted alphabetically to ensure consistency (A&B is same as B&A).
-    Using format without spaces to match existing data format.
-    """
-    unique_sorted_tags = sorted(list(set(tags)), key=str.lower)
-    return "&".join(unique_sorted_tags)
+    """Combines a list of tags into an AND tag format."""
+    return "&".join(sorted(tags))
 
 def parse_and_tag_components(tag_name: str) -> List[str]:
-    """
-    Parses an AND tag string (e.g., "A & B") into its individual components.
-    If the tag is not an AND tag, returns a list containing the original tag.
-    """
+    """Parses an AND tag into its component tags."""
     if '&' in tag_name:
-        # Split on ' & ' first, then fallback to '&' for compatibility
-        if ' & ' in tag_name:
-            components = [comp.strip() for comp in tag_name.split(' & ')]
-        else:
-            components = [comp.strip() for comp in tag_name.split('&')]
-        return sorted(components, key=str.lower) # Ensure components are also sorted
+        return [comp.strip() for comp in tag_name.split('&')]
     return [tag_name]
 
 # --- Tag Management Logic ---
 
 def get_all_tags_in_use() -> Set[str]:
-    """Scans the entire document and returns a set of all tags currently applied."""
-    in_use_tags: Set[str] = set()
+    """Returns a set of all tags currently in use in sections and notes."""
+    used_tags = set()
     for section in core.document_state.get("sections", []):
-        in_use_tags.update(section.get("tags", []))
+        used_tags.update(section.get("tags", []))
         for note in section.get("notes", []):
-            in_use_tags.update(note.get("tags", []))
-    # Ensure all known_tags are included
-    in_use_tags.update(core.document_state.get("known_tags", []))
-    return in_use_tags
+            used_tags.update(note.get("tags", []))
+    for note in core.document_state.get("notes", []):
+        used_tags.update(note.get("tags", []))
+    return used_tags
 
 def get_all_known_tags() -> List[str]:
-    """
-    Returns a sorted list of all tags that are available for filtering,
-    including any tag attached to a category, even if not used in content.
-    """
-    # Collect tags from notes/sections
-    available_tags = get_available_tags()
-    # Add tags from categories
-    for category in core.document_state.get("tag_categories", []):
-        available_tags.update(category.get("tags", []))
-    # Remove CATEGORY: tags and all variations of 'all' from the filter menu
-    filter_menu_tags = [tag for tag in available_tags if not is_category_tag(tag) and tag.strip().lower() != 'all']
-    return sorted(filter_menu_tags, key=str.lower)
+    """Returns a sorted list of all known tags."""
+    return sorted(core.document_state.get("known_tags", []), key=str.lower)
 
 def get_all_tags_for_suggestion() -> List[str]:
-    """
-    Returns all tags for suggestion/autocomplete, including 'all' and CATEGORY tags.
-    """
-    available_tags = get_available_tags()
-    for category in core.document_state.get("tag_categories", []):
-        available_tags.update(category.get("tags", []))
-    # Always include 'all' (lowercase) as a suggestion, even if not present
-    filtered_tags = [tag for tag in available_tags if tag.strip().lower() != 'all']
-    filtered_tags.append('all')
-    return sorted(set(filtered_tags), key=str.lower)
+    """Returns a list of all tags available for suggestions."""
+    all_tags = set()
+    # Add known tags
+    all_tags.update(core.document_state.get("known_tags", []))
+    # Add AND tags
+    all_tags.update(core.document_state.get("and_tags", []))
+    return sorted(list(all_tags), key=str.lower)
 
 def get_all_used_tags() -> Set[str]:
-    """
-    Get all tags that are actually used in sections and notes.
-    This function now allows singular tags that contain '&' characters.
-    """
+    """Returns a set of all tags currently used in content."""
     used_tags = set()
-    
-    # Collect from sections
-    for section in core.document_state.get('sections', []):
-        # Allow tags with '&' but filter out AND tag format (tags with "&" as a separate component)
-        used_tags.update(section.get('tags', []))
-        
-        # Collect from notes within sections
-        for note in section.get('notes', []):
-            used_tags.update(note.get('tags', []))
-    
-    # Collect from top-level notes
-    for note in core.document_state.get('notes', []):
-        used_tags.update(note.get('tags', []))
-    
+    for section in core.document_state.get("sections", []):
+        used_tags.update(section.get("tags", []))
+        for note in section.get("notes", []):
+            used_tags.update(note.get("tags", []))
+    for note in core.document_state.get("notes", []):
+        used_tags.update(note.get("tags", []))
     return used_tags
 
 def get_available_tags() -> Set[str]:
-    """
-    Get all singular tags available for use in content.
-    These are auto-populated from actual usage in sections and notes.
-    AND tags are not included here as they cannot be used in content.
-    """
-    return get_all_used_tags()
+    """Returns a set of all available tags (known + used)."""
+    available_tags = set()
+    available_tags.update(core.document_state.get("known_tags", []))
+    available_tags.update(get_all_used_tags())
+    return available_tags
 
 def get_and_tags() -> List[str]:
-    """
-    Returns a sorted list of all manually created AND tags.
-    These are stored separately from content tags and are used for filtering only.
-    """
-    and_tags = core.document_state.get("and_tags", [])
-    return sorted([tag for tag in and_tags if '&' in tag], key=str.lower)
+    """Returns a list of all AND tags."""
+    return core.document_state.get("and_tags", [])
 
 def add_and_tag(and_tag: str) -> bool:
-    """
-    Add a new AND tag to the manually created list.
-    Returns True if added, False if it already exists.
-    """
-    if "and_tags" not in core.document_state:
-        core.document_state["and_tags"] = []
-    
-    if and_tag not in core.document_state["and_tags"]:
-        core.document_state["and_tags"].append(and_tag)
-        core.document_state["and_tags"] = sorted(list(set(core.document_state["and_tags"])), key=str.lower)
+    """Adds an AND tag to the list if it doesn't already exist."""
+    if and_tag not in core.document_state.get("and_tags", []):
+        core.document_state.setdefault("and_tags", []).append(and_tag)
         return True
     return False
 
 def remove_and_tag(and_tag: str) -> bool:
-    """
-    Remove an AND tag from the manually created list.
-    Returns True if removed, False if it didn't exist.
-    """
-    if "and_tags" not in core.document_state:
-        return False
-    
-    if and_tag in core.document_state["and_tags"]:
+    """Removes an AND tag from the list."""
+    if and_tag in core.document_state.get("and_tags", []):
         core.document_state["and_tags"].remove(and_tag)
         return True
     return False
 
 def update_and_tag(old_tag: str, new_tag: str) -> bool:
-    """
-    Update an AND tag in the manually created list.
-    Returns True if updated, False if old tag didn't exist.
-    """
-    if remove_and_tag(old_tag):
-        add_and_tag(new_tag)
-        # Ensure AND tags are unique and sorted
-        core.document_state["and_tags"] = sorted(list(set(core.document_state["and_tags"])), key=str.lower)
+    """Updates an AND tag in the list."""
+    and_tags = core.document_state.get("and_tags", [])
+    if old_tag in and_tags:
+        index = and_tags.index(old_tag)
+        and_tags[index] = new_tag
         return True
     return False
 
 def sync_known_tags(new_tags: List[str] = None) -> None:
     """
-    Sync known_tags with actually used tags. This maintains backward compatibility
-    but now known_tags is derived from actual usage, not manually maintained.
-    Also ensures new tags are added to the Uncategorized category.
+    Synchronizes the known_tags list with all tags currently in use.
+    Optionally adds new tags to the list.
     """
-    # Always treat known_tags as a set internally
-    if 'known_tags' not in core.document_state:
-        core.document_state['known_tags'] = set()
-    if isinstance(core.document_state['known_tags'], list):
-        state_known_tags = set(core.document_state['known_tags'])
-    else:
-        state_known_tags = core.document_state['known_tags']
-    # Optionally add new_tags
     if new_tags:
-        state_known_tags.update(new_tags)
-    category_tags = set()
-    for category in core.document_state.get('tag_categories', []):
-        category_tags.update([tag for tag in category.get('tags', []) if not is_category_tag(tag)])
-    used_tags = get_all_used_tags()
-    all_tags = state_known_tags.union(category_tags).union(used_tags)
-    # Remove all variations of 'all' from tags (case-insensitive)
-    all_tags = {tag for tag in all_tags if tag.strip().lower() != 'all'}
-    # Save as sorted list for serialization
-    core.document_state['known_tags'] = sorted(list(all_tags), key=str.lower)
-    # Update tag categories to include all their tags, sorted, and exclude CATEGORY tags and 'all'
-    for category in core.document_state.get('tag_categories', []):
-        category['tags'] = [tag for tag in category.get('tags', []) if not is_category_tag(tag) and tag.strip().lower() != 'all']
-        category['tags'] = sorted(list(set(category['tags'])), key=str.lower)
-
+        for tag in new_tags:
+            if tag not in core.document_state.get("known_tags", []):
+                core.document_state.setdefault("known_tags", []).append(tag)
+    
+    # Ensure known_tags is sorted
+    core.document_state["known_tags"] = sorted(core.document_state.get("known_tags", []), key=str.lower)
 
 def get_all_categorized_tags() -> Set[str]:
-    """Returns a set of all tags currently assigned to any category."""
+    """Returns a set of all tags that are assigned to categories."""
     categorized_tags = set()
     for category in core.document_state.get("tag_categories", []):
         categorized_tags.update(category.get("tags", []))
     return set(categorized_tags)
-
-def get_uncategorized_tags() -> List[str]:
-    """Returns a sorted list of tags specifically assigned to the 'Uncategorized' category, excluding CATEGORY tags."""
-    # Deprecated: No longer used. Return empty list.
-    return []
-
-
-
-def get_primary_category_for_tag(tag_name: str) -> Optional[Dict]:
-    """
-    Finds the category object that explicitly contains the given tag.
-    Returns the category object or None if not found in any explicit category.
-    """
-    # Deprecated: Tags can belong to multiple categories. Use get_categories_for_tag instead.
-    return None
 
 def get_categories_for_tag(tag_name: str) -> list:
     """
@@ -321,7 +212,6 @@ def delete_tag_from_all_categories(tag_name: str) -> None:
     # Remove duplicates and sort after all removals
     for category in core.document_state.get("tag_categories", []):
         category["tags"] = sorted(list(set(category["tags"])), key=str.lower)
-
 
 def update_content_with_new_tag(old_tag: str, new_tag: str) -> None:
     """
@@ -357,7 +247,6 @@ def update_content_with_new_tag(old_tag: str, new_tag: str) -> None:
             core.document_state["known_tags"].discard(old_tag)
     
     cleanup_orphan_tags() # Reconcile global known_tags and categorized lists
-
 
 def is_category_tag(tag: str) -> bool:
     """
@@ -366,134 +255,6 @@ def is_category_tag(tag: str) -> bool:
     """
     reserved_tags = {"ALL", "UNCATEGORIZED"}
     return tag.strip().upper() in reserved_tags
-
-def get_primary_category_for_tag(tag_name: str) -> Optional[Dict]:
-    """
-    Finds the category object that explicitly contains the given tag.
-    Returns the category object or None if not found in any explicit category.
-    """
-    # Deprecated: Tags can belong to multiple categories. Use get_categories_for_tag instead.
-    return None
-
-def get_categories_for_tag(tag_name: str) -> list:
-    """
-    Returns a list of category objects that contain the given tag.
-    """
-    categories = []
-    for category in core.document_state.get("tag_categories", []):
-        if tag_name in category.get('tags', []):
-            categories.append(category)
-    return categories
-
-def delete_tag_from_all_categories(tag_name: str) -> None:
-    """Removes a given tag from all categories it might reside in."""
-    for category in core.document_state.get("tag_categories", []):
-        if tag_name in category.get("tags", []):
-            category["tags"].remove(tag_name)
-    # Remove duplicates and sort after all removals
-    for category in core.document_state.get("tag_categories", []):
-        category["tags"] = sorted(list(set(category["tags"])), key=str.lower)
-
-
-def update_content_with_new_tag(old_tag: str, new_tag: str) -> None:
-    """
-    Updates all occurrences of old_tag with new_tag in sections and notes.
-    Removes old_tag from known_tags if it's no longer used outside of new_tag's components.
-    Also handles AND tag component updates properly.
-    """
-    old_tag_lower = old_tag.lower()
-    
-    # Collect all tags that will be added due to this rename
-    tags_to_sync = [new_tag]
-    # Only parse components if new_tag is a manually created AND tag
-    manual_and_tags = core.document_state.get("and_tags", [])
-    if new_tag in manual_and_tags:
-        tags_to_sync.extend(parse_and_tag_components(new_tag))
-    
-    for section in core.document_state.get("sections", []):
-        # Update section tags
-        section_tags_updated = [new_tag if t.lower() == old_tag_lower else t for t in section.get("tags", [])]
-        section['tags'] = list(dict.fromkeys(section_tags_updated)) # Deduplicate and assign
-        
-        # Update note tags within sections
-        for note in section.get("notes", []):
-            note_tags_updated = [new_tag if t.lower() == old_tag_lower else t for t in note.get("tags", [])]
-            note['tags'] = list(dict.fromkeys(note_tags_updated)) # Deduplicate and assign
-    
-    # Ensure all new tags and their components are properly synced
-    sync_known_tags(tags_to_sync)
-    
-    # Ensure known_tags is consistent
-    if old_tag_lower != new_tag.lower(): # Avoid removing new_tag if it just replaced old_tag
-        if old_tag in core.document_state.get("known_tags", set()):
-            core.document_state["known_tags"].discard(old_tag)
-    
-    cleanup_orphan_tags() # Reconcile global known_tags and categorized lists
-
-
-def get_primary_category_for_tag(tag_name: str) -> Optional[Dict]:
-    """
-    Finds the category object that explicitly contains the given tag.
-    Returns the category object or None if not found in any explicit category.
-    """
-    # Deprecated: Tags can belong to multiple categories. Use get_categories_for_tag instead.
-    return None
-
-def get_categories_for_tag(tag_name: str) -> list:
-    """
-    Returns a list of category objects that contain the given tag.
-    """
-    categories = []
-    for category in core.document_state.get("tag_categories", []):
-        if tag_name in category.get('tags', []):
-            categories.append(category)
-    return categories
-
-def delete_tag_from_all_categories(tag_name: str) -> None:
-    """Removes a given tag from all categories it might reside in."""
-    for category in core.document_state.get("tag_categories", []):
-        if tag_name in category.get("tags", []):
-            category["tags"].remove(tag_name)
-    # Remove duplicates and sort after all removals
-    for category in core.document_state.get("tag_categories", []):
-        category["tags"] = sorted(list(set(category["tags"])), key=str.lower)
-
-
-def update_content_with_new_tag(old_tag: str, new_tag: str) -> None:
-    """
-    Updates all occurrences of old_tag with new_tag in sections and notes.
-    Removes old_tag from known_tags if it's no longer used outside of new_tag's components.
-    Also handles AND tag component updates properly.
-    """
-    old_tag_lower = old_tag.lower()
-    
-    # Collect all tags that will be added due to this rename
-    tags_to_sync = [new_tag]
-    # Only parse components if new_tag is a manually created AND tag
-    manual_and_tags = core.document_state.get("and_tags", [])
-    if new_tag in manual_and_tags:
-        tags_to_sync.extend(parse_and_tag_components(new_tag))
-    
-    for section in core.document_state.get("sections", []):
-        # Update section tags
-        section_tags_updated = [new_tag if t.lower() == old_tag_lower else t for t in section.get("tags", [])]
-        section['tags'] = list(dict.fromkeys(section_tags_updated)) # Deduplicate and assign
-        
-        # Update note tags within sections
-        for note in section.get("notes", []):
-            note_tags_updated = [new_tag if t.lower() == old_tag_lower else t for t in note.get("tags", [])]
-            note['tags'] = list(dict.fromkeys(note_tags_updated)) # Deduplicate and assign
-    
-    # Ensure all new tags and their components are properly synced
-    sync_known_tags(tags_to_sync)
-    
-    # Ensure known_tags is consistent
-    if old_tag_lower != new_tag.lower(): # Avoid removing new_tag if it just replaced old_tag
-        if old_tag in core.document_state.get("known_tags", set()):
-            core.document_state["known_tags"].discard(old_tag)
-    
-    cleanup_orphan_tags() # Reconcile global known_tags and categorized lists
-
 
 def cleanup_orphan_tags() -> None:
     """
