@@ -32,23 +32,30 @@ def get_filtered_sections(active_filters: List[str]) -> List[Dict]:
 
     for section in core.document_state.get("sections", []):
         section_tags = {t.lower() for t in section.get("tags", [])}
+        section_categories = section.get("categories", [])
         # The 'All' tag on a section makes it and all its notes immune to filtering
         if 'all' in section_tags:
             filtered_sections.append(copy.deepcopy(section))
             continue
 
         section_copy = copy.deepcopy(section)
-        section_matches = _matches_filters(section_tags, active_filters)
+        section_matches = _matches_filters(section_tags, active_filters, section_categories)
 
         # Filter notes within the section
         visible_notes = []
         for note in section_copy.get("notes", []):
             note_tags = {t.lower() for t in note.get("tags", [])}
+            note_categories = note.get("categories", [])
+            # Combine direct tags and tags from attached categories
+            all_note_tags = set(note_tags)
+            for cat_name in note_categories:
+                for category in core.document_state.get("tag_categories", []):
+                    if category.get("name") == cat_name:
+                        all_note_tags.update(tag.lower() for tag in category.get("tags", []))
             # Attach completed status from user config (per state)
             note['completed'] = note.get('id') in user_completed_notes
-            if 'all' in note_tags or _matches_filters(note_tags, active_filters):
+            if 'all' in all_note_tags or _matches_filters(all_note_tags, active_filters, note_categories):
                 visible_notes.append(note)
-        
         section_copy['notes'] = visible_notes
 
         # The section should be displayed if the section itself matches or if it has any visible notes
@@ -57,16 +64,17 @@ def get_filtered_sections(active_filters: List[str]) -> List[Dict]:
             
     return filtered_sections
 
-def _matches_filters(content_tags: Set[str], active_filters: List[str]) -> bool:
+def _matches_filters(content_tags: Set[str], active_filters: List[str], content_categories: List[str] = None) -> bool:
     """
     Check if content tags match any of the active filters.
     Enhanced to support CATEGORY tags - content with category tags will be shown
     when filtering by any tag in that category.
     """
     import py.tag_manager as tag_manager
-    
+    if content_categories is None:
+        content_categories = []
     for filter_tag in active_filters:
-        if tag_manager.should_show_content_for_filter(content_tags, filter_tag):
+        if tag_manager.should_show_content_for_filter(content_tags, content_categories, filter_tag):
             return True
     return False
 

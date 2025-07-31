@@ -11,6 +11,8 @@ import py.content_processor as content_processor
 from flask import Blueprint, jsonify, request
 import datetime
 import json # Importing json here to fix missing import for category parsing
+from py import filelock_util
+from py.filelock_util import FileLock  # Use FileLock if available, otherwise fallback to open
 
 # --- Custom Jinja2 Filter ---
 def remove_case_insensitive_filter(value_list: list[str], item_to_remove: str) -> list[str]:
@@ -992,38 +994,47 @@ def rename_tag_globally():
 
 # --- AND Tag Management Routes ---
 
+# --- AND Tag Creation Endpoint ---
+@app.route('/add_and_tag', methods=['POST'])
 def add_and_tag():
-    """Create a new AND tag manually"""
-    state_name = request.args.get('state')
-    and_tag_components = request.form.get("and_tag_components", "").strip()
-    
-    if not and_tag_components:
-        flash("AND tag components cannot be empty.", "error")
-        return redirect(get_redirect_url())
-    
-    # Parse components and create AND tag
-    components = [comp.strip() for comp in and_tag_components.split(',') if comp.strip()]
+    # Parse AND tag components from form
+    components = []
+    for i in range(0, 10):  # Support up to 10 components
+        comp = request.form.get(f'andTagComponent_{i}')
+        if comp:
+            components.append(comp.strip())
     if len(components) < 2:
-        flash("AND tag must have at least 2 components.", "error")
-        return redirect(get_redirect_url())
-    
-    # Create the AND tag using the standard format
-    and_tag = tag_manager.combine_tags_to_and(components)
-    
-    # Check if it already exists
-    existing_and_tags = tag_manager.get_and_tags()
-    if and_tag in existing_and_tags:
-        flash(f"AND tag '{and_tag}' already exists.", "error")
-        return redirect(get_redirect_url())
-    
-    # Add the AND tag
-    if tag_manager.add_and_tag(and_tag):
-        state_manager.save_state(state_name)
-        flash(f"AND tag '{and_tag}' created successfully.", "success")
-    else:
-        flash("Failed to create AND tag.", "error")
-    
-    return redirect(get_redirect_url())
+        return jsonify({'error': 'AND tag must have at least 2 components'}), 400
+    and_tag = ' & '.join(components)
+    # Load state file
+    state_path = os.path.join('states', f"{request.args.get('state', 'Space_Exploration')}.json")
+    # Use file lock if available, otherwise fallback to open()
+    lock_path = state_path + '.lock'
+    try:
+        with FileLock(lock_path):
+            with open(state_path, 'r+', encoding='utf-8') as f:
+                state = json.load(f)
+                # Ensure 'and_tags' exists
+                if 'and_tags' not in state:
+                    state['and_tags'] = []
+                # Add if not present
+                if and_tag not in state['and_tags']:
+                    state['and_tags'].append(and_tag)
+                f.seek(0)
+                json.dump(state, f, indent=4)
+                f.truncate()
+    except Exception:
+        # Fallback: no file lock, just open
+        with open(state_path, 'r+', encoding='utf-8') as f:
+            state = json.load(f)
+            if 'and_tags' not in state:
+                state['and_tags'] = []
+            if and_tag not in state['and_tags']:
+                state['and_tags'].append(and_tag)
+            f.seek(0)
+            json.dump(state, f, indent=4)
+            f.truncate()
+    return redirect(url_for('index', state=request.args.get('state', 'Space_Exploration')))
 
 def update_and_tag():
     """Update an existing AND tag"""

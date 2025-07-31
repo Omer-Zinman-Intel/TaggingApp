@@ -960,6 +960,94 @@ function showEditAndTagModal(tag) {
     showModal('editAndTagModal');
 }
 
+// AND Tag Modal logic
+function initAddAndTagModal() {
+    const modal = document.getElementById('addAndTagModal');
+    const form = modal.querySelector('form');
+    const modalBody = modal.querySelector('.p-6.space-y-4');
+    if (!modalBody) return;
+    // Clear previous components
+    modalBody.innerHTML = '';
+    // Add a container for AND tag components
+    let andTagContainer = document.getElementById('andTagComponentsContainer');
+    if (!andTagContainer) {
+        andTagContainer = document.createElement('div');
+        andTagContainer.id = 'andTagComponentsContainer';
+        andTagContainer.className = 'space-y-2';
+        modalBody.appendChild(andTagContainer);
+    } else {
+        andTagContainer.innerHTML = '';
+        modalBody.appendChild(andTagContainer);
+    }
+    // Add two default AND tag components
+    addAndTagComponentInput('', 0);
+    addAndTagComponentInput('', 1);
+    // Add "+ Component" button
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'px-3 py-1 bg-blue-100 text-blue-800 rounded-md font-semibold';
+    addBtn.textContent = '+ Component';
+    addBtn.onclick = function() {
+        const idx = andTagContainer.children.length;
+        addAndTagComponentInput('', idx);
+    };
+    modalBody.appendChild(addBtn);
+}
+
+function addAndTagComponent(container) {
+    const idx = container.children.length;
+    // Create row
+    const row = document.createElement('div');
+    row.className = 'flex items-center space-x-2';
+    // Tag input
+    const inputId = `andTagInput_${idx}`;
+    const hiddenId = `andTagHidden_${idx}`;
+    const suggestionsId = `andTagSuggestions_${idx}`;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = inputId;
+    input.className = 'p-1 border border-gray-300 rounded-md text-sm';
+    input.setAttribute('data-single-tag', 'true');
+    input.autocomplete = 'off';
+    input.placeholder = 'Tag or Category...';
+    // Hidden field
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.id = hiddenId;
+    // Suggestions dropdown
+    const suggestions = document.createElement('div');
+    suggestions.id = suggestionsId;
+    suggestions.className = 'tag-suggestions absolute z-10 bg-white border border-gray-300 rounded-md hidden shadow-lg';
+    // Remove button
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'px-2 py-1 bg-gray-200 rounded-md text-gray-700 hover:bg-gray-300';
+    removeBtn.textContent = 'Remove';
+    removeBtn.onclick = () => row.remove();
+    // Container for input/suggestions
+    const inputWrap = document.createElement('div');
+    inputWrap.className = 'relative flex-grow';
+    inputWrap.appendChild(input);
+    inputWrap.appendChild(hidden);
+    inputWrap.appendChild(suggestions);
+    row.appendChild(inputWrap);
+    row.appendChild(removeBtn);
+    container.appendChild(row);
+    // Initialize tag input system for this component
+    if (window.createTagInput) {
+        window.createTagInput(inputWrap.id || inputId, inputId, hiddenId, suggestionsId);
+    }
+}
+
+// Show modal and initialize components
+window.showAddAndTagModal = function() {
+    const modal = document.getElementById('addAndTagModal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.classList.remove('opacity-0');
+    initAddAndTagModal();
+};
+
 // Global functions for AND tag editing
 window.addAndTagComponent = function() {
     const container = document.getElementById('andTagComponentsContainer');
@@ -970,7 +1058,7 @@ window.addAndTagComponent = function() {
 window.removeAndTagModalComponent = function(index) {
     const container = document.getElementById('andTagComponentsContainer');
     const componentDiv = container.querySelector(`[data-component-index="${index}"]`);
-    if (componentDiv && container.children.length > 1) {
+    if (componentDiv && container.children.length > 2) {
         componentDiv.remove();
         // Reindex remaining components
         Array.from(container.children).forEach((child, newIndex) => {
@@ -1002,21 +1090,18 @@ window.updateAndTagFromComponents = function() {
 
 function addAndTagComponentInput(value = '', index = 0) {
     const container = document.getElementById('andTagComponentsContainer');
-    
     const componentDiv = document.createElement('div');
     componentDiv.className = 'flex items-center space-x-2 relative';
     componentDiv.setAttribute('data-component-index', index);
-    
     const inputContainer = document.createElement('div');
     inputContainer.className = 'flex-grow relative';
-    
     const input = document.createElement('input');
     input.type = 'text';
     input.value = value;
     input.className = 'w-full p-2 border border-gray-300 rounded-md text-sm';
     input.placeholder = 'Enter tag component...';
     input.setAttribute('data-index', index);
-    
+    input.name = `andTagComponent_${index}`; // <-- Ensure correct name for backend
     // Create suggestions dropdown
     const suggestionsDiv = document.createElement('div');
     suggestionsDiv.className = 'absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 hidden max-h-40 overflow-y-auto shadow-lg';
@@ -1102,6 +1187,54 @@ function initializeModalSystem() {
     }
 }
 
+// Utility: Render AND tag bubbles with distinct styling
+function renderAndTagBubble(andTag) {
+    // Split components by '&' and trim
+    const components = andTag.split('&').map(c => c.trim());
+    const bubble = document.createElement('span');
+    bubble.className = 'tag-bubble tag-bubble-and flex items-center bg-gradient-to-r from-blue-100 via-purple-100 to-blue-100 text-purple-800 font-semibold mr-2 mb-1 px-2.5 py-1 rounded-full';
+    // Render each component distinctly
+    components.forEach((comp, idx) => {
+        const compSpan = document.createElement('span');
+        compSpan.className = 'and-tag-component px-1';
+        compSpan.textContent = comp;
+        bubble.appendChild(compSpan);
+        if (idx < components.length - 1) {
+            const sep = document.createElement('span');
+            sep.className = 'and-tag-separator px-1 text-gray-400';
+            sep.textContent = ' & ';
+            bubble.appendChild(sep);
+        }
+    });
+    return bubble;
+}
+
+function renderAndTagsContainer(andTags, container) {
+    container.innerHTML = '';
+    const title = document.createElement('div');
+    title.className = 'font-bold text-purple-700 mb-2';
+    title.textContent = 'AND Tags';
+    container.appendChild(title);
+    andTags.forEach(andTag => {
+        container.appendChild(renderAndTagBubble(andTag));
+    });
+}
+
+// Patch filter rendering logic to use renderAndTagBubble for AND tags
+function renderFilterTags(tagList, container) {
+    container.innerHTML = '';
+    tagList.forEach(tag => {
+        if (tag.includes('&')) {
+            container.appendChild(renderAndTagBubble(tag));
+        } else {
+            // Regular tag bubble
+            const bubble = document.createElement('span');
+            bubble.className = 'tag-bubble bg-blue-100 text-blue-800 font-semibold mr-2 mb-1 px-2.5 py-1 rounded-full';
+            bubble.textContent = tag;
+            container.appendChild(bubble);
+        }
+    });
+}
 
 // Make all modal functions globally accessible (single assignment, robust pattern)
 window.showModal = showModal;

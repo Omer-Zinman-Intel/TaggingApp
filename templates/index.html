@@ -1470,48 +1470,44 @@ before being sent to the browser as valid HTML/JavaScript.
     <div id="addAndTagModal"
         class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 hidden opacity-0">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
-            <form action="{{ url_for('add_and_tag', filter=request.args.getlist('filter'), state=current_state) }}"
-                method="post" class="w-full">
+            <form action="{{ url_for('add_and_tag', filter=request.args.getlist('filter'), state=current_state) }}" method="post" class="w-full">
                 <div class="flex justify-between items-center p-4 border-b">
                     <h3 class="text-xl font-semibold">Create AND Tag</h3>
-                    <button type="button" onclick="hideModal('addAndTagModal')"
-                        class="p-1 rounded-full hover:bg-gray-200">&times;</button>
+                    <button type="button" onclick="hideModal('addAndTagModal')" class="p-1 rounded-full hover:bg-gray-200">&times;</button>
                 </div>
                 <div class="p-6 space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-3">Enter tag components (will match
-                            content that has ALL of these tags):</label>
-                        <div id="newAndTagComponentsContainer" class="space-y-3">
-                            <!-- Dynamic component inputs will be added here -->
+                    <label class="block text-sm font-medium text-gray-700 mb-3">Enter tag components (note must have <strong>ALL</strong>):</label>
+                    <div id="newAndTagComponentsContainer" class="space-y-3">
+                        <div class="flex items-center space-x-2 mb-2 and-tag-component">
+                            <input type="text" class="and-tag-input w-full p-2 border border-gray-300 rounded-md" placeholder="Tag component 1" autocomplete="off" onfocus="showTagSuggestions(this)" oninput="showTagSuggestions(this)">
+                            <div class="tag-suggestions absolute left-0 z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg" style="display:none;"></div>
+                            <button type="button" class="remove-and-tag-component p-1 rounded-full hover:bg-gray-200" title="Remove component" onclick="removeAndTagComponent(this)">&times;</button>
                         </div>
-                        <button type="button" onclick="addNewAndTagComponent()"
-                            class="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round" class="mr-1">
-                                <line x1="12" y1="5" x2="12" y2="19"></line>
-                                <line x1="5" y1="12" x2="19" y2="12"></line>
-                            </svg>
-                            Add Component
-                        </button>
+                        <div class="flex items-center space-x-2 mb-2 and-tag-component">
+                            <input type="text" class="and-tag-input w-full p-2 border border-gray-300 rounded-md" placeholder="Tag component 2" autocomplete="off" onfocus="showTagSuggestions(this)" oninput="showTagSuggestions(this)">
+                            <div class="tag-suggestions absolute left-0 z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg" style="display:none;"></div>
+                            <button type="button" class="remove-and-tag-component p-1 rounded-full hover:bg-gray-200" title="Remove component" onclick="removeAndTagComponent(this)">&times;</button>
+                        </div>
                     </div>
-
+                    <button type="button" onclick="addNewAndTagComponent()" class="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Add Component
+                    </button>
+                    <div class="text-xs text-gray-500 mt-2">You can add or remove components. At least two are required.</div>
                     <!-- AND Tag Preview -->
                     <div id="andTagPreview" class="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-md hidden">
                         <label class="block text-sm font-medium text-orange-800 mb-2">Preview:</label>
                         <div id="andTagPreviewText" class="text-orange-700 font-mono text-sm"></div>
-                        <div id="andTagPreviewHelp" class="text-xs text-orange-600 mt-1">This will show content tagged
-                            with ALL of the above components</div>
+                        <div id="andTagPreviewHelp" class="text-xs text-orange-600 mt-1">This will show content tagged with ALL of the above components</div>
                     </div>
-
                     <input type="hidden" id="newAndTagComponents" name="and_tag_components">
                 </div>
                 <div class="p-4 bg-gray-50 flex justify-end space-x-3 rounded-b-lg">
-                    <button type="button" onclick="hideModal('addAndTagModal')"
-                        class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
-                    <button type="submit" onclick="return createAndTagFromComponents()"
-                        class="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700">Create AND
-                        Tag</button>
+                    <button type="button" onclick="hideModal('addAndTagModal')" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Create AND Tag</button>
                 </div>
             </form>
         </div>
