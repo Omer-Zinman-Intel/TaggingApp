@@ -1,0 +1,3 @@
+# This file ensures the user-config directory is tracked in git
+# User-specific configuration files (*.json) in this directory are ignored
+# This directory is created automatically during setup if it doesn't exist

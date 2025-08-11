@@ -1,24 +1,73 @@
-# Ignore user-specific config files
-user-config/*.json
-# Ignore Python's bytecode compilation directory
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+tagging_env/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Application-specific directories
+# Ignore user-specific config files but keep directory structure
+user-config/*.json
+!user-config/.gitkeep
 
 # Ignore all contents of the 'states' folder...
 states/*
-
 # ...but DO NOT ignore the .gitkeep file inside it
 !states/.gitkeep
 
 # Ignore the 'logs' folder
 logs/
 
-# Ignore the .venv folder
-.venv/
+# Backup and temporary files
+*.bak
+*.tmp
+*.temp
 
-# ignore the .vscode folder
-.vscode/
-
-# Ignore test and debug files
+# Test and debug files
 *test*.js
 *test*.html
 *debug*.js
@@ -34,18 +83,33 @@ simple_tag_test.js
 test_functionality.html
 test_tag_functionality.js
 
-# Ignore backup and temporary files
-*.bak
-*.tmp
-*.temp
-*~
-.DS_Store
-Thumbs.db
-
-# Ignore duplicate documentation files
+# Documentation files that are generated/temporary
 CONSOLIDATION_SUMMARY.md
 LOGGING_IMPLEMENTATION.md
 TAG_INPUT_POSITIONING_IMPROVEMENTS.md
 *_SUMMARY.md
 *_IMPLEMENTATION.md
+
+# Docker
+.dockerignore
+
+# Node.js (if any npm packages are added later)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Security
+*.pem
+*.key
+!mock_*.key
 *_IMPROVEMENTS.md

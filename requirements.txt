@@ -1,0 +1,13 @@
+# TaggingApp Dependencies
+# Core web framework
+Flask>=2.3.0
+
+# Development and deployment utilities (optional but recommended)
+gunicorn>=21.0.0  # WSGI server for production deployment
+waitress>=2.1.0   # Alternative WSGI server (Windows-friendly)
+
+# Optional dependencies for enhanced functionality
+# Uncomment as needed:
+# python-dotenv>=1.0.0    # Environment variable management
+# flask-cors>=4.0.0       # CORS support for API access
+# werkzeug>=2.3.0         # Enhanced debugging and development tools
