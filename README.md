@@ -120,14 +120,61 @@ waitress-serve --host=0.0.0.0 --port=5000 app:app
 ```
 
 #### Using Docker (Recommended for Production)
+
+**Option 1: Docker Compose (Easiest)**
 ```bash
 # Build and run with Docker Compose
 docker-compose up -d
 
-# Or build and run manually
-docker build -t tagging-app .
-docker run -p 5000:5000 -v $(pwd)/states:/app/states -v $(pwd)/logs:/app/logs tagging-app
+# View logs
+docker-compose logs -f
+
+# Stop the application
+docker-compose down
 ```
+
+**Option 2: Manual Docker Commands**
+```bash
+# Build the Docker image
+docker build -t taggingapp .
+
+# Run the container with proper volume mounts and port forwarding
+# Windows PowerShell:
+docker run -d -p 5000:5000 -v "${PWD}/states:/app/states" -v "${PWD}/logs:/app/logs" -v "${PWD}/user-config:/app/user-config" --name tagging-app-container taggingapp
+
+# Linux/macOS:
+docker run -d -p 5000:5000 -v "$(pwd)/states:/app/states" -v "$(pwd)/logs:/app/logs" -v "$(pwd)/user-config:/app/user-config" --name tagging-app-container taggingapp
+
+# Check if container is running
+docker ps
+
+# View container logs
+docker logs tagging-app-container
+
+# Stop the container
+docker stop tagging-app-container
+
+# Remove the container (when stopped)
+docker rm tagging-app-container
+```
+
+**Volume Mounts Explained:**
+- `states:/app/states` - Persists document states on your host machine
+- `logs:/app/logs` - Saves application logs to your local logs directory  
+- `user-config:/app/user-config` - Preserves user configuration files
+
+**Port Mapping:**
+- `-p 5000:5000` - Maps container port 5000 to host port 5000
+
+The application will be available at **http://localhost:5000** once the container is running.
+
+**Docker Benefits:**
+- ✅ **Consistent Environment**: Same runtime across all systems
+- ✅ **Easy Deployment**: No need to install Python or manage dependencies
+- ✅ **Production Ready**: Uses Gunicorn with 4 workers for better performance
+- ✅ **Data Persistence**: Volume mounts ensure your data survives container restarts
+- ✅ **Health Monitoring**: Built-in health checks and container status monitoring
+- ✅ **Easy Scaling**: Can run multiple instances with load balancing
 
 ### Environment Configuration
 
@@ -164,7 +211,9 @@ TaggingApp/
 ├── setup.bat             # Windows setup script
 ├── Dockerfile            # Docker configuration
 ├── docker-compose.yml    # Docker Compose configuration
+├── .dockerignore         # Docker build optimization
 ├── .env.example          # Environment variables template
+├── .gitignore            # Git ignore rules
 ├── py/                   # Python modules
 │   ├── core.py           # Core configuration
 │   ├── views.py          # Route handlers
@@ -177,6 +226,7 @@ TaggingApp/
 ├── states/               # Document states (auto-created)
 ├── logs/                 # Application logs (auto-created)
 └── user-config/          # User configurations
+    └── .gitkeep          # Preserves directory in git
 ```
 
 ### Troubleshooting
@@ -207,6 +257,25 @@ lsof -i :5000                 # macOS/Linux
 - Solution: Check if the server is running and accessible
 - Try accessing `http://127.0.0.1:5000` instead of `localhost`
 - Check firewall settings
+
+**Issue: Docker container won't start or exits immediately**
+- Solution: Check the container logs for errors
+```bash
+docker logs tagging-app-container
+```
+- Ensure no other process is using port 5000
+- Verify the image was built correctly: `docker images`
+
+**Issue: Docker volume mounts not working**
+- Solution: Ensure you're running the command from the TaggingApp directory
+- On Windows, use PowerShell (not Command Prompt) for `${PWD}` syntax
+- Check directory permissions if on Linux/macOS
+
+**Issue: "f-string: unmatched '('" syntax error in Docker**
+- Solution: This was fixed in recent updates. Rebuild your Docker image:
+```bash
+docker build -t taggingapp . --no-cache
+```
 
 #### Performance Optimization
 

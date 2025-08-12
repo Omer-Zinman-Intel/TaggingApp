@@ -34,7 +34,8 @@ def api_log():
         log_dir = os.path.join(os.path.dirname(__file__), 'logs')
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
-        log_file = os.path.join(log_dir, f'frontend_{datetime.datetime.now().strftime('%Y-%m-%d')}.log')
+        date_str = datetime.datetime.now().strftime('%Y-%m-%d')
+        log_file = os.path.join(log_dir, f'frontend_{date_str}.log')
         with open(log_file, 'a', encoding='utf-8') as f:
             f.write(log_line)
         return jsonify({'success': True})
